@@ -1,0 +1,302 @@
+/* Colour schemes and typefaces, per person.
+ *
+ * Every colour in styles.css already comes from a variable, so a theme is a
+ * palette swap and nothing else — no component knows which theme is on, and a
+ * new one is a block here plus a line in server/preferences.mjs.
+ *
+ * **A theme changes only the view of the person who chose it.** It lives in
+ * their preferences record, is applied client-side by setting `data-theme` on
+ * <html>, and nothing about it reaches anyone else's session or the server's
+ * own rendering. The same is true of the typeface below.
+ *
+ * The default palette (Midnight) stays in styles.css :root rather than being
+ * repeated here, so a browser that never loads this file still renders the app
+ * exactly as it did before themes existed.
+ *
+ * Each block must set the FULL palette, not a partial override. A theme that
+ * sets six variables and inherits nineteen looks fine until someone changes a
+ * default, and then it is a different theme for reasons nobody can find. The
+ * accent-glow pair are the accent at 12% and 25% alpha — keep them in step
+ * with the accent or focus rings stop matching their own control.
+ */
+
+/* ── Lime ────────────────────────────────────────────────────────────
+   A user's palette, from the build this app has been borrowing ideas
+   from all week. Near-black with a lime accent — the highest-contrast
+   scheme here, and the only one whose accent is brighter than its text. */
+:root[data-theme="lime"] {
+  --bg-deep: #090a0c;
+  --bg-base: #0d0f12;
+  --bg-surface: #111317;
+  --bg-elevated: #171a1f;
+  --bg-input: #0b0d10;
+  --border: #282c33;
+  --border-light: #363c45;
+  --text-primary: #f0f2f4;
+  --text-secondary: #8c939d;
+  --text-muted: #747d89;
+  --accent: #c6ff45;
+  --accent-dim: #8fca12;
+  --accent-glow: rgba(198, 255, 69, 0.12);
+  --accent-glow-strong: rgba(198, 255, 69, 0.25);
+  --accent-blue: #7cb7ff;
+  --accent-purple: #c4a7ff;
+  --accent-amber: #ffc857;
+  --accent-rose: #ff7777;
+  --tag-general: #7cb7ff;
+  --tag-character: #c6ff45;
+  --tag-copyright: #c4a7ff;
+  --tag-artist: #ff7777;
+  --tag-meta: #ffc857;
+  --on-accent: #0d1204;
+  --on-amber: #1a1204;
+}
+
+/* ── Nord ────────────────────────────────────────────────────────────
+   Arctic blues, low contrast by design. The calmest scheme here and the
+   one to reach for on a long session. Palette from nordtheme.com. */
+:root[data-theme="nord"] {
+  --bg-deep: #2e3440;
+  --bg-base: #333a47;
+  --bg-surface: #3b4252;
+  --bg-elevated: #434c5e;
+  --bg-input: #292f3a;
+  --border: #4c566a;
+  --border-light: #5b697f;
+  --text-primary: #eceff4;
+  --text-secondary: #b8c0cd;
+  --text-muted: #9da3af;
+  --accent: #88c0d0;
+  --accent-dim: #5e93a3;
+  --accent-glow: rgba(136, 192, 208, 0.14);
+  --accent-glow-strong: rgba(136, 192, 208, 0.28);
+  --accent-blue: #81a1c1;
+  --accent-purple: #b48ead;
+  --accent-amber: #ebcb8b;
+  --accent-rose: #bf616a;
+  --tag-general: #81a1c1;
+  --tag-character: #a3be8c;
+  --tag-copyright: #b48ead;
+  --tag-artist: #bf616a;
+  --tag-meta: #ebcb8b;
+  --on-accent: #12262c;
+  --on-amber: #1f1704;
+}
+
+/* ── Dracula ─────────────────────────────────────────────────────────
+   Purple-forward, high saturation. Palette from draculatheme.com. */
+:root[data-theme="dracula"] {
+  --bg-deep: #21222c;
+  --bg-base: #282a36;
+  --bg-surface: #2f313f;
+  --bg-elevated: #383a4a;
+  --bg-input: #1e1f29;
+  --border: #44475a;
+  --border-light: #565a72;
+  --text-primary: #f8f8f2;
+  --text-secondary: #b3b7c9;
+  --text-muted: #8490b8;
+  --accent: #bd93f9;
+  --accent-dim: #8f6ec4;
+  --accent-glow: rgba(189, 147, 249, 0.14);
+  --accent-glow-strong: rgba(189, 147, 249, 0.28);
+  --accent-blue: #8be9fd;
+  --accent-purple: #ff79c6;
+  --accent-amber: #f1fa8c;
+  --accent-rose: #ff5555;
+  --tag-general: #8be9fd;
+  --tag-character: #50fa7b;
+  --tag-copyright: #ff79c6;
+  --tag-artist: #ff5555;
+  --tag-meta: #f1fa8c;
+  --on-accent: #0c0616;
+  --on-amber: #22240f;
+}
+
+/* ── Gruvbox ─────────────────────────────────────────────────────────
+   Warm, low-blue, retro. The only dark scheme here that is not cold.
+   Palette from the gruvbox dark medium set. */
+:root[data-theme="gruvbox"] {
+  --bg-deep: #1d2021;
+  --bg-base: #282828;
+  --bg-surface: #32302f;
+  --bg-elevated: #3c3836;
+  --bg-input: #1b1b1b;
+  --border: #504945;
+  --border-light: #665c54;
+  --text-primary: #ebdbb2;
+  --text-secondary: #bdae93;
+  --text-muted: #9a8c7e;
+  --accent: #b8bb26;
+  --accent-dim: #98971a;
+  --accent-glow: rgba(184, 187, 38, 0.14);
+  --accent-glow-strong: rgba(184, 187, 38, 0.28);
+  --accent-blue: #83a598;
+  --accent-purple: #d3869b;
+  --accent-amber: #fabd2f;
+  --accent-rose: #fb4934;
+  --tag-general: #83a598;
+  --tag-character: #b8bb26;
+  --tag-copyright: #d3869b;
+  --tag-artist: #fb4934;
+  --tag-meta: #fabd2f;
+  --on-accent: #14150a;
+  --on-amber: #1c1503;
+}
+
+/* ── Tokyo Night ─────────────────────────────────────────────────────
+   Deep indigo with a soft blue accent. */
+:root[data-theme="tokyo"] {
+  --bg-deep: #16161e;
+  --bg-base: #1a1b26;
+  --bg-surface: #1f2335;
+  --bg-elevated: #292e42;
+  --bg-input: #13131a;
+  --border: #2f334d;
+  --border-light: #3d4266;
+  --text-primary: #c0caf5;
+  --text-secondary: #9aa5ce;
+  --text-muted: #7982ab;
+  --accent: #7aa2f7;
+  --accent-dim: #5a7cc4;
+  --accent-glow: rgba(122, 162, 247, 0.14);
+  --accent-glow-strong: rgba(122, 162, 247, 0.28);
+  --accent-blue: #7dcfff;
+  --accent-purple: #bb9af7;
+  --accent-amber: #e0af68;
+  --accent-rose: #f7768e;
+  --tag-general: #7dcfff;
+  --tag-character: #9ece6a;
+  --tag-copyright: #bb9af7;
+  --tag-artist: #f7768e;
+  --tag-meta: #e0af68;
+  --on-accent: #0b1220;
+  --on-amber: #1f1704;
+}
+
+/* ── Sakura ──────────────────────────────────────────────────────────
+   Pink on black, asked for 11 Sep 2026. True near-black grounds with a
+   faint rose cast, and a hot-pink accent. The other colours are pulled
+   toward pink so the scheme reads as one thing, but the tag categories stay
+   distinct hues — character and artist must not both be pink. */
+:root[data-theme="sakura"] {
+  --bg-deep: #070506;
+  --bg-base: #0c090b;
+  --bg-surface: #120e11;
+  --bg-elevated: #1a1418;
+  --bg-input: #090708;
+  --border: #33242d;
+  --border-light: #4a3240;
+  --text-primary: #f7eef3;
+  --text-secondary: #bfa3b3;
+  --text-muted: #957a8a;
+  --accent: #ff5fae;
+  --accent-dim: #c43d82;
+  --accent-glow: rgba(255, 95, 174, 0.12);
+  --accent-glow-strong: rgba(255, 95, 174, 0.25);
+  --accent-blue: #8fb8ff;
+  --accent-purple: #d59bff;
+  --accent-amber: #ffc38a;
+  --accent-rose: #ff6b7a;
+  --tag-general: #8fb8ff;
+  --tag-character: #ff8fcb;
+  --tag-copyright: #d59bff;
+  --tag-artist: #ff6b7a;
+  --tag-meta: #ffc38a;
+  --on-accent: #1a0510;
+  --on-amber: #1f1206;
+}
+
+/* ── Paper ───────────────────────────────────────────────────────────
+   The one light scheme. Worth having for a bright room and for anyone who
+   simply prefers one, and it is where the palette-swap approach gets
+   tested properly: every place that assumed a dark ground shows up here.
+   Borders are darker than the surface rather than lighter, which is the
+   inversion the dark themes never exercise. */
+:root[data-theme="paper"] {
+  --bg-deep: #eceae4;
+  --bg-base: #f6f4ef;
+  --bg-surface: #fdfcfa;
+  --bg-elevated: #ffffff;
+  --bg-input: #ffffff;
+  --border: #d8d3c8;
+  --border-light: #c4bdb0;
+  --text-primary: #23201b;
+  --text-secondary: #5c564c;
+  --text-muted: #746e65;
+  --accent: #0f7a5f;
+  --accent-dim: #0b5c47;
+  --accent-glow: rgba(15, 122, 95, 0.10);
+  --accent-glow-strong: rgba(15, 122, 95, 0.22);
+  --accent-blue: #1d5fbf;
+  --accent-purple: #6d3fbf;
+  --accent-amber: #8a5600;
+  --accent-rose: #b3243c;
+  --tag-general: #1d5fbf;
+  --tag-character: #15803d;
+  --tag-copyright: #6d3fbf;
+  --tag-artist: #b3243c;
+  --tag-meta: #a86a00;
+  --on-accent: #ffffff;
+  --on-amber: #ffffff;
+}
+
+/* Light schemes need the browser told, or form controls, scrollbars and the
+   autofill background stay dark and fight the page. `color-scheme` is the
+   only way to reach those, and it is why this cannot be done with variables
+   alone. */
+:root[data-theme="paper"] { color-scheme: light; }
+
+/* ── Typefaces ───────────────────────────────────────────────────────
+ *
+ * Stacks, not webfonts. Nothing here downloads anything: the tailnet has no
+ * route to Google Fonts, the box may be offline, and a font that silently
+ * fails to load is a worse default than one that was never chosen. Each
+ * option therefore names faces that ship with Windows, macOS or a common
+ * Linux desktop, and falls through to the system UI font.
+ *
+ * The default (Inter, then system) stays in styles.css :root, so a browser
+ * that never loads this file is unaffected.
+ */
+/* Grotesk — tighter and more neutral than the system UI font.
+ *
+ * This was "System", and it was indistinguishable from the default: on
+ * Windows `system-ui` resolves to Segoe UI, and the default stack falls
+ * through to Segoe UI as well because Inter is not loaded. So three of the
+ * five options rendered the same face and the owner noticed. Reported 6 Sep
+ * 2026: "the fonts these look exactly the same to me".
+ *
+ * Arial and Helvetica are the one pair that is genuinely everywhere and
+ * genuinely not the system UI font on any of the three platforms.
+ */
+:root[data-font="grotesk"] {
+  --sans: Arial, Helvetica, 'Liberation Sans', 'Nimbus Sans', sans-serif;
+}
+/* Humanist, wider. Easier on long prose than a grotesk.
+ *
+ * Verdana first, not Segoe UI. Segoe UI IS the Windows system font, so
+ * leading with it made this option a no-op on the machines that matter here.
+ * Verdana ships on Windows and macOS, DejaVu Sans covers Linux, and all three
+ * are visibly wider than the default — which is the entire point of the
+ * option. */
+:root[data-font="humanist"] {
+  --sans: Verdana, Tahoma, 'Trebuchet MS', 'DejaVu Sans', sans-serif;
+}
+/* Serif, for anyone who reads briefs and prompt bodies more than they click. */
+:root[data-font="serif"] {
+  --sans: Georgia, Cambria, 'Times New Roman', serif;
+}
+/* Monospace throughout. Tag lists and prompts line up in columns; ordinary
+   sentences suffer. A real preference, and a real trade. */
+:root[data-font="mono"] {
+  --sans: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+/* ── Text size ───────────────────────────────────────────────────────
+ * body carries the base size and everything else is relative to it, so this
+ * scales the whole interface rather than only its paragraphs. Deliberately
+ * three steps and a small range: past about 16px the fixed-width panels start
+ * wrapping in ways nothing here has been checked against.
+ */
+:root[data-textsize="small"] body { font-size: 13px; }
+:root[data-textsize="large"] body { font-size: 15.5px; }

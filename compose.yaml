@@ -1,0 +1,110 @@
+# PromptForge — Docker Compose / Podman Compose setup
+#
+#   docker compose up -d --build      (or: podman-compose up -d --build)
+#
+# Monitoring (Prometheus + Grafana, from PR #3) is off unless
+# asked for - a solo install does not need it:
+#
+#   docker compose --profile monitoring up -d --build
+#
+# Copy .env.example to .env first and set GRAFANA_ADMIN_PASSWORD. The owner
+# then gets a Monitoring button in PromptForge's top bar; nobody else does.
+#
+# Then open http://localhost:8090. The first account registered becomes the
+# owner, and the setup page asks where your LLM server is.
+#
+# Named compose.yaml so both docker compose and podman-compose find it
+# without -f. (It was podman-compose.yaml in PR #1.)
+
+services:
+  promptforge:
+    build: .
+    container_name: promptforge
+    ports:
+      - "8090:8090"    # HTTP
+      - "30443:8443"   # HTTPS, self-signed (host:30443 -> container:8443)
+    # Lets the container reach Ollama / llama.cpp running on the host machine.
+    # Inside the container, 127.0.0.1 is the container itself - so an LLM on
+    # the host is http://host.docker.internal:11434/v1, not 127.0.0.1.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+    environment:
+      - NODE_ENV=production
+      - PROMPTFORGE_BIND=0.0.0.0
+      - PROMPTFORGE_TLS=1
+      # Default LLM address for a container: Ollama on the host. The setup
+      # page and the admin Backend panel override it (saved to data/backend.json).
+      - PROMPTFORGE_LLM_BASE_URL=http://host.docker.internal:11434/v1
+      # Only if your LLM server uses a self-signed https certificate. This
+      # turns off certificate checks for EVERY outgoing https call, so leave
+      # it commented unless you need it.
+      # - NODE_TLS_REJECT_UNAUTHORIZED=0
+      # Monitoring. Harmless when the profile is off: the Monitoring button
+      # only appears once Grafana answers, and the metrics port below is
+      # never published to the host - only Prometheus, on the compose
+      # network, can reach it.
+      - GRAFANA_URL=http://grafana:3000
+      - PROMPTFORGE_METRICS_PORT=9464
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: promptforge-prometheus
+    profiles: ["monitoring"]
+    ports:
+      # 127.0.0.1 only: its own UI has no login, and --web.enable-lifecycle
+      # below lets any caller reload or stop it. The group sees the data
+      # through Grafana, never this port.
+      - "127.0.0.1:30909:9090"   # Prometheus UI (host:30909 -> container:9090)
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      # Written down rather than left to the default, so the disk it uses is
+      # a decision: ~1 MB a day at this scrape rate, never more than 1 GB.
+      - "--storage.tsdb.retention.time=15d"
+      - "--storage.tsdb.retention.size=1GB"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: promptforge-grafana
+    profiles: ["monitoring"]
+    ports:
+      # 127.0.0.1 only. Everyone else reaches Grafana through PromptForge at
+      # /grafana/, which lets the owner through and refuses everybody else.
+      - "127.0.0.1:30300:3000"   # Grafana UI (host:30300 -> container:3000)
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      # From .env. Unset, Grafana starts with admin/admin and makes you
+      # change it at first login. (This read the literal text "***" in PR #3.)
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # Allow view-only anonymous access so the embedded iframe works without
+      # login. Safe because the only way in from outside this machine is
+      # PromptForge's /grafana/ pass-through, which is owner-only.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      # Allow embedding in iframe via PromptForge's Monitoring tab.
+      - GF_SECURITY_COOKIE_SAMESITE=Lax
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      # Grafana is served under /grafana/ via PromptForge's reverse proxy.
+      # root_url must match the public path so asset URLs resolve correctly.
+      - GF_SERVER_ROOT_URL=http://localhost:8090/grafana/
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:

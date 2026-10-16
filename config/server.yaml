@@ -1,0 +1,1249 @@
+# PromptForge — server configuration
+#
+# Migration to another box is meant to be an edit to this file and nothing
+# else. If you find yourself changing code in server/ to move machines,
+# something has leaked out of this file that belongs in it.
+
+server:
+  # 127.0.0.1 for local development. For LAN testing use 0.0.0.0 and allow
+  # the Windows Firewall prompt for Private networks only. In production,
+  # prefer `tailscale serve` over binding the tailnet IP directly.
+  bind: "127.0.0.1"
+  port: 8090
+
+  # Optional HTTPS on a second port, off by default. Leave it off behind
+  # NetBird or Tailscale - the mesh already encrypts the link. Turn it on for
+  # a plain LAN, or where the browser clipboard must work from another
+  # machine (browsers only allow it over https or on localhost). With no
+  # cert/key given, a self-signed one is generated into data/certs/.
+  # PROMPTFORGE_TLS=1 does the same from the environment.
+  tls:
+    enabled: false
+    port: 8443
+    # cert: "/path/to/fullchain.pem"
+    # key: "/path/to/privkey.pem"
+
+owner_username: "owner"
+
+# ────────────────────────────── AUTH ───────────────────────────────
+#
+# Accounts, passwords and the owner approval gate. With enabled:true nothing
+# under /api/ answers without a signed session, and a new account can do
+# nothing at all until owner_username approves it.
+#
+# No email address is collected anywhere. Account recovery is the owner
+# issuing a temporary password from the admin panel, which the person then
+# changes themselves.
+#
+# The original spec said "minimal, trust-based, no passwords" and treated
+# tailnet membership as the whole of authentication. That was replaced on
+# 20 Aug 2026 because an approval gate built on a header anyone can set is
+# not a gate. The tailnet is still the security boundary, so there is no rate
+# limiting or lockout here deliberately — see archive/notes/PromptForge-Project-Context.md
+# under "Accounts and the approval gate".
+#
+# enabled:false restores the old x-promptforge-user header behaviour. The
+# suites written before accounts existed run that way (PROMPTFORGE_AUTH=off).
+# It is a development convenience, not a deployment option: that header is
+# trivially forged.
+auth:
+  enabled: true
+  # How long a login lasts. Sessions survive a server restart.
+  session_days: 30
+
+# ─────────────────────────────── LLM ───────────────────────────────
+#
+# backend: mock | ollama | llamacpp | vllm
+#
+# `mock` streams canned per-model segment output and needs nothing
+# installed. It exists for the same reason training.backend has a `stub`:
+# the whole request path — queue, SSE, segment parsing, error handling,
+# every frontend template — is buildable and testable without a GPU.
+#
+# Switch to `ollama` once `ollama pull qwen3.8:27b` has completed. Nothing
+# else in this block needs to change; the tag and base_url below are already
+# correct for it.
+#
+# ▶ YOUR LLM SERVER GOES HERE. The address below is Ollama on this same
+#   machine, which is right for most fresh installs. Anything else - Ollama on
+#   another box, llama.cpp / llama-swap, vLLM - change backend and base_url, or
+#   leave this alone and set it from the first-run setup page / admin panel,
+#   which saves to data/backend.json and wins over this file.
+#   A machine's real settings belong in config/server.local.yaml (gitignored),
+#   so a git pull never fights them.
+llm:
+  backend: "ollama"
+  base_url: "http://127.0.0.1:11434/v1"
+
+  # ── Development model ──
+  # This dev box is a 16GB RTX 5080; the production target has considerably
+  # more VRAM. A 27B is not the right size to iterate against here, so
+  # development runs on an 8B and the large model is a deployment-time
+  # concern. Nothing about the app depends on which model this is — that is
+  # the point of the backend abstraction.
+  model: "qwen3-vl:8b"
+
+  # Per-target default LLM, keyed by the models.yaml id - the same thing as a
+  # target's default_llm_model, but per machine, because which models exist is
+  # a property of the box. The P40 sets h3 here in server.local.yaml. A
+  # per-user "Written by" choice still wins over it.
+  model_defaults: {}
+
+  # Models to keep OUT of the Chat and "Written by" pickers, by name prefix.
+  # For a box that shares one Ollama with other tools - an embedding model, a
+  # Discord bot own model - that would otherwise clutter the selectors.
+  # Machine-specific, so set the real list in server.local.yaml, not here.
+  #
+  # Captioners belong here too. A vision model tuned for describing images -
+  # ToriiGate is the one on the P40 - reports capabilities ["completion",
+  # "vision"] with no tools and no thinking, and writes captions rather than
+  # prompts or conversation. It is the right model for Tab 3 and the wrong one
+  # in both of these pickers, so the owner asked for it hidden on 25 Aug 2026.
+  # Nothing infers that automatically: "is this model good at my task" is a
+  # judgement, and guessing it from a capability list would be the frontend
+  # deciding what a model IS, which is the one thing it must not do.
+  # hidden_models: ["nomic-embed-text", "eleanor", "trace", "forge", "hf.co/mradermacher/ToriiGate"]
+
+  # Models the idle offload clock must never unload, by name prefix. For a
+  # model something else drives through llama-swap directly - a coding agent,
+  # say - which this app cannot see working once it is loaded. Give each one a
+  # llama-swap `ttl` so it still goes away when that tool stops using it. The
+  # owner's Unload button still unloads them. Set it in server.local.yaml.
+  # offload_exempt: ["coder/"]
+
+  # There is deliberately no vision_model. It pointed at the chat model, which
+  # cannot see images, and nothing read it — the four captioning analysis modes
+  # that would have used it were dropped on 21 Aug rather than deferred. WD v3
+  # on the CPU does the tagging this project actually needs. See the context
+  # doc under "Caption modes, dropped rather than deferred".
+
+  # ── Production target, for the box this gets pushed to ──
+  # model: "qwen3.8:27b"                                  # official, Q4_K_M, 18GB
+  # model: "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL"    # 13GB, fits 16GB with a 6% CPU spill
+  #
+  # Both verified to exist on 2026-08-18. Measured on this box with
+  # UD-Q3_K_XL: 6%/94% CPU/GPU split, 15081/16303 MiB, ~36 tok/s, 6-8s per
+  # prompt warm. Format adherence held on 8 of 10 models — see
+  # archive/docs/model-eval-2026-08-18.md before choosing for production.
+
+  # MUST be set explicitly. Ollama allocates the KV cache in f16 by default
+  # and a modern model's native window will exhaust VRAM long before you
+  # notice. Note this is passed via Ollama's native /api/chat, because the
+  # OpenAI-compatible /v1 endpoint silently discards `options.num_ctx`.
+  context_length: 16384
+
+  # Ollama serialises by default and each parallel slot costs VRAM. At 16GB
+  # with an 18GB model there is no headroom for more than one; server/queue.mjs
+  # reports queue position to waiting users instead. Raise after migration.
+  num_parallel: 1
+
+  # Qwen3.8 defaults to extensive reasoning. For prompt generation the task
+  # is a rewrite, not a reasoning problem, so this is pure latency. Chat and
+  # the training assistant override it.
+  #
+  # H3 also sets thinking: false explicitly in models.yaml, and that is NOT a
+  # redundant restatement of this default — it is a measured override of the
+  # spec, which asks for true. SKILL.md says "Count it" about a 7,000
+  # character limit, and with thinking on the model counts characters one at a
+  # time until the budget is gone: 12,450 tokens of thinking, zero characters
+  # of answer. Do not raise it on the assumption that more VRAM helps.
+  thinking: false
+
+  # Chat is the one surface where reasoning can earn its latency: the answer is
+  # prose rather than a format contract, so there is no "count the characters"
+  # trap to fall into and a model that thinks first tends to answer better.
+  #
+  # Left false anyway, because it has not been measured here and the comment
+  # above is exactly the kind of reasoning that turned out to be wrong for h3.
+  # Turn it on, ask something with a real tradeoff in it, and decide.
+  chat_thinking: false
+
+  timeout_ms: 120000
+
+  # How long Ollama keeps the model in VRAM after a request.
+  #
+  # Unset, Ollama defaults to 5 minutes. That is short enough that pausing to
+  # think between prompts drops the model, and the next generate pays a full
+  # reload — tens of seconds for a 14GB 27B. Long enough to cover a working
+  # session, short enough to give the card back afterwards.
+  #
+  # 15m assumes the GPU is shared. This box also runs ComfyUI (config/taggers
+  # .yaml points at its wd14-tagger weights), and a resident 27B holding 14GB
+  # of a 16GB card would lock image generation out entirely. On a box that
+  # does nothing but serve this app, "-1" keeps the model loaded forever and
+  # cold starts stop existing.
+  #
+  # Accepts Ollama's duration syntax: "15m", "2h", "0" to unload immediately,
+  # "-1" to never unload. The Warm up button (POST /api/warmup) loads the
+  # model on demand for whatever this is set to.
+  keep_alive: "15m"
+
+  # Per-LLM sampling defaults, keyed by the exact model name the backend
+  # serves. Applied to every call that model makes - generation, chat,
+  # analysis - unless the caller set the value itself (Describe's own
+  # presence slider still wins). A property of the model, not of a feature.
+  #
+  # Added 26 Sep 2026 for a small 4B vision model that loops sentences
+  # without a presence penalty: in chat 1.5 fixed it; on h3 with none it ran
+  # 10,870 tokens without writing a segment. Per-machine, so the real list
+  # lives in config/server.local.yaml.
+  #
+  # sampling:
+  #   "some-small-model:Q8_0":
+  #     presence_penalty: 1.5
+
+  # Required environment for Ollama on this machine. **Set as user environment
+  # variables**, not by a script — there is no start.bat and never was; this
+  # line claimed there was until 21 Aug 2026. `npm start` is the whole of
+  # starting this app. On Linux, export them from the service unit or the
+  # shell profile that launches it.
+  #
+  #   OLLAMA_FLASH_ATTENTION=1
+  #   OLLAMA_KV_CACHE_TYPE=q8_0
+  #
+  # OLLAMA_MODELS is deliberately left at its default of %USERPROFILE%\.ollama,
+  # which is already on C: as intended. Do NOT point it inside the project —
+  # git would try to track 13GB of weights. D: was rejected because it is a
+  # spinning disk and model load time suffers badly for it.
+  #
+  # Flash attention and the q8_0 KV cache are NOT available on the Tesla P40
+  # that the primary spec is written against — Pascal lacks the hardware. This
+  # dev box is an RTX 5080 (Blackwell, compute 12.0), where both work and cut
+  # the KV cache footprint substantially. Do not carry these two settings over
+  # to the P40; cap context there instead.
+  #
+  # OLLAMA_MODELS is set because the default store is %USERPROFILE%\.ollama on
+  # C:, and C: has roughly 28GB free against an 18GB pull.
+
+# ───────────────────────────── PROMPTS ─────────────────────────────
+prompts:
+  # Prepended to every model system prompt. **Not to chat** — that changed on
+  # 22 Aug 2026, owner's call, and the comment here said "and to the chat
+  # prompt" until then.
+  #
+  # house-rules.md is mostly an output contract: five references to
+  # `===SEGMENT:` including a worked example. Chat is prose and says so, but a
+  # small model follows the example over the exception and answers chat in
+  # segments. Prompt assistance and chat are separate surfaces that share a
+  # box and a list of installed LLMs, and nothing else.
+  shared_prefix: "prompts/_shared/house-rules-v3.md"
+
+  # How to use the tag search, appended ONLY to requests that actually got
+  # the tool. Not part of shared_prefix: a model with no tool support must not
+  # be told to go and search. Owner-editable and reloadable through
+  # POST /api/prompts/reload, because what to do with an empty search result
+  # is a judgement and judgement lives in prompts/, not in server/tools.mjs.
+  tag_search: "prompts/_shared/tag-search.md"
+
+  # How to use read_guidance, appended only when that tool is actually
+  # offered - same rule as tag_search above and for the same reason: telling a
+  # model to open a document it has no way to open is an instruction it cannot
+  # follow. server/guidance.mjs reports what a document says; WHEN to open one
+  # is a judgement, and judgement lives in prompts/.
+  guidance: "prompts/_shared/guidance.md"
+
+  # The second pass: the model re-reads the brief and its own draft, then
+  # rewrites. Designed 31 Aug 2026 and built as a TOGGLE rather than the
+  # heuristic trigger that design proposed - at 9-18 tok/s it costs another
+  # 30-60s on a queue five people share, so it is opt-in per generation and
+  # off by default. Nobody pays for it who did not ask.
+  # v2, 4 Sep 2026. The original told the pass to cut "a detail that arrived
+  # with the vocabulary rather than from the person", with no distinction
+  # between a scene fact and a direction - so a Frieren prompt came back from
+  # the second pass having lost gentle breeze, peaceful atmosphere, depth of
+  # field AND sousou no frieren, the series tag the character lookup had
+  # supplied. Every one of those was the rule firing correctly.
+  #
+  # It also said a longer second pass is usually worse, which biased the whole
+  # thing toward subtraction. Reported as "if anything it seems like it does
+  # less", which was exactly right.
+  #
+  # v2 splits the two layers: invented SCENE FACTS are still cut, DIRECTION
+  # (framing, light, palette, atmosphere, finish) is explicitly not, and a
+  # short list of things - character, series, lookup output, quality and
+  # safety tags - is never cut at all. This is a user's correction, the same
+  # one behind the Anima v3 block: the style layer does not have to appear in
+  # the brief to belong in the prompt.
+  #
+  # ROLLBACK: point this back at "prompts/_shared/second-pass.md", untouched.
+  second_pass: "prompts/_shared/second-pass-v2.md"
+
+  # A prefix for the chat prompt specifically, if one is ever wanted. Empty
+  # means chat runs on prompts/chat/default.md alone, which carries its own
+  # content rules. Deliberately a separate key: pointing this at house-rules
+  # again would reintroduce the bug it was split to fix.
+  chat_shared_prefix: ""
+
+  # The reference image cross-check — see reference_vision below and
+  # server/visiontags.mjs. A vision-capable model is shown the picture
+  # alongside the tagger's output and settles the list against it.
+  #
+  # This was "the only place in the app where a model is shown an image" until
+  # 8 Sep 2026, and is now one of three: the read-back below shows it the same
+  # picture, and generation itself carries it. Point it at nothing (empty
+  # string) and the cross-check turns itself off.
+  reference_vision: "prompts/_shared/reference-vision.md"
+
+  # The other way to read a reference image: no tagger at all, the model looks
+  # at the picture and writes the tag list itself. Which of the two runs is a
+  # per-account preference — `reference_analysis`, in the account panel — and
+  # this file is what the model is told when someone picks the LLM.
+  #
+  # Point it at nothing (empty string) and the choice disappears from the
+  # panel rather than becoming a setting that silently does nothing.
+  reference_tags: "prompts/_shared/reference-tags.md"
+
+  # The read-back behind the Analyze button. The model that will write the
+  # prompt looks at the picture and says what it sees, what matches the role,
+  # what it intends to ignore and where it is unsure — so the person can
+  # correct it before spending a generation rather than after.
+  #
+  # Not a third way to tag. Nothing parses this: it is prose for a human, and
+  # it is the layer a tag list structurally cannot carry — "this pose is
+  # instantaneous, do not carry it" is not a tag.
+  #
+  # Point it at nothing (empty string) and the Analyze button disappears.
+  reference_analysis: "prompts/_shared/reference-analysis.md"
+
+  # The role-isolated read that runs BEFORE the prompt is written, on any
+  # image model whose LLM can see. A user's workflow, 8 Sep 2026, generalised
+  # from Anima to every image model at the owner's call: one call looks at the
+  # pictures and writes a factual blueprint under each picture's role, then
+  # the pictures come OFF the wire and the prompt is compiled from that text.
+  #
+  # Not the same file as reference_analysis above, and not the same job. That
+  # one is a read-back for a person to check before spending a generation —
+  # five prose headings, unparsed, shown on screen. This one is machine input:
+  # the compiler is the only reader, and it never sees the picture.
+  #
+  # Why two calls rather than one. Asking a single call to look at the
+  # picture, isolate the half its role allows, swap in a different character,
+  # follow the model's dialect and build verified tags was reported slow and
+  # unreliable — and the failure is quiet, because a pose reference leaking
+  # its source character's hair looks like a normal prompt. Splitting it makes
+  # each call do one thing, and makes the visual reading something that can be
+  # printed and argued with.
+  #
+  # Point it at nothing (empty string) and this turns off: the pictures ride
+  # along with the compile call as they did before, which is what this app did
+  # on 8 Sep 2026 and is a working configuration, not a degraded one.
+  reference_blueprint: "prompts/_shared/reference-blueprint.md"
+
+  # One keyframe on the LTX Director's timeline, read on its own.
+  #
+  # The owner's design, 4 Sep 2026: he gives the frames and the beats, the
+  # model writes the motion between them. Each attached picture is read once
+  # by a vision-capable LLM, the reading is cached by content hash, and the
+  # prompt writer gets text — see the header of server/keyframes.mjs for why
+  # this lane describes rather than attaching, when wan and h3 attach.
+  #
+  # The short version: ONE picture took wan from 7.2s to 103s on the P40, all
+  # of it prefill and all of it paid again on every re-roll. A timeline holds
+  # eight.
+  #
+  # **This file is a DRAFT and has not been judged against real output.**
+  # Written 10 Sep 2026 alongside the mechanism, so the feature could be
+  # tested at all. What a keyframe reading should say is a product judgement
+  # and prompts/ is where judgement lives — rewrite it freely, or point this
+  # at a different file. POST /api/prompts/reload picks up either without a
+  # restart.
+  #
+  # Point it at nothing (empty string) and keyframes turn off: the upload
+  # disappears from the Director and the timeline is text-only, which is what
+  # it was before 10 Sep 2026.
+  director_keyframe: "prompts/_shared/director-keyframe.md"
+
+  # h3 REF2VA: each reference picture read on its own before the prompt is
+  # written, a subject group read together. With several pictures in one call
+  # the models lost track of which picture was which (29 Sep 2026) — see the
+  # header of server/picture-readings.mjs.
+  #
+  # Measured 29 Sep 2026 on five real pictures: picture mix-ups gone on every
+  # model, and the 8B went from failing a brief that names no picture every
+  # time to 6/6 with groups set, in "both" mode. Same-character pictures still
+  # need a subject group. The reader prompt is a draft.
+  #
+  # Empty string turns it off, and the pictures go with the prompt call as
+  # before.
+  reference_picture: "prompts/_shared/reference-picture.md"
+  # What the prompt writer gets once the pictures are read: "text" is the
+  # readings only, "both" is the readings plus the labelled pictures. "both"
+  # tested better on the 8B (6/6 against 3/6) and the same on the 27B.
+  reference_picture_mode: "both"
+  # With picture labels, each subject and frame is looked at on its own and
+  # described in at most two sentences, added to its Retention analysis line
+  # as "As the pictures show: ..." (5 Oct 2026, the H3 Forge's structure: the
+  # description keeps the character consistent shot to shot). Needs a writer
+  # model that can see. Empty string turns it off.
+  picture_description: "prompts/_shared/picture-description.md"
+
+  # How to write the segment that explains the prompt rather than being part
+  # of it — Reasoning, What changed, Improvement notes, Layer breakdown.
+  #
+  # Appended only when this account actually has one switched on. It used to
+  # live in house-rules.md, which is prepended to EVERY model, so every prompt
+  # carried instructions for writing a segment the person might not want and
+  # the model might not be asked for. Moved out 5 Sep 2026, with the owner's
+  # call being that a segment nobody wants should cost nothing anywhere.
+  #
+  # Written without naming a segment, because the label differs per model and
+  # the contract above has already said which one this is.
+  meta_segment: "prompts/_shared/segments/meta.md"
+  dir: "prompts"
+  # Prompt files are cached at boot. POST /api/prompts/reload re-reads them
+  # from disk so a prompt can be edited without restarting the server. The
+  # route is always on and owner-gated; there is no switch for it. There used
+  # to be a `reload_endpoint: true` here that read like one, and nothing
+  # anywhere read it — setting it false would have disabled nothing. Removed
+  # 21 Aug 2026. If the endpoint ever does need gating, gate it in server.mjs
+  # and add the key back with a reader.
+
+# ────────────────────────────── CHATS ──────────────────────────────
+chats:
+  # Conversations are deleted after this many days without a new message.
+  # Counted from the last message, not from when the conversation started, so
+  # one you keep coming back to never ages out.
+  #
+  # Owner's call, 21 Aug 2026: 14 days. Before that they were kept forever,
+  # which is the other defensible answer — the thing people usually want from a
+  # chat history is the answer they got three weeks ago.
+  #
+  # 0 disables the sweep entirely and keeps everything.
+  #
+  # A conversation can be locked in the sidebar, and a locked one is never
+  # swept regardless of age. That is the escape hatch for the answer worth
+  # keeping: the retention window is for the other ninety per cent.
+  retention_days: 14
+
+  # How often the sweep runs while the server is up. It also runs once at
+  # start, so a box that is only on for an hour a day still collects.
+  sweep_hours: 24
+
+# ──────────────────────────── TRAINING ─────────────────────────────
+training:
+  # stub | trainflow. The stub returns plausible progress so the queue, config
+  # form, dataset flow and cleanup lifecycle are all testable now. TrainFlow's
+  # Docker image is out of scope this pass.
+  backend: "stub"
+  base_url: "http://127.0.0.1:8900"
+  temp_retention_days: 7
+  dataset_retention_hours: 24
+  max_concurrent_jobs: 1
+
+  # Where uploaded datasets and finished LoRAs live. An absolute path is used
+  # as given; anything else is relative to the install, which keeps this
+  # default portable while a box points at plain folders in the owner's home.
+  dataset_dir: "data/training/promptforge-training-dataset"
+  output_dir: "data/training/promptforge-lora-output"
+  # Fixed, numbered destinations: lora-output1 .. lora-output<N>. A fixed set
+  # is the point - the person picks one rather than inventing a path per run.
+  output_slots: 5
+  # Days before an uploaded dataset is deleted and an output slot is emptied.
+  # Age is measured from the NEWEST file inside, so an upload in progress or a
+  # run still writing cannot be swept out from under itself. 0 disables it.
+  retention_days: 15
+  # Per-file cap on dataset uploads.
+  max_upload_mb: 64
+
+# ───────────────────────────── RENDER ─────────────────────────────
+# Render from PromptForge: a finished prompt goes to ComfyUI on this box and
+# the picture comes back. docs/render-plan.md is the design; server/comfyui.mjs
+# is the client. A model offers Render when its models.yaml entry has a
+# `render:` block naming a workflow.
+#
+# Off by default, so an install without ComfyUI is unaffected. The server
+# turns it on in config/server.local.yaml with the folder ComfyUI lives in.
+comfyui:
+  enabled: false
+  # ComfyUI's API. 127.0.0.1 only: PromptForge's server is its one client.
+  url: "http://127.0.0.1:8188"
+  # The ComfyUI folder (holding main.py). When ComfyUI is not answering,
+  # PromptForge starts it from here with python (default <dir>/venv/bin/python)
+  # and stops it again after idle_stop_minutes with no renders. A ComfyUI that
+  # was already running is used and never stopped.
+  dir: ""
+  python: ""
+  extra_args: []
+  # Start ComfyUI with previews on (--preview-method auto), so the Render
+  # panel shows the picture forming. Has no effect on a ComfyUI started by hand.
+  previews: true
+  start_timeout_seconds: 120
+  # Agreed 3 Oct 2026: a cold start (~9 s) is cheaper than idling, which
+  # measured 38 W against 25 W stopped.
+  idle_stop_minutes: 5
+  render_timeout_seconds: 900
+  # GB of VRAM a render needs beside what other processes hold. When there is
+  # less, the LLM is unloaded first and ComfyUI's models are freed after.
+  # A model's render block can set its own (render.vram_gb). Measured 3 Oct:
+  # the default 27B (IQ4_XS) and an image model share the V100.
+  vram_gb: 10
+  # Steps and size decide how long the GPU is busy while others wait.
+  caps:
+    max_steps: 60
+    max_megapixels: 2.1
+  # Pictures are kept on the server this long, readable only by whoever made
+  # them (agreed 3 Oct). Pinning one to the pinboard keeps it.
+  keep_hours: 24
+
+# ───────────────────────────── EDIT ─────────────────────────────
+# The Edit tab and chat's edit_picture tool (4 Oct 2026): a picture and a
+# plain request go in, an LLM that can see the picture writes the instruction
+# from system_prompt, and Qwen Image 2.1 in ComfyUI makes the edit. Needs the
+# comfyui block above switched on; the same "render" permission as Render.
+# server/imageedit.mjs is the code.
+#
+# The workflow is ComfyUI's own Qwen Image 2.1 edit template with its prompt
+# enhancer left out — our writer does that job — and its files are the
+# Comfy-Org/Qwen-Image-2.1 ones: qwen_image_2.1_int8_convrot (diffusion_models),
+# qwen3vl_8b_int8_convrot (text_encoders), qwen_image_2.1_vae_bf16 (vae).
+#
+# Edits made in the tab are kept like renders (keep_hours above). Edits made
+# in chat are kept with the conversation, on its retention rules.
+edit:
+  enabled: true
+  label: "Qwen Image 2.1"
+  workflow: "config/comfyui/qwen-edit.json"
+  system_prompt: "prompts/edit/qwen-image-2.1.md"
+  # The picture being edited plus references. Qwen takes up to ten.
+  max_pictures: 4
+  # The template's 25. Qwen's own pipeline uses 40-50 with euler. The steps
+  # of an edit with no preset, and of the "Full" one below.
+  steps: 25
+  # The Speed choices on the Edit tab, first available = the default (chat
+  # edits use it too). `lora` is a file in ComfyUI's loras folder, applied to
+  # the editor at full strength; a preset whose LoRA is not installed is not
+  # offered, so a server without it simply edits at full steps.
+  #
+  # Fast is alibaba-pai's official 4-step LoRA for Qwen Image 2.1
+  # (Qwen-Image-2.1-Fun-Acc-LoRAs). Measured 4 Oct 2026 on the V100, same
+  # photo and seed: 26 s warm against 109 s for 25 steps, pictures holding up
+  # (a little more contrast).
+  presets:
+    - { name: "Fast · 4 steps", steps: 4, lora: "Qwen-Image-2.1-Fun-Acc-4Step.safetensors" }
+    - { name: "Full · 25 steps", steps: 25 }
+  # The edit's pixel budget, as width x height ≈ resolution²; the result
+  # keeps the picture's aspect. The official default; the model goes to 2048.
+  resolution: 1024
+  # Free VRAM an edit needs beside other processes; less, and the LLM is
+  # unloaded first. Measured 4 Oct 2026 on the V100: an edit peaks at 24.4 GB
+  # with the card to itself, but held to ~12.5 GB (--reserve-vram 20) it ran
+  # at the same speed at a 13.3 GB peak — ComfyUI parks the rest in RAM at no
+  # cost here. 14 keeps a 4B or 9B writer loaded beside it; a 27B still goes.
+  vram_gb: 14
+  # What the Edit tab says under "About this editor": the model, the files,
+  # what it needs and what was measured. Plain text, shown as written. Change
+  # it here when the workflow or the files change — the page holds no copy.
+  # Every number below is from the 4 Oct 2026 run on the V100 (same photo,
+  # same seed, each option in its own fresh ComfyUI).
+  about:
+    summary: >-
+      Edits are made by Qwen Image 2.1 Edit (Qwen team, September 2026) in
+      ComfyUI. The workflow is ComfyUI's own Qwen Image 2.1 edit template with
+      its prompt enhancer left out: the LLM you pick here looks at the picture
+      and writes the instruction instead.
+    needs: >-
+      About 12 GB of VRAM and about 19 GB of free system RAM. With 24 GB of
+      VRAM or more it runs entirely on the card. Below 12 GB is untested.
+    files:
+      - "models/diffusion_models/qwen_image_2.1_int8_convrot.safetensors — 7.3 GB (required)"
+      - "models/text_encoders/qwen3vl_8b_int8_convrot.safetensors — 9.4 GB (required)"
+      - "models/vae/qwen_image_2.1_vae_bf16.safetensors — 0.7 GB (required)"
+      - "These three from huggingface.co/Comfy-Org/Qwen-Image-2.1"
+      - "models/loras/Qwen-Image-2.1-Fun-Acc-4Step.safetensors — 0.35 GB (optional: turns on Fast), from huggingface.co/alibaba-pai/Qwen-Image-2.1-Fun-Acc-LoRAs"
+    measured: >-
+      On a 32 GB Tesla V100, 1024-pixel edits: Fast (4 steps) took about 26
+      seconds once loaded and about 65 for the first edit; Full (25 steps)
+      about 110 and 150. Alone on the card an edit peaked at 24.4 GB, but held
+      to about 16 GB and about 12 GB of VRAM it ran at the same speed, with
+      ComfyUI keeping the rest in system RAM. A large writer LLM does not fit
+      beside it and is unloaded for each edit; a 4B or 9B writer stays loaded.
+    smaller:
+      - "4-bit text encoder: qwen3vl_8b_w4a8.safetensors (6.3 GB, same Comfy-Org repo) in place of the 9.4 GB one. Same pictures and speed in our test, about 3 GB less VRAM and 2 GB less RAM. Pick it under Text encoder."
+      - "GGUF editors (unsloth/Qwen-Image-2.1-GGUF, 2.5-7.6 GB): ComfyUI-GGUF only loads them after an architecture tag their files lack is added, and on the V100 each step took twice as long. Q4_K_M looked right; Q2_K garbled text in the picture. Not recommended, and not offered in the pickers."
+      - "GGUF text encoders do not work in ComfyUI-GGUF yet: the Qwen3-VL vision part fails to load. Not offered in the pickers."
+
+# ───────────────────────────── UPLOADS ─────────────────────────────
+# Enforced server-side. Reject on first violation, naming the limit.
+#
+# Image limits are NOT here. `config/taggers.yaml` owns them, because both
+# upload paths — Tab 3's analyser and Tab 1's H3 visual references — read
+# them from /api/taggers, which server/taggers.mjs builds from that file.
+# max_image_mb and allowed_image_types used to be duplicated here as well,
+# with a different value, and nothing read them: editing this file to tighten
+# the image limit changed nothing at all. Removed 21 Aug 2026 rather than
+# reconciled, since a second copy has no reader to serve.
+#
+# What remains is Tab 2's dataset uploads, which are Phase 6 and unbuilt.
+uploads:
+  max_dataset_mb: 4096
+  max_dataset_files: 2000
+  allowed_archive_types: ["application/zip"]
+
+# ─────────────────────────────── TAGS ──────────────────────────────
+tags:
+  # Where the tag list comes from: "danbooru" or "github".
+  #
+  # ── Why this moved to danbooru on 7 Sep 2026 ──
+  #
+  # The GitHub source is dead. The newest dated file on that branch is
+  # `danbooru-12-10-24`, so `npm run update-tags` re-downloaded a two-year-old
+  # snapshot forever and the "take the newest" logic had nothing newer to
+  # take.
+  #
+  # Worse than stale: danbooru SPLITS tags, and a split has no alias to
+  # follow. `black_footwear` became `black_shoes` and `black_boots`, so the
+  # database held `black_footwear` (284,390 posts, correctly flagged
+  # deprecated by our own pass) and did not hold `black_shoes` (271,260) at
+  # all. It knew the dead name with no path to the live one — and this
+  # database is what the vision pass and `search_tags` verify against, so a
+  # valid 271k-post tag was being rejected as "not a danbooru tag".
+  #
+  # And the models side with danbooru, not with the snapshot: Illustrious V1.0
+  # knows `black_shoes` and `black_boots` and does NOT know `black_footwear`.
+  #
+  # Measured on the switch: 90,857 tags -> 124,121.
+  source: "danbooru"
+
+  # The floor. Below this a tag is too rare to be worth a row. Danbooru is
+  # asked for tags in descending post order, so this is also the stop
+  # condition for the pull: 50 is about page 125, 30 about page 170.
+  #
+  # Lowered from 50 to 30 on 7 Sep 2026, at the owner's call, after asking
+  # what the floor actually excludes. It excludes new characters: 189 of the
+  # 200 most recently created character tags on danbooru are under 50 posts.
+  #
+  # But most of those are one-off original characters — `aster_(justnobodyjc)`
+  # with a single picture — and 30 is where that noise thins out while real
+  # new game and series characters (`tugarin_(genshin_impact)` at 10,
+  # `mindflayer_(final_fantasy)` at 19) start to be reachable. 124k tags ->
+  # about 170k.
+  #
+  # **Do not reason from this number about what an image model knows.** That
+  # was tried here and the owner corrected it: checkpoints get merged and
+  # fine-tuned, so what a given one can draw has no fixed relationship to a
+  # danbooru post count. The only test is to render the tag and look. This
+  # floor is about what is worth a row in a database, nothing more.
+  #
+  # Lowering it further is one line and a four-minute re-import. Below ~30 the
+  # gain is single-post OCs, and the layers that actually verify tags have
+  # their own, higher floors — reference_vision.min_post_count is 500.
+  min_post_count: 30
+
+  # ── the github fallback, kept and no longer the default ──
+  #
+  # Still works, and reproducing a specific older snapshot is occasionally
+  # what you want. The CSVs are NOT at main/danbooru_tags.csv. Verified
+  # 2026-08-18: they live on the `tag-lists` branch with date-stamped
+  # filenames, in `_dash` and `_underscore` flavours.
+  repo: "BetaDoggo/danbooru-tag-list"
+  branch: "tag-lists"
+  file_pattern: "^danbooru-(\\d{2}-\\d{2}-\\d{2})-(dash|underscore)\\.csv$"
+  # Illustrious wants underscores; Pony and SDXL want spaces. Both imported.
+  variants: ["underscore", "dash"]
+  db_path: "data/tags/tags.sqlite"
+  # How old the tag database may get before the admin panel calls it stale
+  # and highlights the update button. A threshold, not a schedule — nothing
+  # downloads on a timer. The owner presses Update in the Accounts panel, or
+  # runs `npm run update-tags`.
+  auto_update_days: 7
+  # The app must still boot with no tag database — autocomplete degrades to
+  # "tag database not loaded" and everything else works.
+  required: false
+
+# ─────────────────────── CHARACTER TRAITS ──────────────────────────
+#
+# What a character actually looks like, derived from danbooru rather than from
+# the LLM's memory.
+#
+# The problem is measured. sdxl.md requires a booru character tag be expanded
+# into plain description, because base SDXL has no Danbooru training and the
+# name alone renders nothing — and that expansion comes from whatever the model
+# happens to remember. On 21 Aug the dialect suite caught qwen3:8b describing
+# Makima as "long black hair"; canon is red. Every character the model
+# half-knows produces a confidently wrong prompt.
+#
+# Sample the posts for a character tag, tally the general tags, and keep the
+# ones that are common HERE and rare EVERYWHERE. That ratio is lift, and the
+# global counts it needs are already in tags.sqlite.
+#
+# Nothing downloads on a timer and no images are fetched — this reads post
+# metadata only. A miss costs one request; everything after is cached.
+traits:
+  enabled: true
+  base_url: "https://danbooru.donmai.us"
+
+  # Sample the safe posts. Not squeamishness — it is where the character design
+  # is actually visible. Measured on gojo_satoru: unfiltered, the top traits
+  # were "plug_(piercing), yaoi, 2boys, greyscale, monochrome"; with this set
+  # they became "jujutsu_tech_uniform, round_eyewear, white_hair, glasses,
+  # blue_eyes". Same character, same sample size. Empty samples everything.
+  rating_filter: "general"
+
+  # Fetched per character, then filtered. Only posts where this character is
+  # the ONLY character are used — a post with two characters cannot say which
+  # one the tags belong to. Measured on fern_(sousou_no_frieren), who is
+  # almost never drawn alone: unfiltered her top traits were elf, pointy_ears
+  # and white_dress, all Frieren's. 36 of 100 posts survived the filter, so
+  # this has to be generous. 200 is danbooru's ceiling, and 28 Aug 2026 it is
+  # what we ask for.
+  #
+  # Raised from 100 because the panel was inconsistent rather than wrong.
+  # Measured over three independent 100-post pages of Frieren, same filters:
+  # 11 traits appeared in all three and every one was correct, while four
+  # appeared in exactly one — `flower`, `closed_mouth`, `holding_staff` and
+  # `thick_eyebrows`, the last being the tag the owner questioned from a
+  # screenshot. That is sample variance, not a ranking fault, and the cheapest
+  # honest answer to sample variance is a bigger sample. It costs nothing per
+  # generation: the result is cached per character.
+  fetch_limit: 200
+
+  # If the filter leaves fewer than this, fall back to the whole sample and
+  # flag the result as mixed, rather than ranking traits off six posts.
+  min_sample: 12
+
+  # A tag must appear on this fraction of the sample to be considered at all.
+  # Below about 0.2 the results start including whatever else was in frame.
+  min_share: 0.25
+
+  # How many times more common on this character than on danbooru at large.
+  # Measured on Makima: ringed_eyes 325, red_hair 14, white_shirt 5.4 — all
+  # real traits; shirt 2.9, looking_at_viewer 1.4, 1girl 1.2, solo 0.8 — all
+  # furniture. A cutoff of 3 sits in the gap, and notably splits white_shirt
+  # from its own generic parent.
+  min_lift: 3
+
+  # A safety rail, not a tuning knob — min_share and min_lift decide what
+  # qualifies, and this only stops a pathological character returning
+  # hundreds. Measured uncapped the thresholds yield 9 to 18 (Gojo 9, Makima
+  # 11, Fern 13, Miku 14, Frieren 18), so the old value of 12 was quietly
+  # cutting real traits off three of those, Frieren by six. Ranking is by
+  # lift, so what got cut was the least distinctive qualifying tag — which for
+  # a character with several rare props can be their hair colour.
+  max_traits: 30
+
+  # Character designs do not change, so the cache can be long. Clearing it is
+  # deleting the file.
+  cache_days: 30
+  timeout_ms: 15000
+  db_path: "data/tags/traits.sqlite"
+
+  # A character who is never drawn alone gets described by whoever stands next
+  # to them. Measured 15 Sep 2026 across the Genshin roster: `dodoco` came back
+  # as Klee in every particular, `oz` as Fischl, `boo_tao` as Hu Tao, `bob-omb`
+  # as Peach. With this on, the co-star's own traits are subtracted — Oz keeps
+  # `crow` and `bird`, bob-omb keeps `bomb` and `explosive`, Boo Tao keeps
+  # `ghost`. Only ever applies to a sample already flagged mixed, so a
+  # character with real solo posts is never touched.
+  companion: true
+  companion_share: 0.5
+
+  # The list of tags that name one character lives in its own file:
+  # config/same-person.yaml. It is data rather than tuning, it grows one
+  # franchise at a time, and keeping it out of here stops this file growing
+  # by a hundred lines every time a franchise is curated.
+
+# ──────────────────────── SYSTEM MONITOR ───────────────────────────
+# The live CPU / RAM / VRAM strip across the top. Polled every 2 seconds by
+# each open page; CPU and RAM are read in-process and nvidia-smi is cached
+# server-side for 5s, so five people watching costs one reading.
+system:
+  enabled: true
+  # Absolute path if it is not on the service's PATH. A missing binary is not
+  # an error — the GPU gauges simply do not appear.
+  nvidia_smi: "nvidia-smi"
+
+# ─────────────────────────── RANDOMIZER ────────────────────────────
+# The brief randomizer — image models only, and no LLM anywhere in it. It
+# spawns scripts/randomizer.py, which resolves templates from
+# config/randomizer.json and prints JSON. The result goes into the person's
+# brief box for them to edit before they generate.
+#
+# config/randomizer.json is GENERATED from the owner's Total Chaos Randomizer
+# ComfyUI workflow — 18 boxes, 138 sub-categories, ~3,250 options, his own
+# vocabulary. Regenerate rather than hand-edit:
+#   node scripts/import-chaos-randomizer.mjs <workflow.json>
+#
+# The tag database is not involved. An earlier version derived pools from it
+# and they were worse: Danbooru is excellent on appearance and nearly empty on
+# lighting, camera and mood, and the workflow covers all of it.
+randomizer:
+  # The interpreter to spawn. "python3" on the P40; change it, do not add a
+  # fallback chain — a randomizer that silently runs a different Python than
+  # the one you tested is worse than one that says it cannot find the one you
+  # named.
+  python: "python3"
+  config: "config/randomizer.json"
+
+# ──────────────────────────── PATHS ────────────────────────────────
+# Relative to the project root. Forward slashes on both OSes; never hardcode
+# backslashes and keep every path lowercase — Windows won't care, Linux will.
+paths:
+  data: "data"
+  users: "data/users"
+  queue: "data/queue"
+  requests: "data/requests"
+  # Per-model run counts, for the owner's usage panel. One small JSON file,
+  # rewritten whole on every inference — see server/usage.mjs.
+  usage: "data/usage.json"
+  training: "data/training"
+  # The pinboard: a picture and the prompt that made it, as a `<name>.png` +
+  # `<name>.txt` pair. The directory is the truth about what exists and
+  # index.json beside it only records who put what up, so a pair dropped in
+  # over SSH shows up in the tab. See server/sharedimages.mjs.
+  shared_images: "data/shared-images"
+  templates: "web/templates"
+  web: "web"
+  logs: "logs"
+
+# ──────────────────────────── SEARCH ───────────────────────────────
+# Chat can search the web. Chat must never FAIL because search failed: every
+# path through server/search.mjs returns an empty result set plus a reason, the
+# UI says search found nothing, and the model answers from what it knows.
+#
+# It is a button, not a tool call. The spec has Qwen deciding for itself via
+# native tool calling; the owner asked for an explicit toggle instead (21 Aug),
+# and that is what shipped — you press Search, the search runs on that message,
+# and the results are handed to the model as reference material. Predictable
+# beats clever here: nobody has to wonder whether it searched.
+search:
+  enabled: true
+
+  # duckduckgo | searxng
+  #
+  # duckduckgo needs nothing installed. It reads the plain HTML endpoint the
+  # site serves to browsers without JavaScript, which means two things worth
+  # stating: it is scraping, so the markup can change under it, and queries go
+  # to DuckDuckGo directly rather than being proxied. The chat rules panel says
+  # so rather than letting people assume otherwise.
+  #
+  # searxng is what the spec asks for and is better on both counts — it proxies
+  # the query and returns JSON rather than markup. It needs Docker. When one is
+  # running, switch the backend and set base_url; its settings.yml must have
+  # `search.formats` including json, or it answers 403 and search silently
+  # returns nothing.
+  backend: "duckduckgo"
+  base_url: "http://127.0.0.1:8888"
+
+  # How many results reach the model. Five is the spec's shape and about as
+  # many as fit in a chat answer without the citations becoming a bibliography.
+  max_results: 5
+
+  # Search runs before the answer starts, so this is dead time the person is
+  # watching. Better to give up and answer from knowledge than to sit there.
+  timeout_ms: 8000
+
+# Canonical character appearance, injected into the prompt automatically.
+# Added 26 August 2026. See server/character.mjs.
+#
+# The failure it exists to stop is measured: the LLM states a character's hair
+# colour from memory and is confidently wrong. The dialect suite has caught
+# qwen3:8b giving Makima long black hair — she is a redhead — and the owner's
+# own Mualani prompt came back with dark_hair and green_eyes against canon
+# white-to-blue hair and blue-to-orange eyes. server/traits.mjs has derived the
+# real answer from danbooru since 21 Aug; until now only GET /api/traits could
+# reach it, so it helped people who clicked trait chips and nobody who simply
+# typed a brief and pressed generate.
+#
+# Turning this off restores exactly the old behaviour: nothing is injected and
+# the model answers from memory. So does a missing tag database, an unresolved
+# name, or danbooru being unreachable — every path degrades to silence.
+#
+# NOT a general character search. server/character.mjs resolves a name only
+# when it is unambiguous, because auto-resolving was already tried in this
+# project and rejected for being wrong 2 times in 8 — the reasoning is in
+# traits.mjs, and the narrower rule that answers it is in character.mjs.
+characters:
+  enabled: true
+
+  # Character tags rarer than this are ignored. Guards against a typo landing
+  # on some tag with four posts and injecting its "canon" with confidence.
+  min_post_count: 50
+
+  # The same floor for a name that is a SINGLE WORD typed with no series next
+  # to it, which is the one risky shape: one word of a brief landing on
+  # somebody's name part is routine, and a two- or three-word phrase doing it
+  # is not.
+  #
+  # THIS DOES NOT LIMIT WHO CAN BE LOOKED UP. A brief that names the series —
+  # "marin from zelda", "dusty from gravity daze" — resolves at any post count
+  # at all, so every character in the database is reachable regardless of what
+  # this says. The floor only decides how obscure a BARE one-word name is
+  # allowed to be before it is read as an English word instead.
+  #
+  # Measured 27 Aug 2026 over seventeen briefs with no character in them, and
+  # against seventeen that name somebody. Every value reaches all seventeen
+  # characters; the difference is what comes back uninvited:
+  #
+  #     500   19.8% of one-word names resolve bare    0 strays
+  #     250   34.3%                                   1 stray  (mist_(fire_emblem))
+  #     150   49.8%                                   2 strays
+  #      50    100%                                   4 strays
+  #
+  # 250 is the pick: it doubles what a bare name reaches for one stray in
+  # seventeen scene briefs. Raise it if strangers turn up in prompts that
+  # named nobody; drop it to 50 if you would rather have every obscure
+  # character on a bare name and accept the noise.
+  min_solo_post_count: 250
+
+  # A brief naming four characters is one where none of them gets enough of
+  # the prompt to matter anyway, and each costs a danbooru round trip on a
+  # cache miss.
+  max_characters: 3
+
+# ── Reference image cross-check ──────────────────────────────────────────────
+#
+# The tagger proposes, a model that can see disposes. animetimm and WD have
+# high recall over a fixed Danbooru vocabulary and no idea what the picture
+# looks like as a picture; a vision-capable LLM can see it but cannot reliably
+# spell `braided_ponytail`. Each does the half it is good at.
+#
+# Owner's design, 29 Aug 2026. It runs on the vision the user's own prompt
+# model already has — on the P40 both 27Bs carry a CLIP projector — so there
+# is no second model to pull and nothing extra resident. A model that reports
+# no vision skips the pass entirely and the tagger's output stands.
+#
+# The instructions are prompts/_shared/reference-vision.md, named by
+# prompts.reference_vision above. The mechanism is server/visiontags.mjs, and
+# every tag the model ADDS is verified against data/tags/tags.sqlite before it
+# is allowed through — an invented tag steers nothing and displaces the one
+# that would have worked, which is the same failure the character lookup
+# guards against.
+# Find people on the h3 picture card: the model that boxes everyone in a
+# picture of several (server/people-boxes.mjs). Empty means the model that
+# writes h3's prompts, which works but is slow on a 27B: 103s for a five-girl
+# band on Q4_K_P, against 2-4s on a 4B vision model (13 Oct 2026, the
+# Z440). Boxing is a looking job, not a writing one, so a small vision model
+# is the right one; set it in server.local.yaml to one this box has. It must
+# be able to see pictures.
+people_boxes:
+  model: ""
+
+reference_vision:
+  # Off turns the whole pass off and costs nothing else. There is no partial
+  # state: the tagger runs exactly as it did before this existed.
+  #
+  # ── Switched off 7 Sep 2026, and this is the whole story ──
+  #
+  # Tab 3 took about a minute to tag one photo. The tagger is ~7s of CPU; the
+  # rest was this pass showing the picture to a 27B. Measured on the P40:
+  # 19-56s warm depending on image size, 137s cold.
+  #
+  # It was not a bad feature. It found `backlighting` on a forest screenshot
+  # the tagger read as one `sunlight`, and it dropped four tags that were
+  # wrong about a character. The problem is what it cost, and what it cost it
+  # ON: prompt generation moved to llama.cpp on 1 Sep, so the Ollama 27B this
+  # loads is a SECOND 17GB model on a 23GB card, competing with the thing the
+  # user is actually waiting for. Its original justification — the prompt
+  # model's vision is already resident, nothing extra to pull — died that day
+  # and nobody noticed.
+  #
+  # The replacement is cheaper and better. Three ONNX taggers run on the CPU
+  # here and see different things; the union of them at a 0.05 floor finds
+  # `light_rays`, `sunbeam` and `dappled_sunlight` on that same screenshot in
+  # about 13 seconds of a CPU that is otherwise idle. See `reference_taggers`
+  # in config/taggers.yaml, which the reference route now uses.
+  #
+  # Turning this back on costs Tab 3 the 20-60s again. If it is ever wanted,
+  # downscale first: the same picture at 768x1024 rather than 1536x2048 took
+  # less than half the time AND read better.
+  #
+  # There is also a live bug to fix before it goes back on. The model is
+  # whatever the person picked for writing PROMPTS, and that name now comes
+  # from llama-swap while the picture goes to Ollama — two different
+  # registries. Two of the five models in the picker do not exist in Ollama,
+  # so /api/show 404s, canSee returns null, `null !== false` proceeds, and the
+  # chat call 404s. Silent: identical to a pass that ran and found nothing.
+  enabled: false
+
+
+  # Which backend serves the vision model. Unset means "the same one as
+  # llm.base_url", which is correct on any box where Ollama serves everything.
+  #
+  # Set it only when they diverge. This pass posts an image to Ollama's NATIVE
+  # /api/chat, a route llama.cpp does not have, so a deployment that moves
+  # llm.backend to llamacpp for prompt generation must pin this back at Ollama
+  # or Tab 3's cross-check 404s on every reference image. Per-machine, so it
+  # belongs in server.local.yaml rather than here.
+  #
+  # base_url: "http://127.0.0.1:11434/v1"
+
+  # Which request shape carries the picture: auto | ollama | openai.
+  #
+  #   ollama  the native /api/chat, with `images: [base64]`
+  #   openai  /v1/chat/completions with an `image_url` data URI, which is what
+  #           llama-server serves when started with --mmproj
+  #
+  # `auto` follows llm.backend, and that is right whenever vision and prompt
+  # generation share a server. Set it explicitly only when they diverge.
+  #
+  # ── Why there are two, and why the P40 moved ──
+  #
+  # Until 8 Sep 2026 only ollama could be shown a picture on this box, so
+  # llama.cpp serving prompts meant a SECOND 27B loading in ollama beside it,
+  # on a card that fits one. That cost is what switched the cross-check off.
+  #
+  # llama-server reads images itself once an entry carries --mmproj, and the
+  # projector was already on disk. Measured the same day, same picture, same
+  # prompt file: 9.5-11.4s on llama.cpp against 86-151s through ollama, on one
+  # resident model instead of two.
+  transport: "auto"
+
+  # Which models were started with a projector.
+  #
+  # On llama.cpp this is not a question anything can be asked — vision is a
+  # property of how llama-swap STARTS a model, and no endpoint reports it. So
+  # it is declared here, and both the gate and the vision badge read this same
+  # list, which is what stops them disagreeing.
+  #
+  # Names must match your llama-swap config exactly (see
+  # deploy/llama-swap.config.example.yaml). Absent means
+  # "ask the backend", which is correct on ollama and useless on llama.cpp; an
+  # empty list means nobody may read a reference.
+  #
+  # Per-machine, so the real list lives in config/server.local.yaml and this
+  # one stays UNSET on purpose: unset means "ask the backend", which is the
+  # behaviour every ollama box has always had and must keep. Declaring an
+  # empty list here instead would silently stop the LLM reader working on any
+  # deployment that never edits this file.
+  #
+  # vision_models:
+  #   - "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL"
+
+  # A tag the tagger is this sure about cannot be dropped by the model. It was
+  # trained on millions of hand-tagged images for precisely this judgement and
+  # a general-purpose model overruling it is more likely wrong than right.
+  #
+  # **This is a guess and has not been measured.** Written down as one on
+  # purpose — this project's standing rule is that an unverified number is
+  # worse than an absent one, and the honest version of that is to say which
+  # numbers are which. The refused drops are reported per call so it can be
+  # measured rather than believed.
+  drop_confidence_ceiling: 0.85
+
+  # A real tag nobody uses is not worth a slot. Same floor and same reasoning
+  # as characters.min_post_count above.
+  min_post_count: 50
+
+  # A ceiling on additions. The pass is meant to catch what the tagger's label
+  # set cannot express — light direction, surface state, framing — not to
+  # double the length of the list.
+  max_added: 12
+
+  # ── The other arm: the model reads the picture INSTEAD of the tagger ──
+  #
+  # Everything above is the cross-check, where the tagger proposes and the
+  # model settles the list. This is the alternative, added 7 Sep 2026: on a
+  # reference image, no tagger runs and the model writes the tags itself.
+  #
+  # A reference is read by ONE of them. Which one is the person's own choice
+  # — `reference_analysis` in the account panel, taggers by default — because
+  # it is a judgement about the picture in front of them: the taggers know a
+  # fixed vocabulary and are the only thing on this box that can name a
+  # character, and a model that can see finds the layer no tagger scores.
+  #
+  # This has its own switch rather than riding on `enabled` above, and the
+  # distinction is the whole reason both exist: `enabled: false` means the
+  # cross-check is not worth 20-60s ON TOP OF the tagger, which is a
+  # different claim from "nobody may choose the LLM instead".
+  #
+  # Same model, same backend, same gate. It goes to Ollama's native /api/chat
+  # with whichever model the person picked for writing prompts — see
+  # `base_url` above for why that is not necessarily where prompts are
+  # generated, and note that a model llama-swap serves but Ollama has never
+  # heard of cannot do this. The route falls back to the taggers and says so
+  # on the card when that happens; it does not fail silently.
+  describe:
+    # Off here removes the choice from the account panel entirely. Nobody's
+    # stored preference is deleted — it simply stops being offered, and
+    # references are read by the taggers.
+    enabled: true
+
+    # A ceiling on the list, not a target. Each role downstream keeps only
+    # the classes it uses and discards the rest untouched, so a padded list
+    # is mostly discarded work. prompts/_shared/reference-tags.md tells the
+    # model the same number.
+    max_tags: 40
+
+    # A real tag nobody uses is not worth a slot — same reasoning and same
+    # floor as min_post_count above. Unset falls back to that one.
+    min_post_count: 50
+
+# ─────────────────────────── TOOL CALLING ──────────────────────────
+#
+# The booru tag database as a function the model calls, instead of a wall of
+# text in the prompt file trying to teach it which tags exist.
+#
+# The problem this exists for is measured. Asked for 250 words on illustrious,
+# the model produced `wet_boots, rainboots, rubber_boots` — two of which are
+# not tags danbooru has ever had. It was not disobeying its prompt file; it
+# was recalling tags from training data. server/tools.mjs answers those three
+# queries with the one real tag and an explicit "that tag does not exist" for
+# the other two.
+#
+# **Off by default, because it is being compared rather than assumed.** The
+# other arm is a model with no tool support doing the same job from the prompt
+# file alone. Turn it on for a run with PROMPTFORGE_TOOLS=on rather than by
+# editing this, so the two arms cannot be confused in the notes.
+# ──────────────────────── TAG CANDIDATES ───────────────────────────
+#
+# The other way to put real tags in front of the model: look them up from the
+# brief before generation and hand over a shortlist, instead of giving the
+# model a tool and paying a round trip every time it asks.
+#
+# The owner's idea, 30 Aug 2026. It costs ZERO extra generations — a sqlite
+# read before the first token — where the tool cost six rounds and 277 seconds
+# on the P40 for the same brief. It also works on models with no tool calling,
+# which is the whole reason OBLITERATED had to sit the tool experiment out.
+#
+# What it cannot do is reach. It only knows the words that were typed, so it
+# will never surface a lighting or framing tag the brief did not mention, and
+# it does not find `rubber_boots` from "tall waterproof boots" the way the
+# searching model did. See server/candidates.mjs.
+#
+# Off by default while the two are being compared. PROMPTFORGE_CANDIDATES=on.
+candidates:
+  enabled: false
+
+  # A tag only qualifies if every word in it appears in the brief. Loosening
+  # this is what let `horse_girl` in on the word "girl" and `standing_sex` on
+  # "standing" — see the note in server/candidates.mjs before changing it.
+
+  # How many tags may reach the prompt. A shortlist the model can read, not a
+  # dump it has to filter.
+  max_tags: 40
+
+  # Per phrase, before the every-word rule cuts it down.
+  per_phrase: 3
+
+  # A real tag nobody uses is not worth a slot, and the tail of the
+  # distribution is where the misleading near-matches live.
+  min_post_count: 500
+
+  # Longest phrase tried. Three catches "field of flowers" -> flower_field.
+  max_gram: 3
+
+# ── Paraphrase lexicon ──────────────────────────────────────────────────────
+#
+# Ordinary words for a picture, mapped to the danbooru tag that means the same
+# thing: "beauty mark" is `mole`, "arms folded" is `crossed_arms`, "vue
+# plongeante" is `from_above`. The owner's file, added 12 Sep 2026 for Anima
+# v4; its spec is archive/docs/danbooru-lexicon-integration.md and the mechanism is
+# server/lexicon.mjs.
+#
+# Two ways in, both a map read with no model in the loop: a short list of the
+# tags the brief describes, added to the user message, and extra lines on a
+# search_tags result when the query is a phrase rather than a tag name. Only
+# for models that set `lexicon: true` in config/models.yaml.
+#
+# Loaded on the first generation that wants it, and every target is checked
+# against data/tags/tags.sqlite: an entry whose tag is missing, retired or not
+# a general tag is skipped and counted in the log line, never used.
+lexicon:
+  enabled: true
+  path: "data/tags/danbooru-visual-paraphrases.json"
+  # Which entries are indexed. The file covers all 36,553 general tags, but
+  # only these two tiers - 568 entries - were reviewed as meanings. The other
+  # two are spellings and aliases that match single ordinary words: on the
+  # spec's own cases they add `thighs` to "pants around thighs", `folded` to
+  # "arms folded", `broken` and `ankle` to the 2B brief. That is the noise
+  # that got the candidates list above switched off, so they stay out. Add
+  # "rule_expanded" and "catalogue_only" to try them anyway.
+  coverage: ["hand_curated", "semantic_family"]
+  # Phrase matches the file itself scores below this are not offered.
+  min_confidence: 0.85
+  # The file's concept rules match meaning across a window of the brief -
+  # "she carries a parasol" to `holding_umbrella` at 0.97. Below 0.9 they
+  # start guessing: "slides her slacks below her hips" also gives
+  # `lowleg_pants` at 0.86. The cost is "raises her hand to say hi", which
+  # reaches `waving` at 0.87 and is lost.
+  concept_min_score: 0.9
+  window_tokens: 24
+  # A ceiling, not a target. A brief that matches this many is a long one.
+  max_tags: 24
+  # Never matched, on top of the file's own ambiguous list. "side" is a
+  # reviewed phrase for `from_side`, and the spec itself says a bare "side"
+  # must match nothing - "by her side" is not a camera angle.
+  blocked_phrases: ["side"]
+
+  # ── The third pass: after generation ──
+  #
+  # A user, 13 Sep 2026: v4 still wrote `lowered pants`, which the lexicon maps
+  # to `pants_pull`, "so it's not doing the verification / replacement". The
+  # list above only reaches the model BEFORE it writes. This checks what it
+  # wrote: a tag the lexicon can map is replaced with the real one, and on a
+  # labelled `Core tags:` line (Anima v5) one that is neither real nor
+  # mappable is removed. Text modifiers are never touched. server/tagpass.mjs.
+  #
+  # A phrase resolves only when it names exactly one tag at this confidence.
+  remap_min_confidence: 0.9
+  # A concept rule resolves only at this score, and only when it beats the
+  # runner-up by the margin. Both are the spec's numbers.
+  concept_remap_score: 0.95
+  concept_remap_margin: 0.08
+  # A user's text-modifier vocabulary, read from the `## Text modifiers` section
+  # of his compact document. On a one-list prompt nothing listed there is
+  # ever remapped, however much it looks like a tag.
+  modifier_vocabulary: "prompts/image/references/anima-skill/references/visual-direction-compact.md"
+  # Valid on a Core tags line although no danbooru table holds them - the
+  # Anima card's quality and rating words. score_N and `year NNNN` are
+  # matched by pattern, an @artist always passes, and the model's own quality
+  # presets and styles are added from config/models.yaml.
+  always_valid: ["masterpiece", "best quality", "good quality", "normal quality", "low quality", "worst quality", "newest", "recent", "mid", "early", "old", "safe", "sensitive", "nsfw", "explicit"]
+
+tools:
+  # Switched on 4 Sep 2026. Two tools ride on this flag: search_tags for the
+  # four booru models, and read_guidance for anything declaring a `guidance`
+  # index. Both degrade to nothing on a model whose backend does not report
+  # the capability - OBLITERATED is the one on this box that cannot.
+  enabled: true
+
+  # Which registry entries offer tools is set per model in config/models.yaml
+  # (`tools: true`), not here — a tag search is worth a round trip on a booru
+  # dialect and worth nothing on a prose one.
+
+  # How many results one search returns. Enough to show the shape of a tag
+  # family without spending 400 tokens on the tail of the distribution.
+  result_limit: 15
+
+  # Ceilings. **Rounds are the expensive thing, not calls.** Each round is a
+  # whole fresh generation over the composed prompt — measured 30 Aug 2026 on
+  # the P40, a plain illustrious generation is 30 to 85 seconds, and a tool run
+  # that took six rounds to look up nineteen words took 277. The lookups
+  # themselves are sub-millisecond sqlite reads.
+  #
+  # So the budget is tight on rounds and loose on calls: search_tags takes a
+  # whole array of queries, and one call asking for ten things costs exactly
+  # what one call asking for one thing costs. Hitting either ceiling is not an
+  # error — the tools stop being offered and the model writes with what it has.
+  max_rounds: 3
+  max_calls: 24
+
+  # How many queries ONE search_tags call may carry.
+  #
+  # A cost ceiling, not a style rule. Measured 5 Sep 2026 on a live anima
+  # generation: the model degenerated inside a single call, asking for
+  # thousands of queries - the list started on the brief and wandered through
+  # clothing, weather and anatomy into cell biology before jamming on one word
+  # repeated to the end. Every query was looked up and every result went back
+  # into its own context, and the generation took minutes.
+  #
+  # Ordinary calls on this box run 11 to 21 queries, so 24 is generous. Extra
+  # queries are truncated rather than refused, because the first ones are the
+  # ones actually drawn from the brief.
+  max_queries_per_call: 24
+
+# How many negative tags the model may add on top of the registry's
+# negative_defaults. The defaults themselves always survive.
+#
+# 0 - the registry negative is the negative. Set 2 Sep 2026 on the owner's
+# call, after a measured run put a 402-character positive prompt next to a
+# 1,652-character negative: the registry floor, four genuinely useful tags,
+# and then eighty more of pure free association - "share, save, download,
+# print, buy, sell, trade, exchange, gift, present, reward, prize" - none of
+# which describes anything to keep out of a picture of Frieren.
+#
+# Per-model override is `negative_extra_max` in config/models.yaml. Raising
+# this to 4 would have kept every good tag in that run, so the knob is here
+# if brief-specific negatives turn out to be missed.
+negative:
+  extra_max: 0

@@ -1,0 +1,20 @@
+<!-- CogVideoX: 50–100 words, concrete nouns over adjectives (T5 encoder),
+     one camera instruction, preferably static at 5B. -->
+<section class="builder" data-template="video-cog">
+  <label class="field">
+    <span>Brief</span>
+    <textarea data-bind="brief" rows="6"></textarea>
+  </label>
+
+  <div class="row">
+    <label class="field"><span>Model size</span><select data-bind="model_size"></select></label>
+    <label class="field"><span>Frames</span><select data-bind="frame_count"></select></label>
+    <!-- Details + Creativity. Rendered by renderSliders() in app.js from
+         defaults.detail_levels and the model's creativity_presets, because
+         both the notch count and the notch labels are config. -->
+    <div class="sliders" data-bind="slider_block"></div>
+  </div>
+
+
+  <button type="button" data-bind="generate"></button>
+</section>

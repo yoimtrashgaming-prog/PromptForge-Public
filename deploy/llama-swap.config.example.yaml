@@ -1,0 +1,294 @@
+# AN EXAMPLE, taken from a working box (one Tesla V100 32GB) on 2 Oct 2026.
+#
+# Copy it to wherever llama-swap reads its config (for example
+# /home/USER/llama-swap/config.yaml, which deploy/llama-swap.service uses),
+# then change USER, the model paths and the llama.cpp build path to yours.
+# Keep the model names in step with config/server.yaml: the app asks
+# llama-swap for a model by exactly this name.
+#
+# The VRAM, speed and context figures in the comments were measured on that
+# box. They are a guide to what fits and why, not numbers for your card.
+#
+# ── original header ──────────────────────────────────────────────────────────
+#
+# llama-swap - one endpoint, several models, swapped on demand.
+#
+# Model IDs below are deliberately the exact names ollama uses. The app's
+# llm.model, per-user "Written by" preferences and models.yaml overrides all
+# carry those strings, so keeping them identical means nothing else has to
+# change and rolling back to ollama stays a one-line config edit.
+#
+# Only one 27B fits on a 23GB card, so llama-swap stops the running one before
+# starting the next. That swap costs a model load (~30-60s cold, less warm from
+# page cache) and is the price of being able to choose at all.
+#
+# ttl 300 matches what --sleep-idle-seconds was doing on the single-model unit:
+# give the card back after five idle minutes.
+
+# ctx-size 32768, raised from 12288 on 3 Sep 2026.
+#
+# h3 needs it. Its assembled prompt - house rules + the two official MiniMax
+# guides + SKILL.md - measures 12,692 tokens on this tokenizer, which does not
+# fit in 12288. Every h3 generation returned HTTP 400 exceed_context_size_error
+# from the moment llama.cpp replaced ollama on 1 Sep, because models.yaml sets
+# h3's context_length: 16384 and that key does NOT reach this backend:
+# llama.cpp takes context at server start, not per request (server/llm.mjs:903).
+# Ollama honoured it by reloading; llama-server cannot.
+#
+# The other five models are nowhere near either limit - the largest, anima, is
+# 2,790 tokens. 32768 gives h3 ~20k of headroom and costs 2,081 MiB of KV.
+#
+# Do NOT raise this further without measuring. KV is ~63.5 MiB per 1k tokens for
+# the main model, but the three entries carrying an MTP draft head pay roughly
+# 1,750 MiB more for the draft's own cache. Measured 3 Sep, OBLITERATED at 32768
+# sits at 21,169 MiB of 23,040 - 92% of the card. 48k would not fit.
+
+# ── Vision, 8 Sep 2026 ───────────────────────────────────────────────────────
+#
+# Four of the five entries below now carry --mmproj, and that is what lets the
+# model a person writes prompts with also read the reference images they
+# attach. Before this, pictures went to ollama: a SECOND 27B loading beside the
+# one llama-swap already held, on a card that fits one. That cost is what got
+# the reference cross-check switched off on 7 Sep.
+#
+# Measured 8 Sep on the Frieren screenshot, same prompt file both ways:
+#
+#   ollama, 27B          86-151s
+#   llama.cpp + mmproj     9.5s   (IQ4_XS, draft head, ctx 32768)
+#                          9.9s   (unsloth UD-Q3_K_XL, same projector)
+#
+# VRAM measured the same day, ctx 32768:
+#
+#   IQ4_XS  + draft + mmproj   21,253 MiB of 23,040   (offloaded, ~1,100 MiB)
+#   unsloth + draft + mmproj   18,973 MiB             (offloaded)
+#   Q4_K_P  + draft + mmproj   22,231 MiB             (CPU, costs NOTHING)
+#
+# A projector on the CPU costs no VRAM at all — Q4_K_P measured identical with
+# and without it — and 6.6s more on the read, 16.1s against 9.5s. So a tight
+# entry is never a reason to have no vision, only a reason not to offload it.
+# All five here can read. Four offload; the fifth has no room and does not.
+#
+# TWO PROJECTOR FILES, ONE PROJECTOR. The blob ollama holds for its Qwen3.8
+# 27Bs and the BF16 file HauhauCS ships are 931,146,432 and 931,146,624 bytes
+# — the same projector, and the ollama blob was verified against the unsloth
+# model directly. Each entry points at whichever copy sits beside its weights.
+#
+# **Thinking must be off in the REQUEST, and this is not optional.** With it
+# at the template default the first vision call came back empty at exactly the
+# token ceiling, all 900 spent in reasoning_content, in 74s. The app sends
+# chat_template_kwargs: { enable_thinking: false } — see server/visiontags.mjs.
+#
+# Adding a projector to a new entry means adding its name to
+# reference_vision.vision_models in config/server.local.yaml. Nothing detects
+# this: llama-server reports no capability, so the list is the only truth.
+
+# ── V100, 11 Sep 2026 ────────────────────────────────────────────────────────
+#
+# The P40 is out and a V100 32GB (compute 7.0) is in; the P40 comes back
+# beside it later. Every entry now runs ~/llama.cpp/build-v100, built at the
+# same commit as build/ but for CMAKE_CUDA_ARCHITECTURES "61;70", so it carries
+# kernels for both cards and needs no rebuild when the P40 returns.
+#
+# build/ is sm_61 only. It still runs on the V100 - the driver JIT-compiles its
+# compute_61 PTX - but none of llama.cpp's Volta code paths are in it. Measured
+# 11 Sep, base 27B UD-Q3_K_XL, ctx 32768, idle card, 2 runs each:
+#
+#                   decode           decode + MTP     prefill (3,750 tok)
+#     build/        32.3 tok/s       39.5 / 40.9      550 tok/s
+#     build-v100/   32.7 tok/s       41.2 / 43.4      618 tok/s
+#
+# The card is the real change: the P40 did 12.95, or 17.2-17.9 with MTP.
+#
+# Do NOT rename build-v100 to build. Each binary's RUNPATH is its own absolute
+# bin/ directory, so swapping the folder names makes each load the other's
+# libraries. Point these paths somewhere else instead.
+#
+# build-v100 used the CUDA 12.4 toolkit (/usr/local/cuda/bin/nvcc). The apt
+# nvcc 11.5 on PATH fails against gcc 11 ("parameter packs not expanded"); the
+# old build only got through because it mixed that nvcc with 12.4's headers.
+#
+# The VRAM figures in the comments below are still against the P40's 23,040
+# MiB. The V100 has 32,768, so every entry has more room than they say.
+
+healthCheckTimeout: 300
+
+models:
+  # The unsloth base 27B (UD-Q3_K_XL, measured in docs/engine-eval-2026-09-01.md)
+  # and the two decensored 27Bs (heretic, OBLITERATED) that sat here were
+  # removed 30 Sep 2026. h3's default moved to Q4_K_P that day; the HauhauCS
+  # 27Bs below replaced all three.
+
+  # HauhauCS uncensored 27B, added 2 Sep 2026 on a user's suggestion.
+  # Working and measured 3 Sep 2026, on the STOCK MTP head - the same
+  # mtp-Qwen3.8-27B-Q4_0.gguf the three entries above already use.
+  #
+  # The FastMTP head that ships with these models will NOT load on this build,
+  # and that is what returned "upstream command exited prematurely" 500s all day
+  # on 2 Sep. It is not a broken download. The file is a correctly built
+  # REDUCED-VOCAB draft head: output.weight is 5120x32768 - the "32K" in the
+  # filename is the draft vocabulary, not a context length - alongside a d2t
+  # tensor mapping those 32768 rows onto the target's 248320 tokens. llama.cpp
+  # reads d2t only in its EAGLE3 and DFlash loaders, and those are separate
+  # ARCHITECTURES; this file declares arch qwen35, so it goes to the qwen35
+  # loader, which validates output.weight against the full vocab and rejects it.
+  # No --spec-type reaches that - draft-eagle3, draft-dflash and draft-dspark
+  # were all tried and fail identically, because the spec type picks the
+  # algorithm, not the loader. Upstream master, 44 commits ahead on 3 Sep, has
+  # no fix either.
+  #
+  # The answer was the owner's: use the stock head, exactly as heretic and
+  # OBLITERATED already do. Those are modified weights on a stock head too, so
+  # there was never a reason these two needed one of their own.
+  #
+  # Measured, ctx 32768, 2 runs each:
+  #
+  #                no draft head       stock MTP head      VRAM      acceptance
+  #     IQ4_XS     13.30 tok/s         16.42 / 15.79       20.1GB    33-36%
+  #     Q4_K_P     11.19 tok/s         14.99 / 15.50       22.2GB    39-42%
+  #
+  # PREFER IQ4_XS. It is FASTER than Q4_K_P despite being the smaller quant, and
+  # it sits at 87% of the card where Q4_K_P sits at 96.5%. Q4_K_P does fit -
+  # measured, 22,231 MiB of 23,040 - but 809 MiB spare is nothing, and ollama
+  # serves Tab 3 vision from the same card. There is no quant between them:
+  # HauhauCS publishes IQ4_XS at 15.71GB and then jumps to Q4_K_P at 17.92GB.
+  #
+  # Acceptance of 33-42% is below the 46-49% this head reaches on unmodified
+  # Qwen3.8 weights. That is the cost of decensored weights and it still pays:
+  # both quants gained 21-36%% over running with no draft head at all.
+  #
+  # THE PROJECTOR RUNS ON THE CPU HERE, and this entry is the reason that
+  # option was found at all.
+  #
+  # Offloaded to the card - the default, and what the other four do - the
+  # projector costs about 1,100 MiB: IQ4_XS went from 20.1GB to 21,253 MiB.
+  # This quant sits at 22,231 MiB of 23,040 with the draft head, so 22.2 + 1.1
+  # does not fit, and it was written off as the one model that could not read a
+  # reference image.
+  #
+  # That was wrong, and only because the default was the only thing tried.
+  # --no-mmproj-offload keeps the projector in system RAM. Measured 8 Sep 2026:
+  # 22,231 MiB with it, byte for byte what it was WITHOUT the projector, and
+  # the Frieren screenshot read in 16.1s against 9.5s on the card. Six and a
+  # half seconds of a CPU that is otherwise idle - the same trade the ONNX
+  # taggers already win on - for a model that could not see at all.
+  #
+  # Worth remembering generally: a projector on the CPU costs no VRAM anywhere,
+  # so a tight entry is never a reason to have no vision. It is only a reason
+  # not to offload it.
+  # 17.9GB of weights, 22.2GB resident with the draft head - 96.5% of the card.
+  "hf.co/HauhauCS/Qwen3.8-27B-Uncensored-Aggressive:Q4_K_P":
+    cmd: >
+      /home/USER/llama.cpp/build-v100/bin/llama-server
+      --port ${PORT} --host 127.0.0.1
+      --model /home/USER/models/hauhau/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf
+      --model-draft /home/USER/models/mtp-Qwen3.8-27B-Q4_0.gguf
+      --spec-type draft-mtp
+      --mmproj /home/USER/models/hauhau/mmproj-Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-BF16.gguf
+      --no-mmproj-offload
+      --alias hf.co/HauhauCS/Qwen3.8-27B-Uncensored-Aggressive:Q4_K_P
+      --ctx-size 32768 --n-gpu-layers 999 --no-webui
+    ttl: 0
+
+  # 25.9GB of weights. Added 14 Sep 2026 and V100 ONLY - it does not fit the
+  # P40's 23GB, so when the P40 returns this entry must stay pinned to the V100.
+  # Measured 15 Sep 2026 (~/v100-bench-q6, p40-bench conditions, 2 runs, with a
+  # Q4_K_P control in the same session):
+  #
+  #                 decode, draft     no draft     VRAM         prefill  accept
+  #     Q6_K_P      39.42 / 35.89     26.31/26.29  30,258 MiB   696      39-47%
+  #     Q4_K_P      37.81 / 39.40     (34.37)      22,940 MiB   661      46-49%
+  #
+  # With the draft head Q6 decodes as fast as Q4_K_P; without it, 23% slower.
+  # The head saves more on a slower target (+43% here against ~+10% on Q4_K_P).
+  # 2,510 MiB spare, so the projector stays on the CPU, exactly as Q4_K_P does.
+  "hf.co/HauhauCS/Qwen3.8-27B-Uncensored-Aggressive:Q6_K_P":
+    cmd: >
+      /home/USER/llama.cpp/build-v100/bin/llama-server
+      --port ${PORT} --host 127.0.0.1
+      --model /home/USER/models/hauhau/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q6_K_P.gguf
+      --model-draft /home/USER/models/mtp-Qwen3.8-27B-Q4_0.gguf
+      --spec-type draft-mtp
+      --mmproj /home/USER/models/hauhau/mmproj-Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-BF16.gguf
+      --no-mmproj-offload
+      --alias hf.co/HauhauCS/Qwen3.8-27B-Uncensored-Aggressive:Q6_K_P
+      --ctx-size 32768 --n-gpu-layers 999 --no-webui
+    ttl: 0
+
+  # Gemma 4 31B, added 15 Sep 2026 as a CANDIDATE judged against Q4_K_P - not
+  # a default. HauhauCS "Balanced" on Google's QAT base, which is why only
+  # Q4_K_M exists: the base was trained for ~4-bit. 18.7GB of weights.
+  # Its draft head is Google's own (arch gemma4-assistant, 280MB), which this
+  # build has a loader for - NOT the Qwen mtp head the entries above share.
+  # Its template reads enable_thinking, so thinking-off works.
+  #
+  # Measured 15 Sep 2026 (~/v100-bench-q6, same conditions, Q4_K_P control in
+  # the same session):
+  #
+  #                 decode, draft     no draft     VRAM         prefill  accept
+  #     Gemma 31B   33.21 / 34.25     31.80/31.73  25,256 MiB   494      36-38%
+  #     Q4_K_P      38.08 / 37.14     (34.37)      22,940 MiB   665      44-46%
+  #
+  # The gemma4-assistant head loads and works but buys only ~6%. Prefill is 25%
+  # slower than Q4_K_P, which is what h3's 12.7k-token prompt will feel.
+  # 7.5GB spare, so the projector COULD go on the card (~1.2GB); left on the
+  # CPU while this is still a candidate.
+  "hf.co/HauhauCS/Gemma4-31B-QAT-Uncensored-Balanced:Q4_K_M":
+    cmd: >
+      /home/USER/llama.cpp/build-v100/bin/llama-server
+      --port ${PORT} --host 127.0.0.1
+      --model /home/USER/models/gemma4-hauhau/Gemma4-31B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf
+      --model-draft /home/USER/models/gemma4-hauhau/mtp-gemma-4-31B-it.gguf
+      --spec-type draft-mtp
+      --mmproj /home/USER/models/gemma4-hauhau/mmproj-Gemma4-31B-QAT-Uncensored-HauhauCS-Balanced-BF16.gguf
+      --no-mmproj-offload
+      --alias hf.co/HauhauCS/Gemma4-31B-QAT-Uncensored-Balanced:Q4_K_M
+      --ctx-size 32768 --n-gpu-layers 999 --no-webui
+    ttl: 0
+
+  # 15.7GB. The faster of the two on decode and the one to prefer.
+  "hf.co/HauhauCS/Qwen3.8-27B-Uncensored-Aggressive:IQ4_XS":
+    cmd: >
+      /home/USER/llama.cpp/build-v100/bin/llama-server
+      --port ${PORT} --host 127.0.0.1
+      --model /home/USER/models/hauhau/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-IQ4_XS.gguf
+      --model-draft /home/USER/models/mtp-Qwen3.8-27B-Q4_0.gguf
+      --spec-type draft-mtp
+      --mmproj /home/USER/models/hauhau/mmproj-Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-BF16.gguf
+      --alias hf.co/HauhauCS/Qwen3.8-27B-Uncensored-Aggressive:IQ4_XS
+      --ctx-size 32768 --n-gpu-layers 999 --no-webui
+    ttl: 0
+
+  # Qwen's own Qwen3-VL-8B-Instruct, added 18 Sep 2026 at the owner's ask, the
+  # largest quant there is: F16, 16.4GB, plus the F16 projector (1.2GB).
+  # Official repo Qwen/Qwen3-VL-8B-Instruct-GGUF, SHA-256 checked against it.
+  # The V100 runs fp16 natively, so F16 costs nothing but bandwidth. NOT
+  # decensored: expect refusals or softening on NSFW briefs. No draft head.
+  # ~22GB with the 32k cache, so the projector stays ON the card.
+  "hf.co/Qwen/Qwen3-VL-8B-Instruct-GGUF:F16":
+    cmd: >
+      /home/USER/llama.cpp/build-v100/bin/llama-server
+      --port ${PORT} --host 127.0.0.1
+      --model /home/USER/models/qwen3-vl-8b/Qwen3VL-8B-Instruct-F16.gguf
+      --mmproj /home/USER/models/qwen3-vl-8b/mmproj-Qwen3VL-8B-Instruct-F16.gguf
+      --alias hf.co/Qwen/Qwen3-VL-8B-Instruct-GGUF:F16
+      --ctx-size 32768 --n-gpu-layers 999 --no-webui
+    ttl: 0
+
+  # HauhauCS's Qwen3.5-9B Aggressive: the plain qwen3.5 9B (4/5 on the h3
+  # five-picture test, 30 Sep 2026) with refusals removed, from the maker of
+  # the 27Bs. Q8_0 with its own BF16 projector. Added 30 Sep 2026. ~10.4GB.
+  "hf.co/HauhauCS/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive:Q8_0":
+    cmd: >
+      /home/USER/llama.cpp/build-v100/bin/llama-server
+      --port ${PORT} --host 127.0.0.1
+      --model /home/USER/models/qwen3.5-9b-hauhau/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-Q8_0.gguf
+      --mmproj /home/USER/models/qwen3.5-9b-hauhau/mmproj-Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf
+      --alias hf.co/HauhauCS/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive:Q8_0
+      --ctx-size 32768 --n-gpu-layers 999 --no-webui
+    ttl: 0
+
+# huihui_ai/qwen3.5-abliterated:9b removed 1 Sep 2026. llama.cpp refuses the
+# GGUF: "qwen35.rope.dimension_sections has wrong array length; expected 4,
+# got 3" - converted with an older tool than this build accepts. Ollama loads
+# it fine, so it is still reachable there; it just cannot be served here until
+# the file is re-converted.

@@ -1,0 +1,51 @@
+# What `docker compose build` must NOT bake into the image.
+#
+# Without this file `COPY . .` copied everything in the folder: node_modules
+# built for the host, and on a box that has been used, data/users (accounts
+# and password hashes), the pinboard, logs, and this machine's local config.
+# data/, logs/ and config/ are mounted as volumes at run time anyway, so the
+# image needs none of what is in them - except data/seed/, which a fresh
+# volume is filled from on first start.
+
+.git
+.claude
+node_modules
+logs
+*.log
+
+data/*
+!data/seed
+!data/queue/.gitkeep
+!data/training/.gitkeep
+!data/shared-images/.gitkeep
+
+config/*.local.yaml
+config/*.local.yaml.*
+config/*.bak*
+models
+taggers
+venv
+__pycache__
+.env
+
+# ── Not for a published image (22 Sep 2026) ──────────────────────────────
+#
+# The image may go on Docker Hub, so it carries the app and nothing about
+# the group's own server or other people's documents.
+#
+# Working notes, specs and the mockup: the app never reads them, and several
+# name this group's server - its addresses, its login, its layout.
+CLAUDE.md
+HANDOFF.md
+archive/
+docs/*
+!docs/taggers-setup.md
+deploy/
+scripts/sync-p40.sh
+scripts/sync-z440.sh
+scripts/sync.local.env
+
+# MiniMax's official H3 guides and the per-mode files sliced verbatim from
+# them. Not ours to redistribute: scripts/docker-start.sh fetches and slices
+# them on the machine that runs the container.
+prompts/video/h3/references/h3-*.md

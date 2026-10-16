@@ -1,0 +1,50 @@
+# PromptForge as a systemd service, for the Linux deployment box.
+#
+# Install:
+#   sudo cp deploy/promptforge.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now promptforge
+#
+# Watch it:
+#   systemctl status promptforge
+#   journalctl -u promptforge -f
+#
+# Edit User, WorkingDirectory and the node path to match the box. This is a
+# template with plausible values, not a verified one — `which node` and `id`
+# before trusting either.
+
+[Unit]
+Description=PromptForge - model-aware prompt assistant
+# Ollama is not required to start, only to generate: the app boots and reports
+# a backend that is down. Ordered after it so a reboot brings them up in the
+# sensible order anyway.
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=promptforge
+WorkingDirectory=/home/USER/promptforge
+# Absolute path, and check it before installing: `command -v node`.
+#
+# This said /usr/bin/node until 5 Sep 2026 and there is no node there on the
+# deployment box — the running unit points at ~/.local/node/bin/node, so the
+# copy in this repo would have produced a service that never started. Found
+# only because something else needed the interpreter's path.
+ExecStart=/home/USER/.local/node/bin/node server.mjs
+Restart=on-failure
+RestartSec=5
+
+# Deliberately absent: OLLAMA_FLASH_ATTENTION and OLLAMA_KV_CACHE_TYPE. A
+# Pascal card such as the Tesla P40 supports neither; add them only for a card
+# that does. Cap context in config/server.local.yaml.
+
+# The app writes only under data/ and logs/, and reads config/ and prompts/.
+# Nothing here needs to touch the rest of the filesystem.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

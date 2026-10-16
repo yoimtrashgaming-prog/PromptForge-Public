@@ -1,0 +1,266 @@
+<!-- MiniMax H3: structured timed shots with role-tagged references.
+
+     The reference panel below is shaped like the DaSiWa MiniMax H3
+     Director node, deliberately and closely — mode pills, two lanes, clip
+     tiles with identity badges and stream buttons, one editor for whichever
+     clip is selected. That node is what consumes this prompt, and a person
+     who has just arranged four references in ComfyUI should not have to
+     rebuild that arrangement here in a different shape and hope the two
+     agree about which picture is <Picture 1>.
+
+     Numbering is the reason it has to be an ordered timeline rather than a
+     list: the badge on each tile is the label the prompt will actually use,
+     and it comes from position. Drag a tile and the label moves with it.
+
+     Every reference still carries an explicit role — H3 drifts badly when
+     roles are implicit, and the system prompt refuses to emit a prompt for
+     an unlabelled one. -->
+<section class="builder" data-template="video-h3">
+  <label class="field">
+    <span>Creative brief</span>
+    <textarea data-bind="brief" rows="6"></textarea>
+  </label>
+  <!-- One box per shot when Shots is a number; empty and hidden on Auto.
+       renderShotBriefs() in app.js fills it. -->
+  <div class="shot-briefs" data-bind="shot_briefs" hidden></div>
+
+  <div class="row">
+    <!-- The mode pills in the Director toolbar below write into this select
+         and fire its change event. It stays because it is the model's real
+         mode control: fillSelect() populates it from the registry, the
+         control serialiser reads it, and nothing about pills is special
+         enough to be worth teaching the rest of the app about.
+
+         Hidden by CLASS, never by the hidden attribute: collectControls()
+         skips any control inside [hidden] — that is how a stale first/last
+         frame is stopped from riding along — so `hidden` here would quietly
+         drop `mode` from every h3 request. Mode is what picks the reference
+         guide, the lane limits and the resolved Auto detect. test-app.mjs
+         guards this now. -->
+    <label class="field mmd-offscreen" data-bind="mode_field">
+      <span>Mode</span><select data-bind="mode"></select>
+    </label>
+    <label class="field"><span>Duration</span><select data-bind="duration"></select></label>
+    <label class="field"><span>Shots</span><select data-bind="shots"></select></label>
+    <label class="field"><span>Aspect</span><select data-bind="aspect_ratio"></select></label>
+    <label class="field checkbox">
+      <input type="checkbox" data-bind="thinking"><span>Thinking</span>
+    </label>
+    <!-- Details + Creativity. Rendered by renderSliders() in app.js from
+         defaults.detail_levels and the model's creativity_presets, because
+         both the notch count and the notch labels are config. -->
+    <div class="sliders" data-bind="slider_block"></div>
+  </div>
+
+  <div class="references mmd-director">
+    <!-- Toolbar. Mode pills left, actions right, exactly as the node reads
+         top-to-bottom. -->
+    <div class="mmd-toolbar">
+      <span class="mmd-title">MiniMax H3 Director</span>
+      <div class="mmd-modes" data-bind="mode_pills"></div>
+      <!-- The node's Simple / Structured prompt toggle, beside the mode pills
+           where the node has it. Not a generation control: the model writes
+           the same segments either way, and this picks which form the output
+           panel shows and copies — the fields for Structured, the whole
+           assembled prompt for Simple. Hidden unless the model declares
+           `simple_prompt`; setupPromptStyle() in app.js wires it. -->
+      <div class="mmd-modes mmd-style" data-bind="prompt_style" hidden>
+        <button type="button" class="mmd-pill" data-style="structured">Structured</button>
+        <button type="button" class="mmd-pill" data-style="simple">Simple</button>
+      </div>
+      <div class="mmd-actions">
+        <!-- Look at each picture now, before Generate: the descriptions land
+             behind each tile's eye to check or fix. Generate scans whatever is
+             left, so this is never required. -->
+        <button type="button" class="mmd-btn" data-bind="scan_pictures" hidden
+                title="Have the model look at each picture now, so you can check what it saw before generating">Scan pictures</button>
+        <button type="button" class="mmd-btn" data-bind="clear">Clear</button>
+        <button type="button" class="mmd-btn" data-bind="remove_selected" hidden>Remove</button>
+        <!-- No href here. Owner's call, 4 Sep 2026: nothing in the UI sends
+             anyone off the tailnet, so this is served from this box by
+             /api/docs/h3-director and app.js fills the address in. Hidden
+             until the settings payload says the file is actually present -
+             it arrives with npm run fetch-h3-refs, so absent is the normal
+             state on a fresh checkout. -->
+        <a class="mmd-btn mmd-help" data-bind="help" hidden
+           target="_blank" rel="noreferrer noopener"
+           title="MiniMax H3 Director documentation">?</a>
+        <!-- Where to get a workflow for this prompt. Filled from the model's
+             comfyui_workflow entry in config/models.yaml, hidden without one. -->
+        <a class="mmd-btn" data-bind="workflow_link" hidden
+           target="_blank" rel="noreferrer noopener"></a>
+      </div>
+    </div>
+
+    <!-- Two lanes, not three: the node puts images and video together and
+         keeps audio on its own, because the file limits and the crop rules
+         split that way. `reference_list` wraps both so document order is
+         serialisation order — see collectControls(). -->
+    <div data-bind="reference_list">
+      <div class="mmd-lane" data-lane="visual" data-bind="lane_visual" tabindex="0">
+        <div class="mmd-lane-head">
+          <span class="mmd-lane-name">Image / Video</span>
+          <span class="mmd-lane-sel">· selected</span>
+          <span class="mmd-lane-cap" data-bind="cap_visual"></span>
+        </div>
+        <div class="mmd-slots" data-bind="slots_visual">
+          <button type="button" class="mmd-add" data-bind="add_visual" title="Add images or video">+</button>
+        </div>
+      </div>
+
+      <div class="mmd-lane" data-lane="audio" data-bind="lane_audio" tabindex="0">
+        <div class="mmd-lane-head">
+          <span class="mmd-lane-name">Audio</span>
+          <span class="mmd-lane-sel">· selected</span>
+          <span class="mmd-lane-cap" data-bind="cap_audio"></span>
+        </div>
+        <div class="mmd-slots" data-bind="slots_audio">
+          <button type="button" class="mmd-add" data-bind="add_audio" title="Add audio">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- One clip tile. State lives on the tile's dataset rather than in
+         inputs inside it: the editor below is shared, so the tile is the
+         record and the editor is a view onto whichever one is selected. -->
+    <template data-bind="clip_tile">
+      <div class="mmd-tile reference" draggable="true" tabindex="0">
+        <!-- draggable="false": the TILE is what gets dragged. A draggable
+             thumbnail becomes the drag source instead, and Chrome carries
+             it as a file, which the lane then took as a new upload. -->
+        <img class="mmd-thumb" data-bind="preview" alt="" draggable="false" hidden>
+        <video class="mmd-thumb" data-bind="preview_video" preload="metadata" muted draggable="false" hidden></video>
+        <span class="mmd-wave" data-bind="preview_wave" hidden></span>
+        <span class="mmd-badge" data-bind="badge"></span>
+        <span class="mmd-streams" data-bind="streams" hidden></span>
+        <!-- The picture at full size, over the page (12 Oct 2026): the tile is
+             too small to tell which picture is which. Pictures only. -->
+        <button type="button" class="mmd-zoom" data-bind="zoom_btn"
+                title="See the picture" aria-label="See this picture full size">
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21M10.5 7.5v6M7.5 10.5h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <!-- What the model saw in this picture, after a Generate that read it.
+             Opens a card over the tile; hidden until there is a reading. -->
+        <button type="button" class="mmd-read" data-bind="read_btn" hidden
+                title="What the model saw" aria-label="What the model saw in this picture">
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+        </button>
+        <span class="mmd-tile-body">
+          <span class="mmd-name" data-bind="name"></span>
+          <span class="mmd-meta" data-bind="meta"></span>
+        </span>
+      </div>
+    </template>
+
+    <!-- The Director's Media Prompt editor: appears when a tile is selected,
+         edits that tile alone. Role sits here rather than on the tile because
+         a tile the size of a thumbnail cannot hold a select without becoming
+         the old list again. -->
+    <div class="mmd-editor" data-bind="clip_editor" hidden>
+      <div class="mmd-editor-head" data-bind="editor_head"></div>
+      <div class="row">
+        <!-- Two questions, the same on every picture: what it is, and who is
+             in it. The number buttons are tapped left to right, so one
+             control covers one character, several side by side, and who
+             stands in a first or last frame (6 Oct 2026; it replaced a
+             fifteen-item list and a note you had to know to type). -->
+        <!-- Buttons, not a list: Character and Place can both be on, for
+             one picture that gives the characters and the background
+             (6 Oct 2026). The others are one at a time. -->
+        <div class="field" data-bind="picture_kind_field" hidden>
+          <span>This picture is</span>
+          <span class="seg kind-seg" data-bind="picture_kind" role="group" aria-label="This picture is">
+            <button type="button" data-kind="character" aria-pressed="true">Character</button>
+            <button type="button" data-kind="place" aria-pressed="false">Place</button>
+            <button type="button" data-kind="style" aria-pressed="false">Style</button>
+            <button type="button" data-kind="first-frame" aria-pressed="false">First frame</button>
+            <button type="button" data-kind="last-frame" aria-pressed="false">Last frame</button>
+            <button type="button" data-kind="pose" aria-pressed="false" title="Only the stance: someone else takes this pose">Pose</button>
+          </span>
+          <!-- A place, style or pose picture has no people to box: this
+               reads its card in the Cast list again (14 Oct 2026). -->
+          <button type="button" class="ghost" data-bind="scan_picture" hidden title="Read this picture's place, style or pose card again. A card you edited is read again too.">Scan picture</button>
+        </div>
+        <div class="field" data-bind="picture_who_field" hidden>
+          <span>Who's in it</span>
+          <!-- The number buttons are built by app.js: six, and one more each
+               time the highest is used, up to ten (12 Oct 2026). -->
+          <span class="who-chips" data-bind="picture_who" role="group" aria-label="Who's in it, left to right"></span>
+          <!-- Only with two or more tapped: which way the tap order runs.
+               Optional; none is picked until the person picks one. -->
+          <span class="seg who-axis" data-bind="picture_who_axis" hidden>
+            <button type="button" data-axis="x" aria-pressed="false">left → right</button>
+            <button type="button" data-axis="y" aria-pressed="false">top → bottom</button>
+            <button type="button" data-axis="z" aria-pressed="false">front → back</button>
+          </span>
+          <span class="who-order" data-bind="picture_who_order"></span>
+          <!-- With two or more tapped: a few words each, so the reader can
+               tell them apart ("red hair, guitar"). Built by app.js. -->
+          <div class="who-hints" data-bind="picture_who_hints" hidden></div>
+        </div>
+        <!-- People boxes (13 Oct 2026): a box round each character in a
+             picture of several. The model finds them or you add them; either
+             way they drag, resize and renumber. With boxes, who is in it and
+             where they stand come from the boxes, and each person is read
+             from their own crop. Built by app.js. -->
+        <div class="field people-field" data-bind="people_field" hidden>
+          <span>People in it</span>
+          <div class="people-stage" data-bind="people_stage"></div>
+          <div class="people-actions">
+            <button type="button" class="ghost" data-people="find">Find people</button>
+            <button type="button" class="ghost" data-people="scan" hidden title="Read everyone again from their boxes as they are, without finding the boxes again">Scan people</button>
+            <button type="button" class="ghost" data-people="add">Add character</button>
+            <button type="button" class="ghost" data-people="clear" hidden>Clear boxes</button>
+          </div>
+          <p class="people-note" data-bind="people_note">Find people boxes everyone for you, or Add character drops a box to drag over someone. Drag a box to move it, its corner to resize it, and pick its number above it. Click a box to see that character's description in the Cast list. Scan people reads everyone again from their boxes as they are, replacing their descriptions.</p>
+        </div>
+        <label class="field" data-bind="role_field"><span>Role</span><select data-bind="role"></select></label>
+        <label class="field" data-bind="subject_group_field" hidden>
+          <span>Subject-aware grouping</span>
+          <select data-bind="subject_group">
+            <option value="">Separate</option>
+            <option value="A">Group A</option><option value="B">Group B</option>
+            <option value="C">Group C</option><option value="D">Group D</option>
+          </select>
+        </label>
+        <label class="field" data-bind="stream_field" hidden>
+          <span>Streams used</span><select data-bind="stream"></select>
+        </label>
+        <label class="field" data-bind="crop_field" hidden>
+          <span>Crop (seconds)</span>
+          <span class="mmd-crop">
+            <input type="number" data-bind="crop_start" min="0" step="0.1" inputmode="decimal">
+            <span class="mmd-crop-arrow">→</span>
+            <input type="number" data-bind="crop_end" min="0" step="0.1" inputmode="decimal">
+          </span>
+        </label>
+      </div>
+      <div class="row">
+        <label class="field"><span data-bind="keep_label">Traits to keep</span><input type="text" data-bind="keep"></label>
+        <label class="field" data-bind="drop_field"><span>Traits to drop</span><input type="text" data-bind="drop"></label>
+      </div>
+      <p class="field-note" data-bind="group_note">Optional: set the same group on two or more subject pictures of one person or object. Separate is the default. Style, keyframes and base modes are never grouped.</p>
+      <p class="field-note" data-bind="picture_label_note" hidden>Tap who is in each picture. With two or more, you can also say where each one stands: left to right, top to bottom or front to back. The same number on two pictures is the same character. In the brief, write "Character 1", "Character 2" and "the place".</p>
+      <p class="field-note" data-bind="editor_note"></p>
+    </div>
+
+    <!-- The Cast list (13 Oct 2026): one card per character in the pictures,
+         with what they look like. Filled from their pictures (their people
+         box, where they have one) and editable: the text is what the video
+         model is told, as written. Built by app.js. -->
+    <div class="cast-list" data-bind="cast_list" hidden>
+      <div class="cast-head"><span>Cast and scene</span></div>
+      <p class="field-note">How each character looks, and the place, the style and each pose, read from their pictures. Fix anything that is off: the text goes into the prompt as you leave it. An empty card is read when you Generate.</p>
+      <div class="cast-cards" data-bind="cast_cards"></div>
+    </div>
+
+    <input type="file" data-bind="reference_upload" multiple hidden>
+    <p class="field-note" data-bind="reference_limits"></p>
+  </div>
+
+  <!-- Hard 7,000-character limit. The panel counts and warns before it is
+       reached, because the structured format runs long. -->
+  <p class="counter" data-bind="char_counter"></p>
+
+  <button type="button" data-bind="generate"></button>
+</section>

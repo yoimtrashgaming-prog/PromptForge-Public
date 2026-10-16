@@ -1,0 +1,1899 @@
+# PromptForge — model registry
+#
+# Single source of truth for every model surface in the app. The frontend
+# builds its selectors, badges, templates, quality presets and button labels
+# from GET /api/models, which derives from this file. Adding a model is one
+# entry here + one prompt file + one template file. No code changes.
+#
+# Keys are canonical and appear in user preferences, library entries and the
+# training queue. They match the mockup's MODEL_REGISTRY and the
+# `default_video_model` field in the preferences schema. Do not rename them
+# without a migration.
+#
+# `segments` must match the "Segments to emit" list in that model's prompt
+# file exactly, including case and order. registry.mjs validates this at boot
+# and the segment parser drives its output contract from it. The parser also
+# accepts `Refused` from any model as a terminal segment — house-rules.md
+# mandates it for policy refusals but no model lists it.
+
+defaults:
+  # Applies to every model unless overridden. The image models' worked
+  # examples in prompts/image/*.md carry a "Creativity" control alongside
+  # the quality preset, so this is not H3-only.
+  # Creativity moves two things: the sampler, and how far past the brief the
+  # model is allowed to go. It used to move only the sampler — the label
+  # "Creativity: Balanced" reached the model with no meaning attached to it,
+  # and how much to invent was left to whatever the prompt file happened to
+  # say. Added 30 Aug 2026, on the owner's call: "gatekeep the creativity to
+  # the slider too".
+  #
+  # That matters more now that a tag lookup sits in front of the model. Both
+  # server/candidates.mjs and prompts/_shared/tag-search.md tell it to write
+  # past what the lookup found, and without this line that instruction has no
+  # ceiling — "precise" and "wild" would expand exactly as far as each other.
+  #
+  # `rule` is injected verbatim into the user turn by buildUserMessage, the
+  # same way detail_levels below are, and lives here so the wording is the
+  # owner's to change without a code edit.
+  #
+  # Widened from four presets to ten on 4 Sep 2026, on the owner's call. The
+  # names still reach the model as names, so prompts/video/h3/SKILL.md and
+  # prompts/_shared/tag-search.md - both of which name Precise and Wild - are
+  # still correct; they now describe the two ends of a longer ladder rather
+  # than the whole of a short one. `balanced` must keep existing under that
+  # exact key: samplingFor in server.mjs falls back to it when a preset name
+  # does not resolve.
+  creativity_presets:
+    literal:
+      temperature: 0.30
+      top_p: 0.65
+      rule: "Add nothing. Put exactly what the person wrote into this model's dialect and stop. If they left something out it stays out - no setting, no light, no mood, no wardrobe that is not already in the brief."
+    precise:
+      temperature: 0.45
+      top_p: 0.72
+      rule: "Stay close to what the person wrote. Put what they named into this model's dialect and add only what the image cannot be built without. Do not invent a setting, a mood or a wardrobe they did not ask for."
+    faithful:
+      temperature: 0.55
+      top_p: 0.76
+      rule: "Follow the brief closely, and fill only the gaps that would otherwise leave the image undefined - where this happens, what the light is doing. Take the most ordinary answer available and move on."
+    measured:
+      temperature: 0.62
+      top_p: 0.78
+      rule: "Complete the scene they described using conventional, expected choices. Every addition should be one they would have written themselves had they thought of it."
+    balanced:
+      temperature: 0.70
+      top_p: 0.80
+      rule: "Fill in what the brief leaves out - setting, light, framing, the detail they did not think to write - but keep every addition in service of the scene they described."
+    loose:
+      temperature: 0.78
+      top_p: 0.85
+      rule: "Fill the gaps with choices that have some character to them rather than the safest one. You may add a supporting element they never mentioned, as long as the scene they described is still the subject."
+    inventive:
+      temperature: 0.85
+      top_p: 0.88
+      rule: "Bring your own ideas to the setting, the light and the framing. Add elements they never asked for where they make the image stronger, and let the atmosphere be a deliberate choice rather than a default."
+    creative:
+      temperature: 0.92
+      top_p: 0.92
+      rule: "Expand freely. Add atmosphere, framing and supporting detail they never asked for, as far as it makes the image better. Nothing you add may contradict what they did write."
+    daring:
+      temperature: 1.00
+      top_p: 0.94
+      rule: "Push well past the brief. Reach for a striking setting, a strong light and an unusual angle rather than a plausible one. The subject and the action they named are fixed; treat everything else as an invitation."
+    wild:
+      temperature: 1.10
+      top_p: 0.96
+      rule: "Treat the brief as a starting point and build well past it. Unexpected detail, strong atmosphere and bold framing are wanted here. Only the subject and the action they named are fixed; everything around them is yours."
+  default_creativity: "balanced"
+
+  # Detail - the second axis, added 25 Aug 2026. Creativity decides how much
+  # the model may invent; detail decides how much it writes down. They were
+  # one dropdown before and the two kept getting confused: someone wanting a
+  # denser prompt reached for "wild" and got an invented scene instead.
+  #
+  # The rule text is injected verbatim into the user turn by buildUserMessage
+  # in server.mjs. It lives here rather than in code so the wording is the
+  # owner's to change without a code edit - the same reason the quality and
+  # creativity presets live here.
+  #
+  # **Levels 3-8 stay inside whatever the model's own prompt file allows** -
+  # wan's 80-120 word target, the booru tag ceilings. Only 1-2 and 9-10 may
+  # break it, and they say so in as many words, because that was the call on
+  # 25 Aug: the slider wins at the extremes. Anything softer makes the top
+  # notch indistinguishable from the one below it on the constrained models,
+  # which is the whole reason for a slider.
+  #
+  # Widened from five levels to ten on 4 Sep 2026, on the owner's call. Five
+  # notches with three of them saying "stay inside the model's rules" gave
+  # three settings that differed only in adverbs. Each level here instead
+  # names the specific thing it ADDS to the one below - setting, then light,
+  # then mood and palette, then materials, then spatial layering - so the
+  # difference between two adjacent notches is a category the model can act
+  # on rather than a degree it has to guess at.
+  detail_levels:
+    1:
+      label: "Bare"
+      rule: "Subject and action only. No setting, no lighting, no framing. This overrides any minimum length or tag count this model's format normally expects."
+    2:
+      label: "Minimal"
+      rule: "The subject, the action and where it happens. Nothing further. This overrides any minimum length or tag count this model's format normally expects."
+    3:
+      label: "Light"
+      rule: "Subject, action, setting, and one note on how the shot is framed. Stay compact, and stay inside this model's normal length and density rules."
+    4:
+      label: "Modest"
+      rule: "Cover the subject, the setting, the framing and what the light is doing - each once, briefly. Stay inside this model's normal length and density rules."
+    5:
+      label: "Standard"
+      rule: "Ordinary density: composition, viewpoint, lighting and setting each covered once. Stay inside this model's normal length and density rules."
+    6:
+      label: "Full"
+      rule: "Everything at Standard, plus the mood and the palette - what the scene feels like and which colours carry it. Stay inside this model's normal length and density rules."
+    7:
+      label: "Rich"
+      rule: "Add materials and surfaces - fabric, skin, metal, stone, water - and how the light behaves on each. Stay inside this model's normal length and density rules."
+    8:
+      label: "Dense"
+      rule: "Build out the spatial relationships and the supporting cast of the frame: what sits in front of the subject, what sits behind, what sits beside. Stay inside this model's normal length and density rules, at the dense end of them."
+    9:
+      label: "Very detailed"
+      rule: "Layer the frame front to back - foreground, subject, background - each carrying its own detail, and give the whole an explicit art direction. This overrides any maximum length or tag count this model's format normally expects."
+    10:
+      label: "Exhaustive"
+      rule: "Specify every visually useful aspect: layered foreground, subject and background, precise lighting, palette, textures and art direction. This overrides any maximum length or tag count this model's format normally expects."
+  default_detail: 5
+
+  # Lighting - the third slider axis, added 8 Sep 2026. A user's scale and
+  # A user's wording, both shipped as written.
+  #
+  # The problem it solves is a model habit rather than a missing feature: asked
+  # for anything intimate, dramatic, cinematic, nocturnal or indoors, the model
+  # reaches for amber lamps and crimson shadow whether or not the brief wanted
+  # a dark picture. There was no way to say "this is a bright scene" that the
+  # model did not immediately reinterpret as a mood.
+  #
+  # **Level 0 is OFF and is the default.** Nothing is injected at 0, so a
+  # person who never touches this slider gets exactly the prompt this app
+  # produced before it existed - the owner's call, and the reason the ladder
+  # starts at 0 rather than defaulting to the neutral middle. The scale is
+  # exposure only: 1 is nearly black, 6 is neutral, 10 is flooded with light.
+  #
+  # IMAGE MODELS ONLY for now. h3, wan and ltx each set `lighting_levels: {}`
+  # to opt out, because a clip can change its exposure across shots and one
+  # scalar for the whole thing is the wrong control there. Deleting that line
+  # on a video model is all it takes to switch this on for it.
+  #
+  # The rule text is injected verbatim into the user turn by buildUserMessage
+  # in server.mjs, exactly as detail_levels and creativity_presets are, and it
+  # lives here so the wording stays the owner's without a code edit.
+  lighting_rule: "LIGHTING LEVEL IS AUTHORITATIVE. It controls overall exposure and scene brightness only. Never darken a scene because it is intimate, dramatic, cinematic, nocturnal, or indoors. Do not automatically introduce amber lamps, candles, crimson shadows, or low-key lighting. Preserve any explicitly requested light source, color temperature, time of day, and palette while adapting their intensity to the selected level."
+  lighting_levels:
+    # No rule, so nothing is sent. The slider still renders this notch, and it
+    # is where it sits until somebody moves it.
+    0:
+      label: "Off"
+    1:
+      label: "Near-black"
+      rule: "Near-black exposure. Most of the frame disappears into shadow; only essential silhouettes and tiny highlights remain visible."
+    2:
+      label: "Very dark"
+      rule: "Very dark low-key exposure. One weak localized source reveals limited contours while deep shadows dominate the image."
+    3:
+      label: "Dark"
+      rule: "Dark exposure. The principal subject and action remain readable, but the environment recedes heavily into shadow."
+    4:
+      label: "Dim"
+      rule: "Dim exposure with subdued illumination and broad shadows. Faces, bodies, and important objects remain clearly distinguishable."
+    5:
+      label: "Moderate"
+      rule: "Moderately lit scene with controlled contrast. All essential subjects are readable, shadows retain detail, and highlights remain restrained."
+    6:
+      label: "Neutral"
+      rule: "Neutral, balanced exposure. Clear key and fill illumination reveal the subjects and surroundings without an intentionally dark or bright bias."
+    7:
+      label: "Bright"
+      rule: "Bright, well-lit exposure. Open shadows, clearly visible surroundings, accurate colors, and abundant illumination across the subjects."
+    8:
+      label: "Very bright"
+      rule: "Very bright exposure produced by broad, powerful illumination. Minimal deep shadow, high environmental visibility, and crisp material detail."
+    9:
+      label: "High-key"
+      rule: "Luminous high-key exposure. Soft shallow shadows, bright backgrounds, airy tonal values, and consistently illuminated subjects throughout the frame."
+    10:
+      label: "Radiant"
+      rule: "Extremely bright high-key exposure. The entire scene is flooded with light and nearly shadowless while preserving highlight detail and avoiding blown-out whites."
+  default_lighting: 0
+
+  # Whether the switchable segments start ON or OFF for somebody who has never
+  # touched them. "off" from 5 Sep 2026, on the owner's call.
+  #
+  # Which segments those are is per model and decided by server/segments.mjs —
+  # the negative prompt and the "explain yourself" ones. A person who wants
+  # them ticks them on in the builder and that choice is stored; this only
+  # decides where everyone starts.
+  #
+  # Off is the honest default now that a switched-off segment is genuinely not
+  # written rather than written and hidden. The negative prompt is assembled by
+  # the server from negative_defaults on the models that have one, so asking
+  # the model for it was buying nothing on those, and the explaining segment is
+  # a footnote most people do not read. Measured saving with both off, per
+  # model: wan 38%, illustrious 31%, ltx 25%, krea2 18%, anima 14%, h3 5%.
+  optional_segments_default: "off"
+
+  # Reference images on the image models — what a picture is FOR, and how
+  # hard to follow it. Added 26 August 2026.
+  #
+  # Tagging a reference says what is IN it. It does not say why it was
+  # attached, and those are different questions: the same photograph is a
+  # character sheet, an outfit swatch or a lighting study depending on what
+  # the person wanted from it, and a tag dump reads identically in all three
+  # cases. The vocabulary below is adapted from the French contributor's own
+  # build, which had this and we did not.
+  #
+  # Both lists live here rather than in code for the same reason the quality
+  # and creativity presets do: the wording is the owner's to change without a
+  # code edit, and the frontend builds its selectors from whatever is here.
+  #
+  # NOT the same thing as `reference_roles`, which is h3 only and is bound to
+  # the MiniMax Director's own label classes — see server/references.mjs.
+  # These feed an image prompt and answer to nothing but the prompt files.
+  image_reference_roles:
+    # First, and the broadest. Asked for 9 Sep 2026: "can we have one more
+    # instance of the 'this picture is for' where its just a generalized 'look
+    # at this' so i can give it an image and be like 'replace this character
+    # with this character' cause currently i cant figure out which section id
+    # select for that".
+    #
+    # Every other role below is a single aspect — one of them is the answer
+    # when you want a coat or a posture, and none of them is the answer when
+    # you want THIS PICTURE with somebody else in it. Character came closest
+    # and is wrong in a way that shows: on a two-person reference it reads as
+    # a question about one person, and the reported result is that the second
+    # subject "gets ignored and wont get prompted in".
+    #
+    # **It takes its orders from the brief, not from this line.** That is the
+    # second half of the same conversation: "cant we just give it the photo
+    # with just the instructions given via user prompts and then have it have
+    # the proper output where it says what it grabs and what it ignores?"
+    #
+    # He is right, and it is the better shape. Every other role here is the
+    # app guessing in advance at a question the person has already answered in
+    # words — "replace the blue haired girl with frieren" says which one goes,
+    # which one stays, and that everything else holds, and no dropdown can say
+    # that. So this role has no aspect of its own: the brief and the note
+    # decide, the default when they are silent is that everything stays, and
+    # the reading reports what it took and what it left either way.
+    #
+    # Deliberately NOT in ROLE_CARRIES_CHARACTER (web/appearance.js): in a
+    # two-subject picture a single `character` field cannot say whether it
+    # names the one being replaced or the one staying, so it names neither and
+    # the brief decides. Also deliberately absent from ROLE_KEEPS, where
+    # absent means "greys nothing" — right here and nowhere else.
+    general:
+      label: "General"
+      rule: "your brief decides. Say what to change — \"replace the blue haired girl with Frieren\" — and everything you did not mention stays as it is: the other people, their clothes, the setting, the framing, the light. The read-back lists what it took and what it left"
+      # Changes what the reading pass is told the BRIEF is. Under every other
+      # role the brief is context — it says which parts of a picture will
+      # matter, and an analyst that acted on it would be answering the request
+      # instead of reading the photograph. Under this one it is the
+      # instruction, and calling it context would be telling the model to
+      # ignore the only thing deciding what to take.
+      #
+      # A flag rather than the role key, so a second brief-driven role later
+      # is a config edit and not a code edit — the same rule as everything
+      # else in this file. Read in server/refblueprint.mjs.
+      driven_by_brief: true
+      # What the COMPILER is told this role is. `rule` above is written for
+      # the person reading the dropdown and mentions the read-back, which is
+      # machinery the prompt writer has no business hearing about.
+      compile_rule: "the whole picture. Everything in the reading below carries into the prompt except what the brief asked to change — every person in it, their clothes, what they are doing, the setting, the framing and the light"
+      # The shared fidelity rules are written for aspect roles and are wrong
+      # here — `exact` says "take nothing else from that picture", which is
+      # the opposite of this role's whole contract. Overridden so the control
+      # means something instead of contradicting the role.
+      fidelity_rules:
+        exact:
+          rule: "The reading is the specification. Reproduce everything in it that the brief did not ask you to change — every person, their clothes, what they are doing, the setting, the framing, the light. Change only what was asked for."
+        close:
+          rule: "Follow the reading closely. Keep every person, their clothes, what they are doing and where, allowing small variation in wording and incidental detail. Change only what the brief asked for."
+        attribute:
+          rule: "Keep the subject, what they are doing and the count exactly as the reading has them. Treat the setting, the light and the palette as free."
+        loose:
+          rule: "Treat the reading as direction. Keep who is in it, how many, and what they are doing; everything else may drift. Change what the brief asked for."
+      # `rule` is the line under the dropdown, for a person. `extract` and
+      # `ignore` are for the reading pass, and ONLY the roles actually
+      # attached to a request are sent — which is the whole point of them
+      # living here.
+      #
+      # They were prose in prompts/_shared/reference-blueprint.md until
+      # 9 Sep 2026, all nine roles at once, and that file had grown to 1,564
+      # words. A user's spec for this pass is a twenty-word system instruction
+      # with the role travelling per picture, and the owner's report is that
+      # his build reads a pose correctly where ours coin-flips. Our own note
+      # says the same thing in general — his 220-word prompt beat our
+      # 2,889-word one — so an analyst wading through eight roles it was not
+      # given, to find the one it was, is the thing to fix first.
+      extract: >-
+        The brief is your instruction. Say how many people are in the frame in
+        your first sentence, and make each one identifiable without naming
+        them — where they are, their hair, what they wear. Everything the
+        person did not ask to change stays, described well enough to be
+        redrawn: the other people, what each wears, what each is doing, how
+        the bodies are held up and what is touching what, the setting, the
+        framing, the light. Describe each body as well as its clothes — build,
+        proportions, what is bare and what is covered, and the anatomy the
+        picture actually shows. That is half of what an image is and it is the
+        half most often skipped; a prompt written without it comes back with a
+        different body in the same outfit. Describe the thing being replaced too, as a slot —
+        where it sits, how it is posed, its scale against the rest. When they
+        say to keep "the same" clothes, pose or hair, they mean the ones
+        belonging to the person being replaced — never another person's in the
+        same picture.
+      ignore: >-
+        Only what the person's own instruction rules out. Told to change the
+        background, ignore the background. Otherwise nothing.
+
+    # ── The A/B arm ──────────────────────────────────────────────────────
+    #
+    # Identical to General in every respect except `tag_hints`, which hands
+    # the reading pass animetimm's confident guesses about the same picture —
+    # see reference_tag_hint_threshold below.
+    #
+    # It exists as a separate row rather than as a switch because two people
+    # are going to run it against the plain one on real work: "when you
+    # implement it do it as 'general testing' as the name and ill try it and
+    # have a user try it too... if it works well then we can remove that and
+    # implement it across the board but it needs real testing".
+    #
+    # **Three runs here could not tell it apart from the prompt-size fix that
+    # landed the same hour.** The pose was already 3 of 3 without hints; the
+    # flower crown went 0 of 3 to 1 of 3, which is one run and not a result.
+    # The tagger's raw numbers are the reason to keep trying — `princess_carry`
+    # at 1.00 and `head_wreath` at 0.88 on the picture where the reading kept
+    # losing both — but a number that good in the tagger has still not been
+    # shown to reach the prompt.
+    #
+    # WHERE IT LANDS IF IT WINS, and this is the owner's shape rather than the
+    # obvious one: it does NOT fold into General. It stays a second row,
+    # renamed "General 18+" — "we can still keep general and then have a
+    # general 18+ for everything else and all we have is one extra 'this
+    # picture is for' slot which is still a total win".
+    #
+    # That is better than folding it in. The anatomy vocabulary is dead weight
+    # on a landscape or a costume reference, the choice is per picture rather
+    # than per account, and nobody has to reason about whether a switch is on.
+    # Renaming this entry's key and label is the whole of that change.
+    #
+    # WHEN IT LOSES: delete this entry and nothing else changes.
+    #
+    # IT WON (26 Sep 2026): renamed "General 18+" as planned above, with an
+    # `info` popout saying what it is for. The key stays general_testing so
+    # saved sessions and scripts/test-refblueprint.mjs keep resolving it -
+    # the key is never shown to anyone.
+    general_testing:
+      label: "General 18+"
+      rule: "the same as General, plus the image tagger's own reading of the picture handed to the model as a hint"
+      # Shown behind the small ⓘ beside the hint. For people, never sent to
+      # the model (neither is `rule` for this role - see compile_rule).
+      info: "Tags NSFW content more accurately than General, so pick this one for NSFW references. For anything else General is the better fit: the extra anatomy vocabulary is dead weight on a landscape or a costume reference."
+      # The rule above is a note to the two people testing this, and it went
+      # to the MODEL as an instruction about somebody's photograph until
+      # 9 Sep 2026 — "Being tried against General, pick whichever gives you
+      # better output" is not a thing to tell a prompt writer. Identical to
+      # General's, because the arms must differ only in tag_hints.
+      compile_rule: "the whole picture. Everything in the reading below carries into the prompt except what the brief asked to change — every person in it, their clothes, what they are doing, the setting, the framing and the light"
+      driven_by_brief: true
+      tag_hints: true
+      # The shared fidelity rules are written for aspect roles and are wrong
+      # here — `exact` says "take nothing else from that picture", which is
+      # the opposite of this role's whole contract. Overridden so the control
+      # means something instead of contradicting the role.
+      fidelity_rules:
+        exact:
+          rule: "The reading is the specification. Reproduce everything in it that the brief did not ask you to change — every person, their clothes, what they are doing, the setting, the framing, the light. Change only what was asked for."
+        close:
+          rule: "Follow the reading closely. Keep every person, their clothes, what they are doing and where, allowing small variation in wording and incidental detail. Change only what the brief asked for."
+        attribute:
+          rule: "Keep the subject, what they are doing and the count exactly as the reading has them. Treat the setting, the light and the palette as free."
+        loose:
+          rule: "Treat the reading as direction. Keep who is in it, how many, and what they are doing; everything else may drift. Change what the brief asked for."
+
+      extract: >-
+        The brief is your instruction. Say how many people are in the frame in
+        your first sentence, and make each one identifiable without naming
+        them — where they are, their hair, what they wear. Everything the
+        person did not ask to change stays, described well enough to be
+        redrawn: the other people, what each wears, what each is doing, how
+        the bodies are held up and what is touching what, the setting, the
+        framing, the light. Describe each body as well as its clothes — build,
+        proportions, what is bare and what is covered, and the anatomy the
+        picture actually shows. That is half of what an image is and it is the
+        half most often skipped; a prompt written without it comes back with a
+        different body in the same outfit. Describe the thing being replaced too, as a slot —
+        where it sits, how it is posed, its scale against the rest. When they
+        say to keep "the same" clothes, pose or hair, they mean the ones
+        belonging to the person being replaced — never another person's in the
+        same picture.
+      ignore: >-
+        Only what the person's own instruction rules out. Told to change the
+        background, ignore the background. Otherwise nothing.
+    character:
+      label: "Character"
+      rule: "who is in the picture: face, hair, build, distinguishing features"
+      extract: >-
+        Face and the features that make it that face; hair and eyes; skin;
+        build; distinctive anatomy; accessories that belong to the character
+        rather than to this picture.
+      ignore: "The pose, the outfit, the setting, the lighting, the composition."
+    outfit:
+      label: "Outfit"
+      rule: "clothing, materials, colours and accessories"
+      extract: >-
+        The garments one at a time, what state each is in, materials and
+        colours, footwear, worn accessories.
+      ignore: "Who is wearing it, their body, their pose, the setting, the lighting."
+    background:
+      label: "Background"
+      rule: "the setting: place, architecture, depth, what sits behind the subject"
+      extract: >-
+        The location, architecture, how the space is organised, surfaces, and
+        the objects in the environment that matter to it.
+      ignore: "Everyone in it and everything about them."
+    pose:
+      label: "Pose"
+      rule: "posture, body orientation, hands, and where the gaze goes"
+      extract: >-
+        Torso and head orientation; where the arms and hands are; where the
+        legs are; joint angles; what is touching what; how the subjects are
+        placed relative to each other; where the weight is and what is holding
+        it up; gaze and expression where they are part of the posture; camera
+        direction and crop where the geometry needs them.
+      ignore: >-
+        Who this is; hair, eyes, hairstyle; body characteristics; clothing and
+        footwear; accessories; the background; lighting and palette; the
+        drawing style. The character named in the brief replaces the person
+        you can see.
+    object:
+      label: "Object"
+      rule: "a prop or accessory: its shape, material and where it sits"
+      extract: "The specific thing: shape, material, size, wear, and where it sits."
+      ignore: "The person holding it and everything around it."
+    style:
+      label: "Visual style"
+      rule: "rendering, technique, texture and art direction"
+      extract: "Medium, rendering, linework, texture, finish, art direction."
+      ignore: "What is depicted."
+    composition:
+      label: "Composition"
+      rule: "framing, angle, perspective and how the subjects are arranged"
+      extract: >-
+        Camera angle, framing and crop, perspective, where the subjects sit in
+        the frame, what the eye lands on first.
+      ignore: "Who is in it, what they wear, what they are doing, the palette."
+    lighting:
+      label: "Lighting"
+      rule: "light direction, palette, contrast and atmosphere"
+      extract: >-
+        Where the light comes from, its quality and colour, contrast, how it
+        falls across the subject, the palette.
+      ignore: "Everything the light is falling on."
+  # The brief-driven one, from 9 Sep 2026. It was `character` before, which is
+  # the narrowest possible reading of a picture somebody just attached, and the
+  # report was "i cant figure out which section id select for that" — for the
+  # commonest thing anyone does with a reference.
+  #
+  # A card that opens on "General" needs no decision at all:
+  # drop the picture, type what you want, generate. The other eight are still
+  # there for when you want one aspect and nothing else, which is the case that
+  # genuinely benefits from being asked.
+  default_image_reference_role: "general"
+
+  # How closely the reference should be followed. Four levels, deliberately —
+  # "copy it" and "something like it" are the two ends people actually mean,
+  # and two steps between them are enough to land anywhere useful.
+  #
+  # The rule text is injected verbatim, the same way detail_levels is. Note
+  # what none of them says: none instructs the model to describe the picture.
+  # It never sees the picture — only tags read from it on this machine — and a
+  # rule implying otherwise would be asking it to invent.
+  reference_fidelity:
+    exact:
+      label: "Reproduce faithfully"
+      rule: "Carry the traits listed for this reference through unchanged. Do not substitute or reinterpret them, and take nothing else from that picture."
+    close:
+      label: "Keep most of it"
+      rule: "Keep the traits listed for this reference, allowing small variation where the brief needs it. Nothing else about that picture comes with them."
+    attribute:
+      label: "Take one attribute"
+      rule: "Take only the attributes named for this reference and ignore everything else about it."
+    loose:
+      label: "Loose inspiration"
+      rule: "Treat this as direction rather than instruction. Echo its character; match nothing exactly."
+  default_reference_fidelity: "close"
+
+  # How many reference images one prompt may carry. A ceiling rather than a
+  # target: past a handful they start contradicting each other and the model
+  # has no way to choose between them.
+  max_image_references: 6
+
+  # ── The tagger's guesses, handed to the reading pass as a hint ────────────
+  #
+  # Asked for 9 Sep 2026: "is there a way we can use the tags generated by the
+  # animetimm as a loose reference. theres some things that the tagger picks up
+  # that the model refuses to use such as certain positions and parts that
+  # arent being picked up from the model."
+  #
+  # He is right, and the evidence is unusually clean. animetimm on a
+  # two-character princess-carry reference returned `princess_carry` at 1.00,
+  # `head_wreath` at 0.88 and `1girl`/`1boy` at 0.99/0.97 — which are exactly
+  # the three things the vision pass kept getting wrong: it called the pose
+  # "sitting on lap" half the time, dropped the flower crown on every run, and
+  # tagged a boy and a girl `2girls`.
+  #
+  # **A hint, and only to the analyst.** It goes into the READING call, which
+  # is looking at the photograph and can confirm or reject each line. It does
+  # not go to the compile call, which has no picture and could only take them
+  # on trust — that would be the tagger auto-inject the owner objected to on
+  # 8 Sep, arriving through a side door.
+  #
+  # **The threshold is the whole design.** The same run returned 136 tags and
+  # the tail is noise — `ice_skates` at 0.06, `virtual_youtuber` at 0.14,
+  # `@_@` at 0.07. His constraint: "i just dont want lose what we already have
+  # thats why i want it as a loose reference not a full ref". Sending all of
+  # them would undo the prompt-size fix that made the reading reliable in the
+  # first place.
+  #
+  # 0.60 and 20 come off that measured list: above 0.60 every tag is one a
+  # person would agree with, and it stops at 26 tags naturally. Set the
+  # threshold above 1 to switch the hint off entirely.
+  # Lowered from 0.60/20 on 9 Sep 2026, when the blind spot got named:
+  # "those more nsfw or anatomy or positions needed for that civitia red side
+  # would really help with which is our one blind spot to make this next
+  # level".
+  #
+  # Measured on the same 136-tag run: every NSFW and anatomy tag on that
+  # picture scores BELOW the old floor — `upskirt` 0.42, `thighs` 0.27,
+  # `ass` 0.24, `underwear` 0.25, `panties` 0.23, `bare_legs` 0.23,
+  # `cleavage_cutout` 0.06. A floor of 0.60 removed the entire category, and
+  # the cap of 20 filled up with hair colours before it ever got near them.
+  #
+  # There is no facet lane to reserve instead. web/appearance.js classifies
+  # `princess_carry`, `upskirt`, `panties` and `ass` all as `appearance` — it
+  # was built to answer "does this describe the character", and `action` holds
+  # exactly two tags on this picture. A vocabulary that names the category
+  # would be a new list and is not one to invent unreviewed.
+  #
+  # So: a low floor and a wide cap, on the arm that is being tested. 0.20
+  # reaches the whole anatomy tail; 45 is enough slots that hair colours
+  # cannot crowd it out.
+  # The broad list — every tag above the floor, best first — is OFF. The
+  # owner's call once the reserved lane existed: "how can we inject just those
+  # then". He is right, and it is the same lesson as the prompt file: the
+  # analyst is already looking at the picture, so forty tags about hair colour
+  # and boots are forty tags it did not need. Only the category it will not
+  # describe by itself earns the room.
+  #
+  # Turn it on and both lanes go. The floor and cap below apply to it alone.
+  reference_tag_hint_broad: false
+  reference_tag_hint_threshold: 0.20
+  reference_tag_hint_max: 45
+
+  # ── The reserved lane ────────────────────────────────────────────────────
+  #
+  # Confidence ranking alone cannot surface the blind spot, and this is
+  # measured rather than assumed. On the 136-tag run, with the floor at 0.20
+  # and FORTY-FIVE slots, the list still cut `panties`, `underwear`, `ass`,
+  # `thighs` and `bare_legs` — because a booru tagger is simply more certain
+  # about hair colour than about anatomy, and 45 slots fill with
+  # `multicolored_hair`, `bright_pupils` and `armlet` first. No threshold
+  # fixes that; the category has to be named.
+  #
+  # web/appearance.js cannot name it either: it files `princess_carry`,
+  # `upskirt`, `panties` and `ass` all under `appearance`, because it was
+  # built to answer "does this describe the character".
+  #
+  # So these patterns get their own slots at their own floor, on top of the
+  # confidence list above. Matched against the danbooru tag with underscores,
+  # case-insensitively, as substrings — `breast` catches `breasts`,
+  # `small_breasts`, `breasts_apart`.
+  #
+  # **This list is the owner's.** It is a vocabulary for what counts as the
+  # part the vision model will not describe, which is a judgement about the
+  # work, not about the code. Drafted from what animetimm actually returned
+  # plus ordinary danbooru anatomy and position vocabulary; add and remove
+  # freely, no code change.
+  # Subtracted from the matches above. Every entry here was found by running
+  # the vocabulary over all 90,857 danbooru tags — see
+  # `node archive/scripts/audit-reference-vocab.mjs`, which prints what each pattern
+  # claims. None of these were imaginable at a desk; `feet_out_of_frame` in
+  # particular means the feet are NOT in shot, which is the opposite of the
+  # thing being asked for.
+  #
+  # A separate list rather than a cleverer include list, so that excluding
+  # `transparent_background` does not require knowing that the word
+  # `transparent` is what let it in. Matched exactly as the include list is:
+  # a bare word matches a whole word, a pattern with an underscore is a
+  # substring.
+  #
+  # **Re-run the audit after editing either list.** Both mistakes fixed today
+  # were found by looking at real output, not by thinking about it.
+  reference_tag_hint_excluded:
+    # image properties, not anatomy
+    - transparent_background
+    - out_of_frame
+    - cropped
+    # the face, which `thick` was claiming
+    - eyebrow
+    - eyelash
+    - mustache
+    - beard
+    # gore and machinery, which `exposed` was claiming
+    - exposed_brain
+    - exposed_bone
+    - exposed_muscle
+    - exposed_internal_machinery
+    - exposed_pocket
+    # things worn or carried ON a body part, which `on_back` and `shoulders`
+    # were claiming
+    - weapon_on_back
+    - sword_on_back
+    - hat_on_back
+    - shield_on_back
+    - instrument_on_back
+    - jacket_on_shoulders
+    - coat_on_shoulders
+    - cape_on_shoulders
+    - towel_on_shoulders
+    - waist_apron
+    - waist_cape
+    - waist_bow
+    - waist_cutout
+    # miscellany the words dragged in
+    - cigarette_butt
+    - skinny_jeans
+    - groin_attack
+    - hip_vent
+    - transparent_umbrella
+    - transparent_wings
+    - transparent_censoring
+    - hair_spread_out
+    - cowgirl_(western)
+    - toe_cleavage
+    # ── found by the coverage additions, same audit ──
+    # `open_` is the dangerous one: open_mouth alone is in the millions.
+    - open_mouth
+    - open_eyes
+    - open_book
+    - open_door
+    - open_window
+    - open_hand
+    - open_umbrella
+    - open_toe
+    - open_fly
+    - openwork
+    - zipper_pull_tab
+    - cheek_bulge
+    - houkago_climax_girls
+    - knee_boobs
+    - lying_on_water
+    - sitting_on_throne
+  reference_tag_hint_reserved_floor: 0.12
+  reference_tag_hint_reserved_max: 18
+  reference_tag_hint_reserved:
+    # anatomy
+    - breast
+    - nipple
+    - areola
+    - cleavage
+    - navel
+    - stomach
+    - thigh
+    - ass
+    - butt
+    - hip
+    - waist
+    - collarbone
+    - armpit
+    - back
+    - shoulders
+    - legs
+    - feet
+    - toes
+    - pussy
+    - penis
+    - groin
+    - crotch
+    - genital
+    - muscular
+    - abs
+    - curvy
+    - plump
+    - petite
+    - slim
+    - skinny
+    - thick
+    # state of dress
+    - nude
+    - naked
+    - topless
+    - bottomless
+    - undressing
+    - undressed
+    - panties
+    - underwear
+    - bra
+    - lingerie
+    - upskirt
+    - pantyshot
+    - downblouse
+    - see-through
+    - transparent
+    - cutout
+    - exposed
+    - bare_
+    - open_clothes
+    - unbuttoned
+    - unzipped
+    - lifted_by_self
+    - clothes_pull
+    - clothes_lift
+    - wardrobe_malfunction
+    # position and act
+    - sex
+    - vaginal
+    - anal
+    - oral
+    - fellatio
+    - cunnilingus
+    - penetration
+    - insertion
+    - missionary
+    - cowgirl
+    - doggystyle
+    - straddling
+    - spread_
+    - legs_up
+    - legs_apart
+    - on_back
+    - on_stomach
+    - on_side
+    - all_fours
+    - kneeling
+    - squatting
+    - bent_over
+    - arched_back
+    - grabbing
+    - groping
+    - held
+    - carry
+    - lap
+    - embrace
+    - hug
+    - kiss
+    - restrained
+    - bound
+    # ── added 9 Sep 2026 from the coverage audit ──
+    #
+    # The first draft covered about half of real danbooru vocabulary. "and
+    # this gives it the terms needed for anatomy even slang words? ... or
+    # positions that have specific names" — the answer was no, and
+    # archive/scripts/audit-reference-coverage.mjs is what said so: 51 of 101 probe
+    # terms were being dropped, including `paizuri` at 41k posts, `sideboob`
+    # at 117k, `anus` at 115k and `open_shirt` at 116k.
+    #
+    # A named position is the sharpest loss of the lot. `mating_press` and
+    # `full_nelson` are one tag each and there is no other way to say them; a
+    # reading that drops one has thrown away the whole picture.
+    # named positions
+    - mating_press
+    - full_nelson
+    - suspended_congress
+    - spooning
+    - prone_bone
+    - piledriver
+    - upright_straddle
+    - fetal_position
+    - girl_on_top
+    - top-down
+    - m_legs
+    - v_legs
+    - seiza
+    - wariza
+    - indian_style
+    - yokozuwari
+    - leg_lift
+    - leg_up
+    - legs_over
+    - knees
+    - lying
+    - sitting
+    - standing_split
+    - reclining
+    # acts, in danbooru's own spelling
+    - paizuri
+    - irrumatio
+    - deepthroat
+    - handjob
+    - footjob
+    - thigh_sex
+    - nakadashi
+    - bukkake
+    - gangbang
+    - threesome
+    - foursome
+    - orgy
+    - masturbation
+    - fingering
+    - tribadism
+    - scissoring
+    - grinding
+    - humping
+    - frottage
+    - facesitting
+    - cum
+    - orgasm
+    - climax
+    # anatomy the first draft missed
+    - boob
+    # One word each, so the bare-word matcher does not reach them and there is
+    # nothing else in booru vocabulary they could collide with.
+    - sideboob
+    - underboob
+    - backboob
+    - anus
+    - testicle
+    - clitoris
+    - labia
+    - cameltoe
+    - crease
+    - bulge
+    # state of dress
+    - lift
+    - pull
+    - aside
+    - open_
+    - wet_clothes
+    - undone
+    # the face, but only where it means what the body is doing
+    - ahegao
+    - torogao
+
+  # "N/A" is first and is a real choice, not a placeholder. Added 27 Aug 2026
+  # at the owner's request. The aspect selector is an instruction to the
+  # person's image generator rather than something a prompt should contain —
+  # see server/aspect.mjs, which exists because models kept copying it into the
+  # output — and sometimes the honest answer is that no ratio has been decided
+  # yet. Choosing it sends no Aspect line at all.
+  #
+  # Same shape as the "None" style and the "none" quality preset: a selector
+  # value the server special-cases into silence rather than passing through as
+  # a value literally called N/A, which a model would read as content.
+  image_aspect_ratios:
+    - "N/A"
+    - "1:1 Square"
+    - "2:3 Portrait"
+    - "3:2 Landscape"
+    - "3:4 Portrait"
+    - "4:3 Landscape"
+    - "9:16 Tall"
+    - "16:9 Wide"
+  # Defaults to N/A, 27 Aug 2026 — owner's call that the dropdowns should
+  # not decide for you. The app used to open on 2:3 Portrait, which is a
+  # choice nobody made and which reached every prompt as a Settings line.
+  default_image_aspect_ratio: "N/A"
+
+models:
+
+  # ─────────────────────────── IMAGE ───────────────────────────
+
+  illustrious:
+    name: "Illustrious"
+    label: "Illustrious XL"
+    type: "image"
+    template: "booru"
+    badge: "booru"
+    format_label: "Booru tag format"
+    gen_button: "Generate prompt"
+    system_prompt: "prompts/image/illustrious-min-ex.md"
+    # One file per segment, appended to the system prompt only when that
+    # segment is actually being asked for. The owner's design, 5 Sep 2026.
+    #
+    # It replaces telling the model to write a segment and then telling it not
+    # to. The base file above is now only how this model THINKS - its
+    # vocabulary, its tag order, and the one worked brief every block writes
+    # against. What to emit lives per segment, so nothing is overridden and
+    # nothing contradicts.
+    #
+    # Two things fall out that were not the point but are worth having. Each
+    # segment is one file to open when that segment misbehaves - his argument,
+    # and the better one: "if neg isnt working we look at neg". And because
+    # the blocks are APPENDED, the base prompt stays byte-identical for
+    # everyone, so the prefix cache is still shared and only the tail differs.
+    segment_blocks:
+      "Positive prompt": "prompts/image/segments/illustrious-positive.md"
+      "Negative prompt": "prompts/image/segments/illustrious-negative.md"
+      "Reasoning": "prompts/image/segments/illustrious-reasoning.md"
+    thinking: false
+    segments: ["Positive prompt", "Negative prompt", "Reasoning"]
+    # Segments that explain the prompt rather than being part of it. Copy all
+    # leaves these out, because what it produces goes into a prompt box — for
+    # h3 that box is the DaSiWa Director, which assembles a base-mode prompt
+    # from three official fields and has no use for a paragraph of the model
+    # explaining itself. Download still writes everything.
+    meta_segments: ["Reasoning"]
+    # Spaces, not underscores, from 3 Oct 2026 (owner: underscores "have more
+    # or less been trained out of the model"). Selects the danbooru space list,
+    # as anima does; the ladders and negative below are spelled to match.
+    tag_style: "space"
+    # Offers the search_tags tool when tools.enabled is on and the LLM
+    # reports the capability. Booru dialects only: a tag search is worth a
+    # round trip when the output IS tags, and worth nothing to a prose model.
+    tools: true
+    weight_range: { min: 0.5, max: 1.8, step: 0.05, default: 1.0 }
+    # Ladder verbatim from prompts/image/illustrious.md — that file says
+    # "the registry provides" these, so this is the authoritative copy.
+    quality_presets:
+      masterpiece:  ["masterpiece", "best quality", "absurdres"]
+      high_quality: ["best quality", "highres"]
+      standard:     ["best quality"]
+      # Added 27 Aug 2026 with the "nothing preselected" change. An empty
+      # list means the quality block is simply absent, which is a legitimate
+      # thing to want and was already offered on sdxl.
+      none:         []
+    default_quality_preset: "none"
+    negative_defaults: "worst quality, low quality, normal quality, lowres, bad anatomy, bad hands, extra fingers, fewer fingers, blurry, watermark, text, signature"
+    # Render from PromptForge (docs/render-plan.md; off unless comfyui.enabled).
+    # `workflow` is ComfyUI's Export (API) file, the one that runs;
+    # `ui_workflow` is the normal save of the same graph, written into the PNG
+    # so the picture reopens in ComfyUI. Presets fill the sampler settings in
+    # one click; the first is the workflow's own. `model_file` swaps the file
+    # in the workflow's model loader.
+    render:
+      workflow: "config/comfyui/illustrious.json"
+      ui_workflow: "config/comfyui/ui/illustrious.json"
+      presets:
+        - { name: "Illustrious · 30 steps · CFG 4.5", steps: 30, cfg: 4.5, sampler: "dpmpp_2m_sde", scheduler: "karras" }
+      # Which LoRAs are for this model, by what the LoRA file says it was
+      # trained on (its modelspec.architecture / base model). Any match counts.
+      # TrainFlow's SDXL LoRAs say "stable-diffusion-xl-v1-base/lora". The
+      # owner can override per LoRA in the app.
+      lora_match: ["stable-diffusion-xl", "sdxl", "illustrious"]
+
+
+
+  anima:
+    name: "Anima"
+    label: "Anima"
+    type: "image"
+    template: "hybrid"
+    badge: "hybrid"
+    format_label: "Hybrid — tags + natural language"
+    gen_button: "Generate prompt"
+    # v2, 4 Sep 2026: a user's two-pass method folded in - describe the picture
+    # in prose first, then map only what is in that description to tags. His
+    # skill is the better prior on Anima, and the two rules that come with the
+    # method (the prompt may not contain what the draft does not, and may not
+    # broaden it) are the ones that stop tag vocabulary deciding what the image
+    # is. Everything anima-min.md already said is carried over verbatim -
+    # 18 of its 19 blocks byte-for-byte, the exception being the example's
+    # Reasoning line, which now has to demonstrate the pass.
+    #
+    # ROLLBACK: point this back at "prompts/image/anima-min.md", which is
+    # untouched. anima-min-v1-backup.md is a byte copy of it taken before any
+    # of this, in case that file is ever edited by mistake.
+    system_prompt: "prompts/image/anima-min-v2.md"
+    # One file per switchable segment, appended only when it is asked for.
+    # The base file above is how this model THINKS; these are what each
+    # segment is. See the note on illustrious for the whole argument.
+    segment_blocks:
+      "Negative prompt": "prompts/image/segments/anima-negative.md"
+      "Reasoning": "prompts/image/segments/anima-reasoning.md"
+    # The vendor's own guide, loaded ahead of anima.md the same way h3 loads
+    # its official MiniMax docs. Added 30 Aug 2026 after the owner asked
+    # whether one existed — it does, and anima.md turned out to agree with it
+    # on every point of format, which is worth being able to re-verify rather
+    # than take on trust.
+    #
+    # Composition puts references BEFORE the model's own file, so anima.md
+    # still gets the last word on anything the two frame differently.
+    #
+    # Committed rather than fetched at setup, unlike h3's: this is a short
+    # digest written here, not a copy of a third-party document.
+    reference_files: ["prompts/image/references/anima-official.md"]
+
+    # A user's skill documents, readable on demand rather than loaded.
+    #
+    # His package is 54,000 characters and works on his machine because a Codex
+    # skill discloses progressively: the description sits in context, the
+    # method loads on trigger, a reference loads only when opened.
+    # visual-direction-tags.md is 26 KB precisely because nobody reads all of
+    # it. Flattened into this prompt it would take anima from ~2,545 tokens to
+    # ~13,300 on every generation, most of it unread.
+    #
+    # So the model opens them itself, through read_guidance - see
+    # server/guidance.mjs. What sits in context is the index below: one line
+    # per document, which is what the model reads to decide whether opening it
+    # is worth a round trip. Those lines are the whole interface, so they have
+    # to be honest about what is inside; a wrong one costs a pass and returns
+    # something useless.
+    #
+    # NOT every Qwen on the box can call a tool. OBLITERATED cannot, and the
+    # gate in toolsFor() means it simply gets none. anima-min.md must therefore
+    # carry the METHOD and name these only as depth - a prompt that needs a
+    # document to function would be broken on that model and fine on the other
+    # four, which is the worst way for this to fail.
+    guidance:
+      anima-model:
+        path: "prompts/image/references/anima-skill/references/anima-prompting.md"
+        about: "Anima model profiles, prompt syntax and tag ordering, negative baselines, samplers, resolutions and CFG"
+      # A user's own compact rewrite, sent 4 Sep 2026 with the note that it is
+      # "simplified visual tags for qwen". It opens by saying what it is for:
+      # when the full catalogue cannot fit in the local model's context. That
+      # is our case - visual-direction-tags.md is 26 KB against this one's
+      # 6.6 KB, and a document the model declines to open is worth nothing.
+      #
+      # The full catalogue stays on disk, unreferenced. Listing both would put
+      # two lines in the index covering the same ground, and the index is the
+      # whole interface: the model picks from those lines alone and would have
+      # no way to tell which of the two it wanted.
+      visual-direction:
+        path: "prompts/image/references/anima-skill/references/visual-direction-compact.md"
+        about: "the two vocabularies - which camera, composition, focus, lighting, palette, atmosphere, material and finish terms are real booru tags, and which are English text modifiers Anima's encoder reads but Danbooru has never heard of"
+      showcase-patterns:
+        path: "prompts/image/references/anima-skill/references/civitai-showcase-patterns.md"
+        about: "patterns from Civitai's official Anima showcase: multi-character scenes, literal tag disambiguators, environment-only images, and the aesthetic score-tag discrepancy"
+      layout-binding:
+        path: "prompts/image/references/anima-skill/references/layout-and-binding.md"
+        about: "panels, grids, comics, collages, fixed regions, binding a named character to a position, and no-crop requirements"
+    thinking: false
+    segments: ["Positive prompt", "Negative prompt", "Reasoning"]
+    meta_segments: ["Reasoning"]
+    tag_style: "space"
+    # Offers the search_tags tool when tools.enabled is on and the LLM
+    # reports the capability. Booru dialects only: a tag search is worth a
+    # round trip when the output IS tags, and worth nothing to a prose model.
+    tools: true
+    # Anima weights differently from the SDXL family, and the ceiling reflects
+    # it. 1.8 was the CLIP-ish range every other model here uses; Anima's own
+    # author reaches for (chibi:2), a user reports going to 5 on a stubborn
+    # concept, and 1.8 made both unreachable from the slider. Raised 27 Aug
+    # 2026 - see anima.md "Weighting", which says start unweighted and add one
+    # strong weight rather than many timid ones.
+    weight_range: { min: 0.5, max: 5.0, step: 0.05, default: 1.0 }
+    # Masterpiece rewritten 22 Aug 2026 to the owner's own ladder - what they
+    # actually use on Anima, which mixes the aesthetic vocabulary with the
+    # Pony-style score tags this checkpoint also answers to.
+    quality_presets:
+      # Trimmed to the official four on 30 Aug 2026, on the owner's call, after
+      # reading circlestone-labs' own model card — see
+      # prompts/image/references/anima-official.md. Its recommended positive
+      # prefix is exactly "masterpiece, best quality, score_7, safe, ".
+      #
+      # It used to be twelve: the whole human ladder AND the whole score
+      # ladder, plus absurdres, newest and highres. anima.md says the two
+      # quality systems are independent and you may use "either, both, or
+      # neither"; this used both, maximally, and put twelve tags in front of
+      # every Masterpiece prompt before a word of content. Measured on a
+      # Frieren brief the same day, that was a third of the tag section.
+      #
+      # `safe` is NOT here even though the official prefix includes it. It is a
+      # rating rather than a quality level, house-rules.md already defaults it
+      # to the safe variant, and baking it into a quality preset would make the
+      # rating impossible to change without changing the quality.
+      masterpiece:  ["masterpiece", "best quality", "score_7"]
+      # The card's own second rung. Aesthetic-only, because the human ladder
+      # and the score ladder saying different things is what the big preset did.
+      high_quality: ["best quality", "score_7"]
+      standard:     ["best quality"]
+      # Added 27 Aug 2026 with the "nothing preselected" change. An empty
+      # list means the quality block is simply absent, which is a legitimate
+      # thing to want and was already offered on sdxl.
+      none:         []
+    default_quality_preset: "none"
+    # A style is a LIST OF TAGS, on the same rule as quality_presets above.
+    #
+    # It was a list of bare labels until 3 Sep 2026, and that was the identical
+    # bug fixed for quality presets on 27 Aug: only the NAME reached the model,
+    # so "Style: Painterly" arrived and the model wrote whatever it remembered
+    # painterly meaning. Reported by a user as "the style prompts weren't
+    # working", and this is the whole of it — the control fired, it just
+    # carried no payload.
+    #
+    # The tags come from a user's Anima Visual Tags Catalogue (verified against
+    # circlestone-labs' model card and the Danbooru tag-count dataset, 2 Sep
+    # 2026), section 23 "coherent copy-ready presets" where one existed and
+    # sections 2-4 otherwise. Vocabulary is the catalogue's, the grouping into
+    # THESE nineteen labels is not — that mapping is a judgement call and is
+    # the owner's to correct.
+    #
+    # Deliberately short. The catalogue's own advice is that "selecting a small
+    # set of coherent terms is usually better than copying an entire category",
+    # and Anima trained with random tag dropout, so three or four
+    # high-information tags beat a wall of synonyms.
+    #
+    # "None" stays an empty list — server.mjs special-cases it to inject no
+    # Style line at all, the same idea as the None quality preset.
+    #
+    # Two carry caveats the catalogue itself raises. "Realistic" fights this
+    # checkpoint: the model card says Anima is built for anime and
+    # non-photographic illustration, and photorealistic "does not turn Anima
+    # into a specialized photography model" — it is offered, it will pull less
+    # cleanly. "Chibi" is the one entry with NO catalogue source; it is a plain
+    # Danbooru tag and anima.md's own weighting example reaches for (chibi:2).
+    styles:
+      "Painterly":          ["painterly", "painterly brushstrokes", "smooth gradients", "soft shading"]
+      "Anime":              ["anime coloring", "cel shading", "clean lineart", "vibrant colors"]
+      "Cel shaded":         ["cel shading", "hard cel shading", "anime coloring", "clean lineart"]
+      "Flat color":         ["flat color", "anime coloring", "clean lineart"]
+      "Lineless":           ["no lineart", "lineless", "painterly", "soft shading", "smooth gradients"]
+      "Soft painting":      ["painterly", "soft shading", "smooth gradients", "soft lines"]
+      "Watercolor":         ['watercolor \(medium\)', "traditional media", "soft edges"]
+      "Gouache":            ['gouache \(medium\)', "traditional media", "painterly brushstrokes"]
+      "Sketch":             ["sketch", "unfinished", 'graphite \(medium\)', "loose brushwork"]
+      "Ink lineart":        ["lineart", 'ink \(medium\)', "clean lineart", "sharp lines"]
+      "Manga":              ["monochrome", "greyscale", "screentones", "halftone", "lineart"]
+      "Chibi":              ["chibi"]
+      "Pixel art":          ["pixel art"]
+      "90s anime":          ["retro artstyle", "anime screencap", "flat color"]
+      "Concept art":        ["concept art", "key visual", "painterly", "detailed background"]
+      "Cinematic lighting": ["cinematic lighting", "dramatic lighting", "rim lighting", "volumetric lighting"]
+      "Semi-realistic":     ["semi-realistic", "realistic anatomy", "detailed skin texture", "natural skin tones", "subsurface scattering"]
+      "Realistic":          ["realistic", "realistic anatomy", "detailed skin texture", "realistic lighting"]
+      "None":               []
+    default_style: "None"
+    # Twenty tags until 2 Sep 2026, six of them Pony ladder and SD-era
+    # crutches. Cut on the owner's call, following circlestone-labs'
+    # community prompting guide (civitai article 30800): Anima is DiT, not
+    # SDXL, "the negative prompt is significantly weaker because the
+    # transformer itself maintains anatomy and frame logic with an iron grip.
+    # By pasting giant walls of text there, you are simply clogging the
+    # encoder's context window ... In extreme scenarios, just use a lean
+    # safety net: bad hands, bad fingers."
+    negative_defaults: "bad hands, bad fingers"
+    # How many tags the model may add on top of negative_defaults.
+    #
+    # The global floor in config/server.yaml is `extra_max: 0`, which means
+    # capExtras deleted EVERYTHING the model wrote and shipped the two default
+    # tags alone. Observed 3 Sep 2026: a Frieren brief streamed a 23-tag
+    # negative into the panel and the finished result was "bad fingers, bad
+    # hands" — the owner's call was that the longer one was the better output,
+    # so the model was doing useful work that the server then threw away.
+    #
+    # 24 is sized to that observation: ~21 tags past the defaults, with room.
+    # It bounds rather than removes — the 1,652-character negative that made
+    # capExtras necessary is still cut. Note this is anima only; every other
+    # model still inherits the global 0 and still loses its whole negative.
+    negative_extra_max: 24
+    # Render from PromptForge. See the note on illustrious.
+    render:
+      workflow: "config/comfyui/anima.json"
+      ui_workflow: "config/comfyui/ui/anima.json"
+      presets:
+        - { name: "Anima · 40 steps · CFG 3.5", steps: 40, cfg: 3.5, sampler: "er_sde", scheduler: "simple" }
+      # A guess: no Anima LoRA on the box yet to read. Fix it from the app.
+      lora_match: ["anima"]
+
+  krea2:
+    name: "Krea2"
+    label: "Krea2"
+    type: "image"
+    template: "natural-language"
+    badge: "nl"
+    format_label: "Natural language format"
+    gen_button: "Enhance prompt"
+    system_prompt: "prompts/image/krea2-min.md"
+    # One file per switchable segment, appended only when it is asked for.
+    # The base file above is how this model THINKS; these are what each
+    # segment is. See the note on illustrious for the whole argument.
+    segment_blocks:
+      "What changed": "prompts/image/segments/krea2-what-changed.md"
+    thinking: false
+    segments: ["Enhanced prompt", "What changed"]
+    meta_segments: ["What changed"]
+    # krea2.md: "there is no negative prompt segment" — the template must
+    # not render a negative field for this model.
+    has_negative: false
+    # Raised from 60-150 on 26 Aug 2026 with the image prompt overhaul. Both
+    # files now say the same thing: these are Flux-family models that follow
+    # long prompts accurately, so the old ceiling was capping the one thing
+    # they are good at. Not enforced anywhere — it feeds the tips line and
+    # seeds the manual length control, which is the real override.
+    word_target: { min: 80, max: 250 }
+    # Anima's style set, carried across on the owner's call — 5 Sep 2026 —
+    # and rewritten into this model's dialect on the way.
+    #
+    # It was four bare labels until now, which is the identical bug fixed for
+    # anima on 3 Sep: only the NAME travelled, so "Style: Painterly" reached
+    # the model and it wrote whatever it remembered painterly meaning. The
+    # control fired; it carried no payload.
+    #
+    # **The terms are NOT anima's tags.** Anima's payloads are Danbooru tags
+    # for an anime checkpoint — `cel shading`, 'watercolor \(medium\)' — and
+    # pasting those into a prose model would put comma-separated booru
+    # fragments into a natural-language prompt — krea2-min.md says "never
+    # emit tags" outright. Same labels, same
+    # coverage, descriptors instead of tags. buildUserMessage words the
+    # instruction differently for the two dialects, gated on `tag_style`.
+    #
+    # Two of anima's nineteen are folded rather than copied: "Realistic" is
+    # what "Photorealistic" already meant here, and "Cinematic lighting" is
+    # what "Cinematic" already meant. "Digital art" is this model's own and
+    # has no anima counterpart.
+    #
+    # The label set is anima's and therefore a user's; the descriptors under
+    # each one are mine and unreviewed. Several are anime looks on a model
+    # built for photography and real skin, so expect them to pull less
+    # cleanly here than the same label does on anima — the mirror of the
+    # caveat anima's own "Realistic" entry carries.
+    #
+    # "None" was the default before this and was NOT in the list, so the
+    # selector fell to the first option and every Krea2 generation shipped a
+    # Photorealistic style whether or not anyone chose one. It is in the list
+    # now, and server.mjs suppresses the Style line entirely for it.
+    styles:
+      "Photorealistic":  ["photorealistic", "natural skin texture", "realistic light falloff", "shallow depth of field"]
+      "Digital art":     ["digital painting", "clean rendering", "controlled color palette", "crisp edges"]
+      "Painterly":       ["painterly brushwork", "visible brush strokes", "soft gradients", "blended edges"]
+      "Cinematic":       ["cinematic lighting", "dramatic key light", "rim light", "volumetric haze", "widescreen framing"]
+      "Anime":           ["anime illustration", "cel-shaded color", "clean linework", "saturated palette"]
+      "Cel shaded":      ["cel shading", "hard-edged shadows", "flat blocks of color", "clean linework"]
+      "Flat color":      ["flat color", "no gradients", "clean linework", "graphic shapes"]
+      "Lineless":        ["no outlines", "forms defined by color alone", "soft shading", "smooth gradients"]
+      "Soft painting":   ["soft painterly rendering", "diffuse shading", "smooth gradients", "gentle edges"]
+      "Watercolor":      ["watercolor", "paper texture", "bleeding pigment", "soft edges", "visible washes"]
+      "Gouache":         ["gouache", "matte opaque paint", "visible brush strokes", "flat rich color"]
+      "Sketch":          ["pencil sketch", "graphite", "loose construction lines", "unfinished", "paper texture"]
+      "Ink lineart":     ["ink drawing", "black linework", "sharp confident lines", "hatching for shadow"]
+      "Manga":           ["black and white manga", "screentone shading", "halftone dots", "inked linework"]
+      "Chibi":           ["chibi proportions", "oversized head", "small rounded body", "simplified features"]
+      "Pixel art":       ["pixel art", "limited palette", "visible pixel grid", "hard aliased edges"]
+      "90s anime":       ["1990s anime cel", "retro anime look", "flat cel color", "film grain"]
+      "Concept art":     ["concept art", "key visual", "painterly rendering", "detailed environment"]
+      "Semi-realistic":  ["semi-realistic rendering", "realistic anatomy", "detailed skin texture", "stylized proportions"]
+      "None":            []
+    default_style: "None"
+    # Render from PromptForge. See the note on illustrious. Turbo and Raw are
+    # two files of one model, so each preset names its own.
+    render:
+      workflow: "config/comfyui/krea2.json"
+      ui_workflow: "config/comfyui/ui/krea2.json"
+      presets:
+        - { name: "Turbo · 8 steps · CFG 1", steps: 8, cfg: 1, sampler: "euler", scheduler: "simple", model_file: "krea2_turbo_fp8_scaled.safetensors" }
+        - { name: "Raw · 50 steps · CFG 3.5", steps: 50, cfg: 3.5, sampler: "euler", scheduler: "simple", model_file: "krea2_raw_fp8_scaled.safetensors" }
+      # A guess, like anima's: no Krea2 LoRA on the box yet to read.
+      lora_match: ["krea"]
+
+
+  # ─────────────────────────── VIDEO ───────────────────────────
+
+  h3:
+    name: "MiniMax H3"
+    label: "MiniMax H3"
+    type: "video"
+    template: "video-h3"
+    # Opted out of the lighting slider, 8 Sep 2026. It is an image-model
+    # control for now: a clip can change its exposure from shot to shot, and
+    # one scalar for the whole thing is the wrong shape of control here.
+    # Delete this line to switch it on for this model.
+    lighting_levels: {}
+    badge: "video"
+    format_label: "Structured shot format"
+    gen_button: "Generate H3 prompt"
+    # The Director node's Simple prompt mode, 14 Sep 2026. Simple is one text
+    # box sent to H3 verbatim, so it has to carry the alignment line and the
+    # field names that Structured mode adds itself. server/h3-simple.mjs
+    # assembles that from the same segments in code; the model is asked for
+    # nothing different. The Structured / Simple switch in the Director
+    # toolbar picks which one the output panel shows and copies.
+    simple_prompt: true
+    # Where to get a ComfyUI workflow that consumes this prompt (owner's call,
+    # 4 Oct 2026). It is not ours to ship, so the builder links to the
+    # author's own page instead. This is the one deliberate exception to "the
+    # UI never sends anyone off the tailnet"; the link says where it goes.
+    comfyui_workflow:
+      label: "Get the workflow"
+      title: "The DaSiWa MiniMax H3 workflows for ComfyUI, on Civitai (opens Civitai)"
+      url: "https://civitai.com/models/2831978"
+    # A score only when the brief asks for music (owner's rule, 1 Oct 2026).
+    # SKILL.md says it; server/music.mjs enforces it, because the 4B wrote a
+    # score 4/4 times without being asked. Delete the line to let the model
+    # decide again.
+    music_only_when_asked: true
+    system_prompt: "prompts/video/h3/SKILL.md"
+    # One file per switchable segment, appended only when it is asked for.
+    # The base file above is how this model THINKS; these are what each
+    # segment is. See the note on illustrious for the whole argument.
+    segment_blocks:
+      "Reasoning": "prompts/video/segments/h3-reasoning.md"
+    # The contract depends on the mode, 10 Sep 2026. The base modes have three
+    # official fields and REF2VA has six, and until today every mode was asked
+    # for all seven segments and told to write N/A in the three it does not
+    # have - a paragraph of instructions about segments that do not exist, in
+    # every base-mode prompt. Now a base mode is simply not asked for them.
+    #
+    # Any mode not listed here - REF2VA, and Auto detect should it ever reach
+    # the prompt unresolved - keeps `segments` above, all seven. A leftover
+    # REF2VA segment written in a base mode is allowed and dropped, never an
+    # unknown_segment failure: see segmentsOutsideMode in server/director.mjs.
+    segments_by_mode:
+      "T2VA":  ["Detailed description", "Soundscape", "Music", "Reasoning"]
+      "I2VA":  ["Detailed description", "Soundscape", "Music", "Reasoning"]
+      "FL2VA": ["Detailed description", "Soundscape", "Music", "Reasoning"]
+      "L2VA":  ["Detailed description", "Soundscape", "Music", "Reasoning"]
+      # Picture labels, 30 Sep 2026: REF2VA where the person labelled each picture.
+      # Code writes Retention analysis from the shots, and Subject definitions
+      # from the scans plus the model's one acting line per character, so the
+      # model is not asked for Retention at all. A key, not a mode: nothing in
+      # `modes` offers it; server/picture-labels.mjs promptMode() picks it.
+      "REF2VA labelled": ["Subject definitions", "Summary", "Detailed description", "Soundscape", "Music", "Reasoning"]
+    # The part of the prompt that belongs to one mode alone, composed AFTER
+    # SKILL.md so the mode gets the last word. SKILL.md is what holds in every
+    # mode; before this split it carried REF2VA's reference roles, its three
+    # extra sections and a REF2VA-shaped worked example into every base-mode
+    # generation - about 5,000 characters no base mode could use.
+    #
+    # Same fallback rule as reference_files_by_mode: a mode with no entry, or a
+    # request with no mode, composes every block, never none.
+    mode_blocks:
+      "REF2VA": ["prompts/video/h3/modes/ref2va.md"]
+      "REF2VA labelled": ["prompts/video/h3/modes/ref2va-labelled.md"]
+      "Auto detect":
+        - "prompts/video/h3/modes/base.md"
+        - "prompts/video/h3/modes/ref2va.md"
+      "T2VA":  ["prompts/video/h3/modes/base.md"]
+      "I2VA":  ["prompts/video/h3/modes/base.md"]
+      "FL2VA": ["prompts/video/h3/modes/base.md"]
+      "L2VA":  ["prompts/video/h3/modes/base.md"]
+
+    # h3 is the only model that needs a bigger LLM than llm.model.
+    #
+    # Measured 21 Aug, dialect suite at --runs 3 on qwen3:8b: nine of ten
+    # models clean, h3 8/10 DEGRADED. It fails base-mode discipline
+    # specifically — SKILL.md says base modes write N/A for Subject
+    # definitions and Retention analysis, and the 8B fills them in anyway.
+    # No surprise: this is the largest prompt in the project at ~56,100
+    # characters, seven segments, two official MiniMax guides.
+    #
+    # COST, on a 16GB card: the 8B and the 27B cannot both be resident, so
+    # every switch between h3 and any other tab pays a full model load. If
+    # that thrash is worse than the degradation, delete this line — nine
+    # models keep working either way.
+    # A SOFT default, not a hard pin. The selector stays unlocked so people can
+    # pick any model for h3 and live with it - measured, the smaller models fail
+    # h3's base-mode discipline ~8 times in 10, which is why this default exists.
+    # Overridden by a per-user prompt_llm choice. Use llm_model instead of this
+    # to forbid overriding (that hard-pin path is still in the code).
+    #
+    # The pin itself moved to llm.model_defaults in server.yaml on 20 Sep 2026:
+    # it named a llama-swap entry only the P40 has, so on any other install h3
+    # asked for a model that did not exist. The P40 sets
+    #   llm: { model_defaults: { h3: "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL" } }
+    # in its server.local.yaml; everywhere else h3 uses the global default.
+    # h3 sends the largest system prompt in the app: 56,100 characters with
+    # the two official MiniMax guides, which tokenises to 13,188 BEFORE it
+    # writes anything. Below ~14k it cannot accept its own prompt and every
+    # generation returns HTTP 400 exceed_context_size_error - measured on the
+    # P40, 23 Aug 2026, where the deployment context of 12288 did exactly
+    # that. 16384 leaves room for max_output_chars on top.
+    #
+    # Per-model rather than raising llm.context_length, because this is a
+    # property of h3 on any box, and the other nine models run on a smaller
+    # LLM that would only pay for KV cache it never uses.
+    context_length: 16384
+
+    # The spec sets thinking: true here. Measured on UD-Q3_K_XL it is not
+    # viable, and the cause is specific rather than general slowness.
+    #
+    # SKILL.md line 37 says of the 7,000 character limit: "Count it." With
+    # thinking on, the model takes that literally and brute-forces the count
+    # character by character — the raw thinking transcript shows running
+    # tallies (`" boarding" = 9 →200`) collapsing into per-letter indexing
+    # (`H(1)e(2)r(3) space(4) h(5)a(6)n(7)d(8)s(9)`). Tokenised models cannot
+    # count characters natively, so this never terminates usefully.
+    #
+    # One captured run: 432.8s, 12,450 tokens generated, 31,813 characters of
+    # thinking, **0 characters of answer**, done_reason=length. Three separate
+    # dialect runs failed the same way (twice truncated at the 16,384 ceiling,
+    # once finishing with zero segment markers).
+    #
+    # With thinking off: ~19s, ~580 tokens, all seven segments, well inside
+    # the character limit. The UI counts characters accurately anyway via the
+    # char_counter binding, so nothing is lost by not having the model do it.
+    #
+    # Revisit on hardware where this is affordable, but re-measure rather than
+    # assuming more VRAM fixes it — this is an instruction-following trap, not
+    # a capacity problem.
+    thinking: false
+    segments:
+      - "Subject definitions"
+      - "Summary"
+      - "Retention analysis"
+      - "Detailed description"
+      - "Soundscape"
+      - "Music"
+      - "Reasoning"
+    meta_segments: ["Reasoning"]
+    # A segment's UI label and its official field name can differ — SKILL.md
+    # writes bodies prefixed with the field name, not the label. stripPrefix()
+    # in web/app.js needs both to know what to strip on copy.
+    segment_fields:
+      Music: non_diegetic_music
+      # Soundscape's official name, added for the same reason. Whether the
+      # model prefixes a body with its field name varies run to run — measured
+      # on the 27B, baseline runs returned "non_diegetic_music: N/A" while
+      # patched ones returned bare "N/A". It also lets a missing-segment error
+      # say something true: this content sometimes arrives inside `Detailed
+      # description` under these names rather than going astray entirely.
+      Soundscape: overall_soundscape
+      Detailed description: integrated_multimodal_description
+    # Missing reference files must degrade gracefully — log a warning naming
+    # the file and continue. See prompts/video/h3/references/README.md.
+    # Gated on the Mode control, 3 Sep 2026. Both guides used to load on every
+    # generation, which is how h3's prompt reached 12,692 tokens and stopped
+    # fitting in a 12288 context at all.
+    #
+    # The split needs no editing of MiniMax's documents because it already
+    # falls on a file boundary: h3-base-official.md is titled "Video Prompt
+    # Writing Guide (T2VA / I2VA / FL2VA / L2VA)" and h3-reference-official.md
+    # is the Full-reference guide. A T2VA generation was carrying ~5,500
+    # tokens of instructions for a mode it was not in.
+    #
+    # Auto detect used to keep BOTH, on the reasoning that the model decides
+    # which mode a brief is and so cannot be shown one mode's guide. That was
+    # true of the model and false of the app: the rule SKILL.md states is
+    # mechanical and reads only the request, so since 3 Sep the SERVER settles
+    # it — resolveAutoMode() in server/references.mjs — and the run reaches
+    # here already naming T2VA, I2VA, FL2VA or REF2VA.
+    #
+    # Which makes this entry a safety net rather than a live path: nothing
+    # should arrive still saying "Auto detect", and if something does, it gets
+    # both guides and works. It also means the saving now lands on the default,
+    # which is where almost every generation was: ~13,600 tokens down to ~8,100.
+    #
+    # An unlisted or absent mode falls back to a prompt carrying every guide,
+    # so a typo here costs tokens rather than correctness. See prompts.mjs.
+    # Sectioned 4 Sep 2026. The two *-official.md files are still the source of
+    # truth on disk and still what `npm run fetch-h3-refs` downloads, but they
+    # are no longer LOADED: scripts/section-h3-references.mjs slices them on
+    # their own heading boundaries into the three files below, verbatim.
+    #
+    # h3-core.md is base guide section 4 — timeline, cuts, camera vocabulary,
+    # speakers and dialogue, on-screen text, and the two audio fields. None of
+    # it is mode-specific, which is why it sits in `reference_files` and every
+    # mode gets it. The reference guide's own 5.4 and 6 cover the same ground
+    # more thinly, so they are dropped there rather than duplicated here.
+    #
+    # What else came out, and on whose authority — the Director node that
+    # consumes our output, docs/minimax_h3_director.md, which is the same
+    # tiebreak server/references.mjs already applies to the label classes:
+    #
+    #   - The image-alignment instruction lines, base guide 2.1. The Director
+    #     writes them itself from mode and duration: "you do not type them
+    #     manually". A model that writes one puts a duplicate in the final
+    #     prompt, so this is a correctness fix that happens to save ~220
+    #     tokens. h3-base-modes.md says so in place of the dropped section.
+    #
+    #   - All five worked examples, base guide 5 and reference guide 7. Every
+    #     one emits raw field names, and the Director appends those headers
+    #     itself — "you write only the content". `segment_fields` below exists
+    #     BECAUSE the 27B keeps prefixing bodies with those names; this is
+    #     where it learned to. ~2,040 tokens of counter-example, and on a
+    #     decensored model an example beats a rule. SKILL.md's own example is
+    #     the only one in the ===SEGMENT: shape we actually parse.
+    #
+    # Nothing is paraphrased — README.md in that directory is right that
+    # retyping these from memory is how you emit field names H3 doesn't know.
+    # Re-run the script after any `fetch-h3-refs --force`.
+    reference_files:
+      - "prompts/video/h3/references/h3-core.md"
+    reference_files_by_mode:
+      "REF2VA": ["prompts/video/h3/references/h3-ref2va.md"]
+      "REF2VA labelled": ["prompts/video/h3/references/h3-ref2va.md"]
+      # Reachable only if something bypasses resolveAutoMode() — see above.
+      "Auto detect":
+        - "prompts/video/h3/references/h3-base-modes.md"
+        - "prompts/video/h3/references/h3-i2va.md"
+        - "prompts/video/h3/references/h3-fl2va.md"
+        - "prompts/video/h3/references/h3-l2va.md"
+        - "prompts/video/h3/references/h3-ref2va.md"
+      # Each frame mode gets only its own part of base guide section 3, and
+      # T2VA, which has no keyframe, none of it (6 Oct 2026).
+      "T2VA":  ["prompts/video/h3/references/h3-base-modes.md"]
+      "I2VA":  ["prompts/video/h3/references/h3-base-modes.md", "prompts/video/h3/references/h3-i2va.md"]
+      "FL2VA": ["prompts/video/h3/references/h3-base-modes.md", "prompts/video/h3/references/h3-fl2va.md"]
+      "L2VA":  ["prompts/video/h3/references/h3-base-modes.md", "prompts/video/h3/references/h3-l2va.md"]
+    # Loaded after the required ones and absent by default. The README says to
+    # write this yourself as house conventions develop, so its absence is the
+    # normal state and must not trigger the "worked without the official
+    # guides" note — that note told the model to work from its own
+    # instructions on every single H3 generation while both official guides
+    # were sitting in the prompt directly above it.
+    optional_reference_files:
+      - "prompts/video/h3/references/user-preferred-extensions.md"
+    max_output_chars: 7000
+    has_negative: false
+    # A per-model `context_length` is supported here (plumbed through as
+    # num_ctx) but H3 does NOT need one. It was tried at 24576 and reverted:
+    # the runaway token use had nothing to do with context size. See the
+    # thinking note below.
+    #
+    # Note if you ever do set one: num_ctx is a LOAD-TIME parameter, so a
+    # value differing from the resident model's forces an ~8s Ollama reload
+    # every time you switch to or from that model.
+
+    # H3 is the only model that needs more than the global llm.timeout_ms.
+    # Measured on UD-Q3_K_XL at ~36 tok/s: with thinking on it generates
+    # ~8,500 tokens (23.8k chars of reasoning for a 2.4k answer) and takes
+    # ~240s; with thinking off it is ~580 tokens and ~19s. Both emit all
+    # seven segments correctly, so this is a latency budget, not a format
+    # fix. 600s leaves headroom on a slower box or a longer brief.
+    timeout_ms: 600000
+    # The A suffix is audio — H3 generates native stereo. T2V/I2V/FL2V are
+    # not the official names.
+    # The Director's own mode names, 4 Sep 2026. "Full reference" was ours
+    # alone: helper_minimax_h3_director.py raises "unsupported MiniMax Director
+    # mode" on anything outside {T2VA, I2VA, FL2VA, L2VA, REF2VA, Image
+    # Inpaint}, and the node's UI, its docs and both official guides all say
+    # REF2VA. The mode the person picks, the Mode line the model reads and the
+    # mode the node accepts are now one string.
+    #
+    # Image Inpaint is deliberately NOT here yet: it is a single-frame still,
+    # not a video, so its segment contract would not be these seven. Owner's
+    # call whether this tab should offer it at all.
+    modes: ["REF2VA", "Auto detect", "T2VA", "I2VA", "FL2VA", "L2VA"]
+    # Keys the per-mode maps above may use that the picker never offers.
+    # "REF2VA labelled" is REF2VA with picture labels, not a seventh mode; see
+    # server/picture-labels.mjs.
+    mode_variants: ["REF2VA labelled"]
+    default_mode: "Auto detect"
+    durations: [5, 8, 10, 12, 15]
+    default_duration: 10
+    # The Shots control, 2 Oct 2026: a user wrote "single shot" in the brief
+    # and got two. A number here goes out as a setting that overrides the
+    # detail ladder's shot wording, and is counted afterwards; Auto sends
+    # nothing and leaves it to the model. See server/shots.mjs.
+    shot_counts: ["Auto", 1, 2, 3, 4, 5]
+    default_shots: "Auto"
+    aspect_ratios: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+    default_aspect_ratio: "16:9"
+    # Every reference must carry an explicit role — H3 drifts badly when
+    # roles are implicit, and the system prompt refuses on unlabelled ones.
+    reference_roles: ["subject", "keyframe", "style", "motion", "voice"]
+    # A video-shaped detail ladder, 18 Sep 2026, on the owner's call ("ya do that
+    # for now"); wan and ltx keep the shared ladder until someone reports
+    # them. The shared ladder is written for a still frame (textures, foreground,
+    # palette) and never asks for more shots, beats or sound, so on
+    # h3 level 10 wrote no more than level 8 (213 vs 227 words) and never came
+    # near the reference guide's own "normally 350-500 English words". Word
+    # ranges are for Detailed description on a ~10 s clip; the model cannot
+    # count exactly, but a range moves it where adjectives did not.
+    detail_levels:
+      1:
+        label: "Bare"
+        rule: "One shot, opening with [Shot 1] as always: the subject, the action and one line of camera, about 40-60 words of Detailed description. Nothing the brief did not name. This overrides the guide's usual length."
+      2:
+        label: "Minimal"
+        rule: "One or two shots, about 60-100 words: the subject, the action, where it happens and what the camera does. This overrides the guide's usual length."
+      3:
+        label: "Light"
+        rule: "About 100-150 words. Show the action unfolding: how each shot starts and how it ends, not a single frozen moment."
+      4:
+        label: "Modest"
+        rule: "About 150-200 words. Give every shot its framing, its camera move, and what the light is doing."
+      5:
+        label: "Standard"
+        rule: "About 200-280 words. Every shot says what changes during it, and the soundscape names the sound each action makes."
+      6:
+        label: "Full"
+        rule: "About 280-350 words. Add the subject's expression and body language shot by shot, and a palette and mood in the opening style line."
+      7:
+        label: "Rich"
+        rule: "About 350-420 words, the reference guide's own range. Add materials and surfaces and how the light moves across them as the shot plays."
+      8:
+        label: "Dense"
+        rule: "About 420-500 words. Build out the space around the subject in each shot - what moves in front of and behind it (rain, crowds, steam, traffic) - and tie each sound cue to its shot."
+      9:
+        label: "Very detailed"
+        rule: "About 500-600 words. Break the action into finer beats and give each new piece of information its own cut or camera change, within the clip's duration. Every sentence must be something a camera can see or a microphone can hear. This overrides the guide's 350-500 word range."
+      10:
+        label: "Exhaustive"
+        rule: "About 600-750 words. Every shot fully specified: framing, camera move with amplitude and speed, action beat by beat, expression, light, surfaces, background motion and its sound. Every sentence must be something a camera can see or a microphone can hear - no statements of theme or feeling. This overrides the guide's 350-500 word range; the 7,000-character limit still holds."
+    # A video-shaped creativity ladder, 18 Sep 2026, the owner's call alongside
+    # detail_levels above. The shared rules are written for a still ("no
+    # wardrobe", "a striking setting") and at Wild h3 invented an alley, steam
+    # and a mannequin in a red dress; at Literal it read "add nothing" as
+    # "write little" (~90 words against ~210 at Balanced, no score). Here the
+    # invention is in time - beats, camera, cuts, secondary motion, sound -
+    # and length is left to detail. Samplers are the shared ladder's, unchanged.
+    # A reference picture is pinned in code at every notch: see
+    # videoHasPicture in server.mjs.
+    creativity_presets:
+      literal:
+        temperature: 0.30
+        top_p: 0.65
+        rule: "Add nothing to what happens. Shoot exactly the action they described, as plainly as it can be shot: no extra beats, props or people. Every shot still gets its camera, and the soundscape and score are still written, plainly."
+      precise:
+        temperature: 0.45
+        top_p: 0.72
+        rule: "Stay close to the brief. The camera, the cuts and the sound are your only choices, and take the plainest ones that show the action."
+      faithful:
+        temperature: 0.55
+        top_p: 0.76
+        rule: "Follow the brief, and fill only what a shot cannot be filmed without - where the camera stands, when it cuts, what the action sounds like. Take the most ordinary answer and move on."
+      measured:
+        temperature: 0.62
+        top_p: 0.78
+        rule: "Use conventional coverage: the shots and cuts an ordinary editor would use for this action, and the sounds anyone would expect to hear."
+      balanced:
+        temperature: 0.70
+        top_p: 0.80
+        rule: "Fill in what the brief leaves out - how the action unfolds, the camera, the cuts, the sound - and keep every addition in service of the scene they described."
+      loose:
+        temperature: 0.78
+        top_p: 0.85
+        rule: "Make choices with some character: a camera move or a cut with intent, a small beat of action they did not write, a sound that gives the place life."
+      inventive:
+        temperature: 0.85
+        top_p: 0.88
+        rule: "Bring your own ideas to the camera, the cutting and the sound. Add a beat of action or some secondary motion - weather, a crowd, the light changing as the clip plays - where it makes the clip stronger."
+      creative:
+        temperature: 0.92
+        top_p: 0.92
+        rule: "Expand freely in time: extra beats, a reveal, a change in the light over the clip, a score with a shape to it. Nothing you add may contradict what they wrote."
+      daring:
+        temperature: 1.00
+        top_p: 0.94
+        rule: "Push past the brief in how it is shot and told: a striking camera move, an unexpected cut, a bold score. The subject and the action they named are fixed."
+      wild:
+        temperature: 1.10
+        top_p: 0.96
+        rule: "Treat the brief as the starting point for how the clip moves and sounds: unexpected beats, bold camera and cutting, strong sound design. The subject and the action they named are fixed; how the clip unfolds around them is yours."
+    reference_traits: ["keep", "drop"]
+
+  wan:
+    name: "Wan 2.2"
+    label: "Wan 2.2"
+    type: "video"
+    template: "video-wan"
+    # Opted out of the lighting slider, 8 Sep 2026. It is an image-model
+    # control for now: a clip can change its exposure from shot to shot, and
+    # one scalar for the whole thing is the wrong shape of control here.
+    # Delete this line to switch it on for this model.
+    lighting_levels: {}
+    badge: "video"
+    format_label: "Four-layer natural language"
+    gen_button: "Generate Wan prompt"
+    system_prompt: "prompts/video/wan.md"
+    # One file per switchable segment, appended only when it is asked for.
+    # The base file above is how this model THINKS; these are what each
+    # segment is. See the note on illustrious for the whole argument.
+    segment_blocks:
+      "Negative prompt": "prompts/video/segments/wan-negative.md"
+      "Layer breakdown": "prompts/video/segments/wan-layer-breakdown.md"
+      "Reasoning": "prompts/video/segments/wan-reasoning.md"
+    thinking: false
+    segments: ["Positive prompt", "Negative prompt", "Layer breakdown", "Reasoning"]
+    meta_segments: ["Layer breakdown", "Reasoning"]
+    # wan.md: under 80 the camera layer goes undefined, over 120 the motion
+    # layer dilutes. Counter renders green in-band, amber out.
+    word_target: { min: 80, max: 120 }
+    layers: ["Subject", "Motion", "Camera", "Scene"]
+    # A wan-shaped detail ladder, 23 Sep 2026. The same call as h3's on 18 Sep,
+    # and the note there - "wan and ltx keep the shared ladder until someone
+    # reports them" - named this one. Reported: the slider did nothing here.
+    #
+    # It reached the model the whole time. Two structural reasons it could not
+    # change the output, neither of them a bug in the plumbing:
+    #
+    #   - Six of the shared ladder's ten notches say "stay inside this model's
+    #     normal length and density rules", and wan.md says "Length: 80 to 120
+    #     words. Count them." Six notches, one hard band, no difference.
+    #   - What the shared ladder escalates through is a still frame: palette,
+    #     then materials, then foreground/background layering, then art
+    #     direction. Every one of those is wan's SCENE layer - the layer
+    #     wan.md calls the most compressible and tells the model to cut first.
+    #     Turning the slider up asked for more of the one layer wan wants
+    #     least, inside a band that left no room to put it.
+    #
+    # So this ladder escalates in wan's own order: Motion and Camera first,
+    # because those are the layers a brief is thinnest on and the ones that
+    # make it a video rather than a still, and Scene after them. Word ranges
+    # rather than adjectives, for the reason h3's carry them - the model
+    # cannot count exactly, but a range moves it where "richer" does not.
+    #
+    # 3-8 stay inside the 80-120 band and differ by which LAYER gains, not by
+    # how many words it gets. 1-2 go under the band and 9-10 over it, and both
+    # say so in the phrasing the slider's format warning matches, because the
+    # 25 Aug call stands: the slider wins at the extremes. Past 120 the motion
+    # layer dilutes into a slideshow, so 9 and 10 name where the extra words
+    # go - more words with nobody directing them is exactly that failure.
+    #
+    # **The ranges below are measured, not chosen.** First pass, three runs a
+    # notch on the P40: every notch undershot, 3/4/5/7 fell out of the band
+    # entirely, and 7 came in BELOW 6 and 8 because its rule ended "Compress
+    # the scene layer to stay inside the band" - an instruction to remove
+    # words, doing exactly what it said. Three changes fixed the shape: 1-2
+    # dropped to ranges the notch can actually reach without saying what it
+    # forbids, every notch states its floor ("and not fewer than N"), and 4-9
+    # carry "Everything at <the notch below>, still at its full length" so a
+    # named addition cannot be read as the whole instruction. 7 now pays for
+    # its materials by trading general words for precise ones.
+    #
+    # Tried and reverted on 9 and 10: spelling out the conflict - "the 80 to
+    # 120 word band this model's format states does not apply at this notch".
+    # It measured worse across five runs a notch (9's median 120 -> 104 and its
+    # spread 106-129 -> 84-161) so it is not in the file, but that comparison
+    # should not be quoted as a finding. See the noise floor below: a later
+    # sweep moved the SAME unchanged notches by as much as that edit supposedly
+    # did, which means five runs cannot tell the two apart.
+    #
+    # **The noise floor is wider than the tuning.** Repeat sweeps of this
+    # ladder, nothing changed between them, moved notch 2 by 11 words, notch 9
+    # by 15 and notch 10 by 20. Individual notches range 55-98 (notch 3) and
+    # 104-157 (notch 10) across five runs at the default temperature. So the
+    # honest claim is: the ladder is monotonic in the mean and spans roughly
+    # 27 to 127 words end to end, and it undershoots almost every stated range
+    # by 3-24 words. Anything finer than that is not measurable at this sample
+    # size, and a range retuned on five runs is a range retuned on noise.
+    #
+    # Two known, consistent across every sweep, both his call rather than
+    # mine: notches 1 and 2 land within a few words of each other and separate
+    # only by content (camera held vs one camera move), and 8, 9 and 10 all
+    # undershoot - the model tops out near 130 however the top notches are
+    # worded. Pushing the top end further needs a proper high-sample A/B, not
+    # another rewording.
+    detail_levels:
+      1:
+        label: "Bare"
+        rule: "Subject and one continuous action, about 30-45 words. Say the camera holds still, and give the scene no more than where it happens. This overrides any minimum length this model's format normally expects."
+      2:
+        label: "Minimal"
+        rule: "About 45-65 words: the subject with two identifying details, the action, one camera move, and where it happens. Nothing further. This overrides any minimum length this model's format normally expects."
+      3:
+        label: "Light"
+        rule: "About 80-95 words and not fewer than 80 - under 80 this model's camera layer goes undefined. All four layers present and each said once: two identifying details on the subject, the action as verbs in sequence, one named camera move, and the place."
+      4:
+        label: "Modest"
+        rule: "About 90-105 words and not fewer than 90. Everything at Light, still at its full length, and the motion gains its tempo and its manner - how fast, how smoothly, how deliberately the action is performed - because tempo is what this model can actually follow."
+      5:
+        label: "Standard"
+        rule: "About 95-110 words and not fewer than 95. Everything at Modest, still at its full length, and a complete camera layer: the starting framing and angle, the move, and where it settles."
+      6:
+        label: "Full"
+        rule: "About 105-120 words and not fewer than 105. Everything at Standard, still at its full length, and the scene gains two or three concrete objects rather than a category name while the light gains a source, a direction and a quality."
+      7:
+        label: "Rich"
+        rule: "About 110-120 words and not fewer than 110. Everything at Full, still at its full length, and the subject gains materials and surfaces - fabric, skin, metal, hair - and what the light does on them while the action plays. Pay for them by trading general words for precise ones, never by dropping or shortening a layer."
+      8:
+        label: "Dense"
+        rule: "About 115-120 words and not fewer than 115, the dense end of this model's band. Everything at Rich, and secondary motion the main action does not cause - steam, rain, dust, fabric settling, someone passing behind - with the part of the clip it happens in. Hold the total at or under 120 by tightening the wording rather than by cutting a layer: this notch is dense, not long. Still one continuous action and one camera move."
+      9:
+        label: "Very detailed"
+        rule: "About 130-150 words and not fewer than 130. Everything at Dense, and the continuous action broken into finer beats with an amplitude and a speed on the camera move. The extra words go to motion and camera, not to the scene. This overrides any maximum length this model's format normally expects."
+      10:
+        label: "Exhaustive"
+        rule: "About 150-180 words and not fewer than 150. Every layer fully specified: the subject and its materials, the action beat by beat with its tempo, the camera's framing, angle, move, amplitude and where it settles, then the scene with its objects, its light and its secondary motion. Every phrase must be something a camera can see. This overrides any maximum length this model's format normally expects - it is still one continuous action and one camera move, and length is the only rule this notch breaks."
+    supports_i2v: true
+    # Wan takes a first frame, or a first and a last. Two is the ceiling —
+    # more images is a different model's feature, not a bigger version of
+    # this one. The mode is what decides whether a last frame exists at all,
+    # so dropping back to a single image cannot leave one armed.
+    i2v_modes: ["Single image", "First + last image"]
+    default_i2v_mode: "Single image"
+    negative_defaults: "morphing, warping, flickering, distorted hands, duplicate limbs, sudden identity change, text overlay, watermark"
+
+  ltx:
+    name: "LTX 2.3"
+    label: "LTX 2.3"
+    type: "video"
+    template: "video-ltx"
+    # Opted out of the lighting slider, 8 Sep 2026. It is an image-model
+    # control for now: a clip can change its exposure from shot to shot, and
+    # one scalar for the whole thing is the wrong shape of control here.
+    # Delete this line to switch it on for this model.
+    lighting_levels: {}
+    badge: "video"
+    format_label: "Single flowing paragraph"
+    gen_button: "Generate LTX prompt"
+    system_prompt: "prompts/video/ltx.md"
+    # One file per switchable segment, appended only when it is asked for.
+    # The base file above is how this model THINKS; these are what each
+    # segment is. See the note on illustrious for the whole argument.
+    segment_blocks:
+      "Improvement notes": "prompts/video/segments/ltx-improvement-notes.md"
+    thinking: false
+    segments: ["Enhanced paragraph", "Improvement notes"]
+    meta_segments: ["Improvement notes"]
+    has_negative: false
+    word_target: { min: 60, max: 120 }
+    # ltx.md forbids these outright — each nudges LTX toward static or
+    # discontinuous framing. The output panel flags any that appear.
+    forbidden_words: ["shot", "scene", "frame", "cut"]
+    # An LTX-shaped detail ladder, 23 Sep 2026, right after wan's and for the
+    # same reason: the shared ladder is written for a still and cannot move a
+    # model with a hard word band. See the long note on wan above for the
+    # argument. Three things make this one different from wan's, and all three
+    # are in the rule text rather than in code:
+    #
+    #   - **Length arrives as clauses, not sentences.** ltx.md's whole case is
+    #     that a sentence boundary reads as a break in the continuous take, and
+    #     "write more" is exactly the pressure that turns one paragraph into
+    #     five short sentences - the documented failure this format exists to
+    #     avoid. So the two notches that ask for extra length say where it goes,
+    #     the same way wan's 9 and 10 do.
+    #   - **The word count is the FINISHED paragraph**, said on every notch
+    #     that carries a number. In Director mode the model writes a Global
+    #     prompt plus up to eight segments and the node joins them into one
+    #     string; a range read per segment instead of per paragraph would be
+    #     eight times the intended length. Cheap clause, expensive failure.
+    #   - **Sound is a notch, and it is switchable.** Woven audio is what makes
+    #     this model different, so it escalates alongside the picture rather
+    #     than after it - but the audio toggle can be Silent, and ltx.md says to
+    #     omit sound language entirely then. The notches that ask for sound say
+    #     what to spend those words on instead.
+    #
+    # The four words in forbidden_words above are deliberately absent from
+    # every rule here. These strings go into the user turn, and the surest way
+    # to get a banned word into the output is to put it in the instructions.
+    detail_levels:
+      1:
+        label: "Bare"
+        rule: "About 20-35 words in the finished paragraph. The subject, the one thing it does, and where it happens, with the camera named as a continuous movement or as explicitly holding still. No light, no surfaces, no sound. This overrides any minimum length this model's format normally expects."
+      2:
+        label: "Minimal"
+        rule: "About 45-60 words in the finished paragraph. The subject, what it does, where it happens, how the camera moves through it, and - with audio on - one clause of sound attached to the action. Nothing further. This overrides any minimum length this model's format normally expects."
+      3:
+        label: "Light"
+        rule: "About 60-75 words in the finished paragraph, the bottom of this model's band. Everything dissolved into one unbroken chain of clauses: who, what they do, where, the camera easing through it, and - with audio on - the sound of the action carried in the same breath as the action."
+      4:
+        label: "Modest"
+        rule: "About 75-90 words in the finished paragraph. The movement gains its manner and its tempo, and the camera gains where it begins and where it comes to rest, both as continuous verbs rather than as instructions."
+      5:
+        label: "Standard"
+        rule: "About 85-100 words in the finished paragraph. The light gains a source, a direction and a quality, carried in the same clause flow as everything else rather than added on at the end."
+      6:
+        label: "Full"
+        rule: "About 95-110 words in the finished paragraph. Sound gains a second layer, each one attached to the thing that makes it - and with audio silent, spend those words on a second continuous movement instead. Make room for it by tightening what is already there rather than adding to the end."
+      7:
+        label: "Rich"
+        rule: "About 105-120 words in the finished paragraph. Materials and surfaces arrive - fabric, skin, metal, water - and what the light does across them while the movement plays. Make room for them by replacing general words with precise ones, not by adding clauses."
+      8:
+        label: "Dense"
+        rule: "About 110-120 words in the finished paragraph, and 120 is the ceiling. Add what else moves in the space - rain, steam, drifting dust, someone passing behind - and, with audio on, the sound each of those makes, still joined into the same unbroken chain of clauses. Hold the total at or under 120 by tightening every other clause to pay for them: this notch is dense, not long. Going past 120 is what the two notches above this one are for."
+      9:
+        label: "Very detailed"
+        rule: "About 130-155 words in the finished paragraph. The extra length arrives as more clauses joined by commas and participles, never as more sentences - one or two sentences in total however long the paragraph runs. This overrides any maximum length this model's format normally expects."
+      10:
+        label: "Exhaustive"
+        rule: "About 155-185 words in the finished paragraph: the subject and its materials, the movement beat by beat with its tempo, where the camera travels and where it settles, the light and what it touches, whatever else moves in the space, and - with audio on - the sound of all of it. Still one or two sentences built from commas and participial clauses, because a full stop is a break in the continuous take: the length may grow and the sentence count may not. This overrides any maximum length this model's format normally expects."
+    supports_audio: true
+    quality_modes: ["Pro", "Fast"]
+    default_quality_mode: "Pro"
+    # Two shapes for the same dialect, not two dialects. Paragraph is the
+    # single flowing paragraph ltx.md specifies. Director splits that same
+    # prose across a timeline for WhatDreamsCost's LTX Director node, which
+    # concatenates global + every segment into ONE string before it reaches
+    # the text encoder — see prompt_relay.py, quoted in the context doc. That
+    # is why there are no timecodes in the output and why the forbidden words
+    # still apply: the joined result has to read as continuous prose.
+    modes: ["Paragraph", "Director"]
+    # Director, from 10 Sep 2026. The owner's call, and his reason: "ltx
+    # director is like the main way this whole thing works". Every LTX clip
+    # this group makes goes through WhatDreamsCost's node, so the timeline is
+    # the ordinary path and the bare paragraph is the exception.
+    #
+    # Paragraph is kept rather than removed. It is the whole clip as one
+    # unbroken paragraph with no timeline, which is what LTX takes without the
+    # node, and it is the path `npm run dialect` measures — nothing on the
+    # server reads this key, so that suite is unaffected either way.
+    default_mode: "Director"
+    director_max_segments: 8
+    director_frame_rates: [24, 25, 30, 50, 60]
+    director_default_frame_rate: 24
+    director_default_duration: 5
+    # 60 confirmed ample by the owner, 22 Aug 2026 — it was an arbitrary pick
+    # until then. It is a ceiling on the builder, not a claim about what LTX
+    # 2.3 will render; the box enforces it so the ruler, the value and the
+    # duration the model is told cannot disagree.
+    director_max_duration: 60
+

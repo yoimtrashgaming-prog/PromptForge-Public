@@ -1,0 +1,1990 @@
+{
+  "_comment": [
+    "GENERATED — do not hand-edit. Regenerate with:",
+    "  node scripts/import-chaos-randomizer.mjs <workflow.json>",
+    "",
+    "Source: the Total Chaos Randomizer ComfyUI workflow. The vocabulary is",
+    "the owner's; the nesting is recovered from the group rectangles on that",
+    "canvas, so the boxes here are the boxes on screen there.",
+    "",
+    "Positive prompts, negative prompts and art style are deliberately absent:",
+    "PromptForge sets those per model in config/models.yaml, and a second",
+    "place to set them would be two sources of truth for one output.",
+    "",
+    "Nothing here reaches an LLM. scripts/randomizer.py picks from these",
+    "lists and writes the result into the person's brief."
+  ],
+  "source": "totalChaosRandomizer_finalRandomizer-2.json",
+  "generated_at": "2026-09-06",
+  "categories": [
+    {
+      "id": "scene",
+      "label": "Scene",
+      "children": [
+        {
+          "id": "scene_props",
+          "label": "Props",
+          "templates": [
+            "{coffee cup|takeaway cup|open book|closed book|phone|headphones|earbuds|umbrella|parasol|bouquet of flowers|single flower|shopping bags|guitar|acoustic guitar|violin|sketchbook|paintbrush|lantern|paper lantern|cat in arms|small dog|ice cream cone|popsicle|cigarette|wine glass|beer mug|teacup|bento box|picnic basket|backpack|tote bag|suitcase|letter|envelope|map|compass|pocket watch|balloon|plush toy|handheld fan|folding fan|notebook and pen|tablet|game controller|vinyl record|skateboard|basketball|fishing rod|watering can}"
+          ]
+        },
+        {
+          "id": "scene_vehicles",
+          "label": "Vehicles",
+          "templates": [
+            "{motorcycle|sports motorcycle|scooter|bicycle|sports car|vintage car|convertible|pickup truck|van|taxi|bus interior|train carriage|tram|horse|riding a horse|carriage|rowboat|sailboat|yacht|jet ski|helicopter|small aircraft|fighter jet|spaceship cockpit|shuttle|hoverbike|mech cockpit|skateboard|rollerblades|snowmobile|sled|hot air balloon}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pose_viewer",
+      "label": "Pose / viewer",
+      "children": [
+        {
+          "id": "pose_viewer_viewer_angle",
+          "label": "Viewer Angle",
+          "templates": [
+            "{upper body|cowboy shot|full body|close-up|portrait|bust shot|from side|from behind|from below|from above|dutch angle|dynamic angle|wide shot|three-quarter view|profile|straight-on|extreme close-up|bird's eye view|worm's eye view|fisheye|panoramic|medium shot|knee shot|looking at viewer|looking to the side|facing viewer|facing away|pov|solo focus|looking away|legs not in frame|feet not in frame|head not in frame|arms not in frame|cut off at the waist|cut off at the knees|cut off at the chest|chest focus|face focus|hands in frame|back focus|shoulders and up|waist up|knees up|head and shoulders|subject fills the frame|subject small in the frame}"
+          ]
+        },
+        {
+          "id": "pose_viewer_composition",
+          "label": "Composition",
+          "templates": [
+            "{centered|rule of thirds|symmetrical|asymmetrical|negative space|tight framing|loose framing|cropped|off-center|diagonal composition|foreground focus|background focus|depth of field|bokeh|motion blur|sharp focus|soft focus}"
+          ]
+        },
+        {
+          "id": "pose_viewer_pose",
+          "label": "Pose",
+          "templates": [
+            "{standing|sitting|kneeling|walking|running|jumping|leaning forward|leaning back|arms crossed|hand on hip|hand up|arms behind back|hands in pockets|stretching|crouching|lying down|floating|fighting stance|contrapposto|twisted torso|dynamic pose|relaxed|squatting|lounging|reclining|arms spread|one knee up|legs crossed|hand on chest|hand on face|arms raised|reaching out|twisting|turning around|over shoulder|action pose|on back|on stomach|on side|all fours|wariza|seiza|arms behind head|hand on own chin|looking back|looking up|looking down|outstretched arms|spread arms|leaning on object|against wall|arched back|tiptoes|kicking|punching|waving|pointing|thumbs up|heart hands|carrying|legs up|knees up|crossed ankles|own hands together|head tilt|hugging own legs|sitting on floor|saluting|peace sign|cowering|hands clasped}"
+          ]
+        },
+        {
+          "id": "pose_viewer_couples_pose",
+          "label": "Couples Pose",
+          "templates": [
+            "{holding hands|arm in arm|back to back|face to face|hugging|piggyback|leaning on shoulder|hand on cheek|forehead to forehead|dancing together|sitting together|standing together|carrying|princess carry|shoulder to shoulder|linked arms|hand holding while walking|facing each other|side by side|one behind the other|lap sitting|leaning against each other|arm around waist|arm around shoulder|head on shoulder|head on lap|hand on shoulder|pulling hand|pushing|sparring|fighting together|high five|fist bump|pointing together|looking at each other|looking away from each other|chest to chest|intertwined|kneeling before another|helping up|caught in arms}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "environment",
+      "label": "Environment",
+      "children": [
+        {
+          "id": "environment_lighting_training",
+          "label": "Lighting (Training)",
+          "templates": [
+            "{simple lighting|studio lighting|soft lighting|flat lighting|natural lighting|even lighting|diffused lighting|frontal lighting}"
+          ]
+        },
+        {
+          "id": "environment_background_training",
+          "label": "Background (Training)",
+          "templates": [
+            "{simple background|white background|black background|grey background|dark background|gradient background|solid color background|plain background|light background|neutral background}"
+          ]
+        },
+        {
+          "id": "environment_lighting_showcase",
+          "label": "Lighting (Showcase)",
+          "templates": [
+            "{rim lighting|cinematic lighting|neon lights|dramatic lighting|backlighting|volumetric lighting|moonlight|sunlight|golden hour|blue hour|spotlight|ambient lighting|warm lighting|cold lighting|high contrast|low key lighting|silhouette|bioluminescence|candlelight|firelight|torchlight|lightning|aurora|god rays|dappled light|underwater light|reflected light|colored lighting|red lighting|blue lighting|green lighting|purple lighting|rainbow light}"
+          ]
+        },
+        {
+          "id": "environment_background_sfw",
+          "label": "Background (SFW)",
+          "templates": [
+            "{neon city|cyberpunk city|rooftop at night|futuristic interior|laboratory|space|starfield|enchanted forest|dark forest|underwater|ocean floor|castle interior|throne room|ancient ruins|nightclub|cherry blossoms|sunset|sunrise|cityscape|crystal cave|japanese garden|shrine|temple|rainy street|snowy landscape|wasteland|apocalyptic|dungeon|arena|colosseum|floating island|abstract background|clocktower|cathedral|graveyard|battlefield|festival|bamboo forest|volcano|lava field|frozen tundra|misty lake|waterfall|canyon|coral reef|meteor shower|aurora borealis|moonlit forest|foggy pier|neon arcade|cyberpunk alley|rooftop garden|abandoned hospital|haunted mansion|steampunk workshop|airship deck|neon-lit alleyway|penthouse balcony|greenhouse overgrown|observatory|throne of bones|dragon lair|wizard tower|holographic room|mirror hall|stained glass cathedral|lantern festival|fireworks|carnival|pirate cove|mushroom forest|ice palace|obsidian fortress|floating market|skyline at dawn|rain-soaked neon street|hot spring onsen|overgrown ruins|bioluminescent cave|solar eclipse|blood moon sky|ethereal void|cosmic nebula|gothic cathedral interior|cyberpunk rooftop overlooking city|cherry blossom shrine at night|underwater temple ruins|crystal throne room|burning battlefield|stormy ocean cliffs|neon tokyo streets|abandoned amusement park|demon realm|celestial palace|eldritch void|fractured dimension|simple background|white background|gradient background|blurry background|outdoors|indoors|forest|beach|ocean|mountain|city|street|alley|rooftop|classroom|kitchen|cafe|library|train interior|train station|castle|ruins|garden|park|field|desert|snow|starry sky|cloudy sky|bridge|hallway|balcony|kitchen counter|office desk|locker room|changing room|shared bath|laundry room|night sky|market|greenhouse|back seat of a car|fire escape at night|empty train carriage at night|ferris wheel cabin|back row of an empty cinema|late-night diner booth|stairwell landing|stalled elevator|doorway in the rain|sharing one umbrella|laundromat at night|pier at dusk|lakeside dock|riverbank at golden hour|greenhouse at night|empty art gallery|library stacks|observatory dome|sauna bench|futon on the floor|beach bonfire at night|tide pools at dusk|swing set after dark|empty parking garage|record shop after closing|rooftop water tower|lodge with a central firepit|stone hearth room|great hall with a fire pit|cabin with a firepit|yurt interior|log cabin loft|campsite at night|canvas bell tent|campfire circle|backyard firepit with string lights|firepit ringed with stones|fire pit under pine trees|forest clearing camp|lakeside campsite|mountain campsite at dawn|camper van interior|dying campfire embers|treeline camp at dusk|dimly lit bar|velvet curtain backdrop|starlit field of flowers|fog-filled greenhouse|rain-soaked gazebo|incense-filled temple|dimly lit jazz club|lavender field at dusk|cherry blossom canopy|paper lantern lit path|reflection in still water|stained glass light filtering in|bokeh city lights behind glass|midnight rooftop cityscape|sunbeam through cathedral window|rain-streaked glass overlooking city|crescent moon night sky|glowing ember campfire|soft spotlight in darkness}"
+          ]
+        },
+        {
+          "id": "environment_background_nsfw",
+          "label": "Background (NSFW)",
+          "templates": [
+            "{candlelit bedroom|silk draped boudoir|moonlit balcony|rooftop under stars|rain against window|steamy bathroom|fireplace lounge|rose petal bath|private hot spring|misty onsen|lantern-lit garden|twilight rooftop pool|wine cellar|candlelit dinner table|silk canopy bed|moonlit lake shore|private library by firelight|window seat during thunderstorm|sunlit linen sheets|golden hour bedroom|fairy light draped room|shadowy Victorian parlor|warmly lit cabin interior|snow falling outside window|sunset through sheer curtains|underground hot spring cavern|ivy-covered stone alcove|draped silk tent interior|floating candles in dark water|neon motel room|perfume-lit vanity mirror|bathtub overlooking skyline|bedroom|hotel room|motel room|living room|living room couch|couch|sofa|bed|on bed|futon|bedsheets|pillows|bathroom|bathtub|shower|hot tub|sauna|bathhouse|car interior|back seat|dorm room|apartment|messy room|tatami room|window seat|fireplace|dim room|candlelit room|parked car at night|car hood under the stars|porch swing|hammock between trees|treehouse|tent lit from inside|back of a pickup truck|kitchen at three in the morning|hayloft in a barn|dusty attic|basement den|window nook|blanket fort|reading corner|floor in front of the fireplace|sharing a bathtub|narrow hallway|pressed against a bedroom door|quiet hotel corridor|balcony overlooking the city|outdoor onsen at night|snowed-in cabin|moonlit kitchen|shared blanket on a couch|bed of wildflowers|sunken lounge around a firepit|ryokan room with a sunken hearth|glamping tent with a bed|tent under the stars|lantern-lit tent|sleeping bags side by side|stargazing from a sleeping bag}"
+          ]
+        },
+        {
+          "id": "environment_aura_effects",
+          "label": "Aura / Effects",
+          "templates": [
+            "{fire aura|burning aura|flame particles|embers around body|no aura}, {electric sparks|lightning crackling|static electricity|no sparks}, {cherry blossoms|falling petals|floating flowers|no petals:2}, {falling leaves|autumn leaves|scattered leaves|no leaves:2}, {bubbles|floating bubbles|soap bubbles|no bubbles:2}, {smoke|dark smoke|mist|fog around feet|no smoke:2}, {glitch effect|digital artifacts|pixel distortion|no glitch:3}, {sparkles|glitter|stardust|floating particles|no sparkles:2}, {energy aura|power aura|battle aura|no aura:3}, {floating debris|levitating rocks|scattered papers|no debris:3}"
+          ]
+        },
+        {
+          "id": "environment_weather",
+          "label": "Weather",
+          "templates": [
+            "{rain|heavy rain|light rain|drizzle|no rain:3}, {snow|snowfall|blizzard|light snow|no snow:3}, {thunderstorm|lightning in background|dark storm clouds|no storm:3}, {fog|dense fog|light mist|morning fog|no fog:2}, {wind|strong wind|hair blowing|clothes fluttering|gentle breeze|no wind:2}, {falling petals|petal storm|no petals:3}, {hail|sleet|no hail:4}, {rainbow|double rainbow|no rainbow:4}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "body",
+      "label": "Body",
+      "children": [
+        {
+          "id": "body_body_type",
+          "label": "Body Type",
+          "templates": [
+            "{slim|slender|athletic|curvy|petite|muscular|tall|short|average build|thin|toned|wide hips|narrow waist|long legs|small frame|large frame|hourglass figure|pear-shaped|fit}"
+          ]
+        },
+        {
+          "id": "body_skin",
+          "label": "Skin",
+          "templates": [
+            "{pale skin|fair skin|light skin|tan|dark skin|brown skin|skin:3|olive skin|tan skin|deep brown skin|sun-kissed skin|porcelain skin|freckled skin|smooth skin|textured skin|visible pores|glowing skin|dewy skin|matte skin|flushed cheeks|goosebumps|sweat-sheened skin|wet skin|tan lines|scattered moles|faint scars|soft body hair|weathered skin}"
+          ]
+        },
+        {
+          "id": "body_body_details",
+          "label": "Body Details",
+          "templates": [
+            "{smooth skin|detailed skin|shiny skin|matte skin|freckles|beauty mark|mole|collarbone|abs|toned abs|navel|visible ribs|no body detail:3}"
+          ]
+        },
+        {
+          "id": "body_anatomy_emphasis",
+          "label": "Anatomy Emphasis",
+          "templates": [
+            "{detailed skin|smooth skin|anatomical detail|natural body|realistic anatomy|human anatomy|organic|skin texture|muscle definition|bone structure|joint detail|natural proportions}"
+          ]
+        },
+        {
+          "id": "body_exposure_areas",
+          "label": "Exposure Areas",
+          "templates": [
+            "{exposed midriff|bare hips|bare back|bare shoulders|navel|bare legs|bare arms|bare chest|bare stomach|bare thighs|collarbone|spine visible|shoulder blades|lower back|upper back|ribcage|hip bones|full body exposed|bare neck|bare feet}"
+          ]
+        },
+        {
+          "id": "body_lewd_nude",
+          "label": "Lewd/Nude",
+          "templates": [
+            "{nude:2|topless|bottomless|underwear only|bare skin|naked}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "face",
+      "label": "Face",
+      "children": [
+        {
+          "id": "face_face_shape",
+          "label": "Face Shape",
+          "templates": [
+            "{round face|sharp face|mature face|soft face|angular face|oval face|heart-shaped face|thin face|delicate face|strong jawline}"
+          ]
+        },
+        {
+          "id": "face_expression",
+          "label": "Expression",
+          "templates": [
+            "{smile|grin|smirk|frown|expressionless|surprised|angry|sad|crying|laughing|blush|nervous|embarrassed|determined|gentle smile|open mouth|closed mouth|light smile|serious|pout|seductive smile|shy|confused|annoyed|fierce|calm|sleepy|bored|excited|mischievous}"
+          ]
+        },
+        {
+          "id": "face_gaze_direction",
+          "label": "Gaze Direction",
+          "templates": [
+            "{looking at viewer:3|looking away|looking up|looking down|looking to the side|looking back|looking afar|sideways glance|closed eyes|one eye closed|averting eyes|staring|eye contact}"
+          ]
+        },
+        {
+          "id": "face_makeup",
+          "label": "Makeup",
+          "templates": [
+            "{no makeup:3|eyeliner|eyeshadow|mascara|lipstick|heavy makeup|light makeup|colored eyelashes|fake eyelashes|dark eyeshadow|red eyeshadow|blue eyeshadow|purple eyeshadow|bags under eyes|aegyo sal|red lipstick|dark lipstick|nude lipstick|glossy lips|matte lips|smudged lipstick|lip tint|blush across the cheeks|heavy blush|contoured cheekbones|highlighter on the cheekbones|bronzed skin|winged eyeliner|smoky eye|glitter eyeshadow|pastel eyeshadow|bold graphic liner|tear-duct highlight|false lashes|mascara only|bare face|freckle makeup|drawn-on beauty mark|gothic makeup|stage makeup}"
+          ]
+        },
+        {
+          "id": "face_face_details",
+          "label": "Face Details",
+          "templates": [
+            "{small nose|button nose|pointed nose|straight nose}, {thin lips|full lips|small mouth}, {beautiful face|clean face|detailed face}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "eyes",
+      "label": "Eyes",
+      "children": [
+        {
+          "id": "eyes_shape",
+          "label": "Shape",
+          "templates": [
+            "{large eyes|narrow eyes|round eyes|sharp eyes|tareme|tsurime|jitome|sanpaku|half-closed eyes|wide-eyed|droopy eyes|upturned eyes|big eyes|almond eyes}"
+          ]
+        },
+        {
+          "id": "eyes_pupil_shape",
+          "label": "Pupil Shape",
+          "templates": [
+            "{normal pupils:3|slit pupils|constricted pupils|dilated pupils|heart-shaped pupils|star-shaped pupils|diamond-shaped pupils|flower-shaped pupils|cross-shaped pupils|no pupils|symbol-shaped pupils|solid circle pupils}"
+          ]
+        },
+        {
+          "id": "eyes_sclera",
+          "label": "Sclera",
+          "templates": [
+            "{normal sclera:5|black sclera|red sclera|yellow sclera|blue sclera|green sclera|orange sclera|white sclera|bloodshot sclera|glowing sclera|veined sclera|clear bright sclera|tired sclera|void-black sclera|faintly blue sclera}"
+          ]
+        },
+        {
+          "id": "eyes_color",
+          "label": "Color",
+          "templates": [
+            "{aqua eyes|blue eyes|red eyes|green eyes|purple eyes|golden eyes|brown eyes|orange eyes|pink eyes|grey eyes|yellow eyes|black eyes|white eyes|heterochromia|multicolored eyes|gradient eyes|two-tone eyes|rainbow eyes|glowing eyes|ringed eyes|sparkling eyes|slit pupils|star-shaped pupils|heart-shaped pupils|empty eyes}"
+          ]
+        },
+        {
+          "id": "eyes_pupil_color",
+          "label": "Pupil Color",
+          "templates": [
+            "{aqua pupils|blue pupils|red pupils|green pupils|purple pupils|golden pupils|brown pupils|orange pupils|pink pupils|white pupils|yellow pupils|grey pupils}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hair",
+      "label": "Hair",
+      "children": [
+        {
+          "id": "hair_hair_styles",
+          "label": "Hair Styles",
+          "templates": [
+            "{straight hair|wavy hair|curly hair|messy hair|ponytail|high ponytail|low ponytail|side ponytail|twintails|twin braids|single braid|french braid|side braid|crown braid|double bun|hair bun|drill hair|twin drills|hime cut|braided ponytail|half updo|hair down|low-tied long hair|short hair with long locks|bob cut|pixie cut|updo|fishtail braid|braid|short ponytail|single hair bun|hair intakes|hair over one eye|spiked hair|ahoge|sidelocks|low twintails|short twintails|undercut|dreadlocks|afro|hair rings|hair flaps|asymmetrical hair|folded ponytail|hair pulled back}"
+          ]
+        },
+        {
+          "id": "hair_bangs",
+          "label": "Bangs",
+          "templates": [
+            "{bangs|blunt bangs|swept bangs|parted bangs|side bangs|long bangs|asymmetrical bangs|hair between eyes|hair over one eye|no bangs|forehead|curtain bangs|v-shaped bangs|crossed bangs}"
+          ]
+        },
+        {
+          "id": "hair_hair_length",
+          "label": "Hair Length",
+          "templates": [
+            "{long hair|short hair|medium hair|very long hair|very short hair|absurdly long hair|shoulder-length hair}"
+          ]
+        },
+        {
+          "id": "hair_hair_accessories",
+          "label": "Hair Accessories",
+          "templates": [
+            "{no hair accessory:3|hair ribbon|hair bow|hairband|hairclip|hair ornament|headband|scrunchie|hair tie|hair flower|hair pin|star hair ornament|butterfly hair ornament|feather hair ornament|hair beads|hair bell|hair stick|tiara|crown}"
+          ]
+        },
+        {
+          "id": "hair_hair_color",
+          "label": "Hair Color",
+          "templates": [
+            "{blonde hair|black hair|brown hair|white hair|silver hair|grey hair|red hair|pink hair|blue hair|purple hair|green hair|orange hair|cyan hair|aqua hair|light blue hair|dark blue hair|light purple hair|light brown hair|multicolored hair|gradient hair|two-tone hair|streaked hair|platinum blonde hair}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clothing_female",
+      "label": "Clothing female",
+      "children": [
+        {
+          "id": "clothing_female_fantasy",
+          "label": "Fantasy",
+          "templates": [
+            "{armor|full armor|plate armor|leather armor|chainmail|breastplate|gauntlets|greaves|shoulder armor|robe|wizard robe|hooded robe|cloak|hooded cloak|fur cloak|cape|ballgown|corset dress|medieval dress|princess dress|witch hat|witch outfit|sorceress|priestess outfit|druid|ranger outfit|elven clothing|barbarian|loincloth|fur trim armor|enchanted armor|circlet|crown|tiara|tabard|tunic|leather boots|armored boots|knight|paladin|dark knight}"
+          ]
+        },
+        {
+          "id": "clothing_female_sci_fi_cyberpunk",
+          "label": "Sci-Fi / Cyberpunk",
+          "templates": [
+            "{bodysuit|plugsuit|latex bodysuit|cyber bodysuit|skin tight bodysuit|neon trim bodysuit|holographic clothing|transparent bodysuit|tech suit|powered suit|cyberpunk outfit|neon accents|glowing lines|circuit pattern|LED accents|visor|cyber visor|head mounted display|neural interface|cable|data cable|wire|tube|connector|port|mechanical arms|mechanical legs|mechanical hands|cyborg|android|robot joints|prosthetic arm|prosthetic leg|cybernetic eye|cybernetic implant|panel lines|seams|wire inlay|exposed wiring|chrome|metallic skin|synthetic skin|rubber suit|reflective surface|neon collar|cyber collar|augmented|bionic|exo frame}"
+          ]
+        },
+        {
+          "id": "clothing_female_space_mecha",
+          "label": "Space / Mecha",
+          "templates": [
+            "{pilot suit|flight suit|space suit|astronaut suit|mech pilot|jumpsuit|utility jumpsuit|futuristic armor|power armor|heavy armor|exoskeleton|mechanical parts|robotic joints|servo|piston|hydraulic|thruster|jet pack|oxygen mask|flight helmet|space helmet|tactical suit|combat suit|armored bodysuit|reinforced suit|mech arm|mech leg|shoulder mounted|back mounted|wing unit|booster|antenna|hull plating|ablative armor|chest plate|waist armor|leg armor|arm armor|full mech suit}"
+          ]
+        },
+        {
+          "id": "clothing_female_techwear",
+          "label": "Techwear",
+          "templates": [
+            "{techwear|tactical vest|chest rig|cargo pants|cargo shorts|utility belt|harness|chest harness|leg harness|straps|buckles|webbing|molle|pouch|holster|face mask|balaclava|neck gaiter|hood|hooded jacket|windbreaker|anorak|shell jacket|waterproof jacket|joggers|tapered pants|ankle cuffs|zipper details|reflective strips|black tactical|urban camo|dark clothing|layered clothing|oversized jacket|cropped jacket|tech sneakers|combat boots|knee pads|elbow pads|wrist wrap|arm wrap|fingerless gloves|tactical gloves|sling bag|crossbody bag|drawstring|elastic cuff|magnetic closure}"
+          ]
+        },
+        {
+          "id": "clothing_female_modern_casual",
+          "label": "Modern / Casual",
+          "templates": [
+            "{hoodie|oversized hoodie|crop top hoodie|t-shirt|graphic tee|tank top|crop top|off-shoulder top|sweater|turtleneck|cardigan|flannel shirt|denim jacket|leather jacket|bomber jacket|varsity jacket|blazer|button-up shirt|polo shirt|camisole|tube top|halter top|sports bra|jeans|skinny jeans|baggy jeans|shorts|denim shorts|mini skirt|pleated skirt|maxi skirt|sundress|casual dress|overalls|dungarees|sweatpants|yoga pants|leggings|sneakers|sandals|boots|high heels|platform shoes|backpack|cap|beanie|sunglasses|watch|choker|necklace|earrings|bracelet}"
+          ]
+        },
+        {
+          "id": "clothing_female_school_uniform",
+          "label": "School / Uniform",
+          "templates": [
+            "{school uniform|sailor uniform|serafuku|sailor collar|blazer|school blazer|dress shirt|white shirt|pleated skirt|plaid skirt|tartan skirt|knee-length skirt|short skirt|school cardigan|school sweater|sweater vest|vest|necktie|red necktie|blue necktie|striped necktie|bow tie|ribbon tie|knee socks|thighhighs|white legwear|black legwear|navy legwear|loafers|uwabaki|indoor shoes|school bag|gym uniform|bloomers|track suit|sports jersey|school swimsuit|lab coat|summer uniform|winter uniform|school hat}"
+          ]
+        },
+        {
+          "id": "clothing_female_gothic_alt",
+          "label": "Gothic / Alt",
+          "templates": [
+            "{gothic lolita|classic lolita|sweet lolita|punk lolita|gothic dress|black dress|victorian dress|mourning dress|corset|underbust corset|overbust corset|lace-up|ribbon lacing|fishnet|fishnet thighhighs|fishnet pantyhose|leather|leather jacket|leather pants|leather skirt|leather corset|studded|spiked|chains|chain accessories|choker|spiked choker|leather choker|collar|o-ring|buckle|platform boots|knee boots|thigh boots|lace-up boots|mary janes|striped stockings|torn stockings|layered skirt|petticoat|parasol|bonnet|mini hat|top hat|veil|black veil|cross necklace|bat wings accessory|skull accessory|rose|black rose|dark makeup|black lipstick|heavy eyeliner|nail polish|black nail polish|arm warmers|wrist cuffs|harness|body harness|garter|garter belt|cage skirt|sheer fabric|velvet|lace trim|ruffle|frills}"
+          ]
+        },
+        {
+          "id": "clothing_female_office_business",
+          "label": "Office/Business",
+          "templates": [
+            "{business suit|pencil skirt|blazer|dress shirt|button-up shirt|slacks|dress pants|office dress|sheath dress|blouse|silk blouse|collared shirt|waistcoat|vest|tie|necktie|bow tie|pantsuit|cardigan|knee-length skirt|a-line skirt|trench coat|peacoat|oxford shoes|pumps|high heels|loafers|tote bag|briefcase|watch|pearl necklace|pearl earrings|cufflinks|belt|glasses|reading glasses|lanyard|name tag|pencil dress|wrap dress|fitted jacket|shoulder pads|stockings|pantyhose|nude pantyhose|black pantyhose}"
+          ]
+        },
+        {
+          "id": "clothing_female_lingerie_sleepwear",
+          "label": "lingerie/Sleepwear",
+          "templates": [
+            "{lingerie|bra|panties|lace bra|lace panties|thong|garter belt|garter straps|stockings|thighhighs|sheer lingerie|see-through lingerie|babydoll|chemise|negligee|corset|bustier|teddy|bodysuit|lace bodysuit|camisole|silk camisole|nightgown|silk nightgown|pajamas|silk pajamas|sleep shirt|oversized shirt|tank top and shorts|robe|silk robe|bathrobe|kimono robe|satin|lace|sheer|ribbon|bow|frills|underwear only|bralette|sports bra|boyshorts|sleep mask|slippers|barefoot}"
+          ]
+        },
+        {
+          "id": "clothing_female_victorian_elegant",
+          "label": "Victorian/Elegant",
+          "templates": [
+            "{victorian dress|victorian gown|ball gown|bustle dress|empire waist dress|high collar|lace collar|ruffled collar|jabot|cravat|puff sleeves|leg-of-mutton sleeves|long sleeves|bell sleeves|floor length dress|train|layered skirt|petticoat|crinoline|hoop skirt|corset|underbust corset|overbust corset|bodice|lace-up back|ribbon lacing|silk dress|satin dress|velvet dress|brocade|damask|embroidered|lace overlay|sheer sleeves|lace gloves|elbow gloves|opera gloves|fan|folding fan|parasol|bonnet|wide brim hat|feathered hat|veil|hair up|updo|ringlets|cameo brooch|choker|ribbon choker|pearl necklace|pendant|chandelier earrings|tiara|diadem|shawl|fur stole|cape|capelet|muff|handkerchief|pocket watch|monocle|lace trim|frills|ruffle|bow|bustle|high society|elegant|refined|aristocrat|noble|royal}"
+          ]
+        },
+        {
+          "id": "clothing_female_cosplay",
+          "label": "Cosplay",
+          "templates": [
+            "{maid|bunny girl|nurse|police|cheerleader|shrine maiden|cowgirl|cat lingerie|race queen|belly dancer|dominatrix|playboy bunny|sailor moon|witch cosplay|bride|fallen angel|fox shrine maiden|dark nun|slave leia|valkyrie|kunoichi|geisha|battle maid|latex catsuit|bikini armor|chainmail bikini}"
+          ]
+        },
+        {
+          "id": "clothing_female_vintage_housewife",
+          "label": "Vintage Housewife",
+          "templates": [
+            "{apron|frilly apron|white apron|floral apron|naked apron|apron over dress|housewife|1950s dress|retro dress|swing dress|polka dot dress|floral dress|gingham dress|plaid dress|peter pan collar|puff sleeves|short sleeves|a-line dress|fit and flare dress|wrap dress|midi dress|tea length dress|full skirt|circle skirt|high waist skirt|blouse tucked in|cardigan|pearl necklace|pearl earrings|headband|hair scarf|bandana|hair curlers|kitten heels|mary janes|flats|oven mitts|dish towel|domestic|kitchen|retro|vintage|pin-up|wholesome}"
+          ]
+        },
+        {
+          "id": "clothing_female_girlfriend_cozy",
+          "label": "Girlfriend/Cozy",
+          "templates": [
+            "{virgin killer sweater|backless sweater|oversized shirt|oversized t-shirt|baggy shirt|boyfriend shirt|dress shirt no pants|button-up shirt no pants|oversized hoodie|hoodie no pants|off-shoulder sweater|bare legs|thigh high socks|knee socks|ankle socks|striped thighhighs|boxer shorts|male underwear|gym shorts|short shorts|dolphin shorts|tank top and panties|camisole and panties|sports bra and shorts|crop top no bra|braless|bare shoulders|one shoulder exposed|shirt slip|ribbed sweater|thin sweater|wet shirt|white shirt|loose clothes|messy clothes|disheveled}"
+          ]
+        },
+        {
+          "id": "clothing_female_steampunk",
+          "label": "Steampunk",
+          "templates": [
+            "{corset|waist cincher|leather corset|brass-trimmed corset}, {goggles|goggles on head|aviator goggles|brass goggles}, {top hat|bowler hat|aviator cap|no hat:2}, {gears|cogs|clockwork accessories|brass gears}, {long coat|tailcoat|vest|waistcoat|leather jacket}, {boots|lace-up boots|knee-high boots|buckled boots}, {pocket watch|compass|monocle|no accessory:2}, {leather|brass|copper|bronze|aged metal}, {gears and pipes|steam|clockwork|industrial|Victorian industrial}"
+          ]
+        },
+        {
+          "id": "clothing_female_traditional_cultural",
+          "label": "Traditional/Cultural",
+          "templates": [
+            "{kimono|furisode|yukata|hakama|no kimono}, {cheongsam|qipao|mandarin collar dress|no cheongsam}, {hanbok|jeogori and chima|no hanbok}, {sari|draped sari|embroidered sari|no sari}, {toga|draped cloth|roman dress|no toga}, {dirndl|lederhosen|folk dress|no dirndl}, {obi|sash|decorative belt|no sash:2}, {hair ornaments|traditional hairpin|kanzashi|flower in hair|no hair accessory}, {embroidered|patterned|silk|traditional fabric|ornate}"
+          ]
+        },
+        {
+          "id": "clothing_female_athletic_sporty",
+          "label": "Athletic/Sporty",
+          "templates": [
+            "{sports bra|tank top|crop top|athletic top|jersey}, {yoga pants|athletic shorts|track pants|compression shorts|biker shorts}, {sneakers|running shoes|athletic shoes|bare feet}, {headband|sweatband|ponytail|no headwear:2}, {wristband|arm sleeve|no wristband:2}, {gym|track|court|field|no special setting:2}"
+          ]
+        },
+        {
+          "id": "clothing_female_winter_cold_weather",
+          "label": "Winter/Cold Weather",
+          "templates": [
+            "{parka|winter coat|fur coat|puffer jacket|wool coat|peacoat}, {scarf|knit scarf|fur scarf|no scarf:2}, {earmuffs|winter hat|beanie|fur hat|no hat:2}, {mittens|gloves|fur gloves|no gloves:2}, {snow boots|fur boots|ugg boots|heavy boots}, {sweater|turtleneck|thermal|hoodie underneath}, {leggings|thick pants|snow pants|skirt with tights}, {snow|frost|breath visible|cozy|no special effect}"
+          ]
+        },
+        {
+          "id": "clothing_female_festival_rave",
+          "label": "Festival/Rave",
+          "templates": [
+            "{holographic top|mesh top|sequin bra|crop top|body harness|rave bra}, {hot pants|mini skirt|flowy pants|booty shorts|tutu}, {platform boots|chunky shoes|knee-high boots|gogo boots}, {LED accessories|glow sticks|glowing jewelry|neon accessories|kandi bracelets}, {body glitter|face gems|face paint|UV paint|no body paint}, {fishnets|thigh highs|mesh stockings|no stockings:2}, {fur hood|fuzzy hat|flower crown|goggles on head|no headwear}, {neon|blacklight|colorful|holographic|iridescent}"
+          ]
+        },
+        {
+          "id": "clothing_female_swimwear_beach",
+          "label": "Swimwear / Beach",
+          "templates": [
+            "{bikini|string bikini|micro bikini|one-piece swimsuit|high-leg swimsuit|tankini|halter swimsuit|sarong|beach wrap|rash guard|swim shorts|sheer cover-up|sun hat|oversized sunglasses|flip-flops|wet swimsuit|tan lines|towel wrap|life vest|snorkel gear|surf wetsuit|crochet bikini|bandeau top|sports bikini}"
+          ]
+        },
+        {
+          "id": "clothing_female_wedding_bridal",
+          "label": "Wedding / Bridal",
+          "templates": [
+            "{wedding dress|ballgown wedding dress|mermaid gown|lace veil|cathedral veil|birdcage veil|bridal lingerie|garter|elbow gloves|pearl choker|tiara|flower crown|bouquet|train|bolero jacket|bridesmaid dress|white sundress|church gown|satin heels|corseted bodice}"
+          ]
+        },
+        {
+          "id": "clothing_female_military_tactical",
+          "label": "Military / Tactical",
+          "templates": [
+            "{camouflage fatigues|flak jacket|plate carrier|combat boots|dog tags|beret|peaked cap|webbing|tactical gloves|cargo trousers|field jacket|dress uniform|pilot suit|flight jacket|helmet with netting|knee pads|shemagh scarf|holstered sidearm|rolled sleeves|desert fatigues|naval whites|officer coat}"
+          ]
+        },
+        {
+          "id": "clothing_female_western_cowboy",
+          "label": "Western / Cowboy",
+          "templates": [
+            "{cowboy hat|stetson|chaps|leather chaps|denim vest|fringed jacket|bolo tie|spurs|riding boots|duster coat|bandana|plaid shirt|high-waisted jeans|gun belt|saloon dress|lace corset|ranch shirt|leather gloves|poncho|prairie dress}"
+          ]
+        },
+        {
+          "id": "clothing_female_nautical_pirate",
+          "label": "Nautical / Pirate",
+          "templates": [
+            "{pirate coat|tricorne hat|eyepatch|sash|corset and breeches|buccaneer boots|sailor uniform|sailor collar|peacoat|naval officer coat|captain hat|striped shirt|rope belt|tattered skirt|bandana headwrap|gold hoop earrings|shoulder cape|buckled boots}"
+          ]
+        },
+        {
+          "id": "clothing_female_dance_stage",
+          "label": "Dance / Stage",
+          "templates": [
+            "{ballet tutu|leotard|pointe shoes|wrap skirt|legwarmers|flamenco dress|tango dress|sequined outfit|idol costume|stage corset|feathered headdress|fishnet tights|tap shoes|ribbon lacing|performance gloves|cabaret outfit|showgirl feathers|jazz shoes|character skirt|rehearsal wear}"
+          ]
+        },
+        {
+          "id": "clothing_female_racing_biker",
+          "label": "Racing / Biker",
+          "templates": [
+            "{leather jacket|studded jacket|one-piece leathers|racing suit|motorcycle helmet|riding gloves|knee sliders|biker boots|crop top and leathers|racing stripes|pit crew shirt|fingerless gloves|goggles|chain belt|armoured jacket|motocross gear}"
+          ]
+        },
+        {
+          "id": "clothing_female_post_apocalyptic",
+          "label": "Post-apocalyptic",
+          "templates": [
+            "{scavenged rags|patched coat|gas mask|respirator|welding goggles|wrapped bandages|scrap armour|leather harness|duster|fingerless gloves|improvised pauldron|dust cloak|canteen and pouches|tattered scarf|goggles on forehead|stitched leathers|bandolier|rusted plating|tarpaulin poncho}"
+          ]
+        },
+        {
+          "id": "clothing_female_medical_service",
+          "label": "Medical / Service",
+          "templates": [
+            "{scrubs|lab coat|nurse uniform|surgical mask|stethoscope|chef whites|apron|barista apron|waitress uniform|flight attendant uniform|hotel uniform|name badge|hair net|clogs|clipboard|delivery uniform|receptionist blouse|hazmat suit}"
+          ]
+        },
+        {
+          "id": "clothing_female_religious_ceremonial",
+          "label": "Religious / Ceremonial",
+          "templates": [
+            "{nun habit|wimple|miko outfit|shrine maiden robes|monk robes|temple robes|ceremonial gown|prayer beads|rosary|censer|vestments|veil and mantle|ritual sash|embroidered stole|acolyte robes|candle bearer robes}"
+          ]
+        },
+        {
+          "id": "clothing_female_streetwear_y2k",
+          "label": "Streetwear / Y2K",
+          "templates": [
+            "{oversized hoodie|cropped hoodie|cargo pants|low-rise jeans|baggy jeans|bucket hat|platform sneakers|chunky sneakers|crop top|mesh top|arm warmers|chain belt|tiny sunglasses|butterfly clips|puffer jacket|windbreaker|track jacket|tube top|baby tee|cargo skirt}"
+          ]
+        },
+        {
+          "id": "clothing_female_historical_ancient",
+          "label": "Historical / Ancient",
+          "templates": [
+            "{toga|chiton|peplos|stola|Egyptian collar|linen sheath dress|Roman armour|medieval kirtle|chemise|houppelande|hennin|wimple|chainmail|Viking apron dress|tartan arisaid|Heian junihitoe|Tang dynasty robes|laurel wreath|sandals with straps|samurai armour|o-yoroi|do-maru|kabuto helmet|menpo mask|sode shoulder guards|haidate|lacquered plates|onna-musha armour|naginata sash}"
+          ]
+        },
+        {
+          "id": "clothing_female_superhero_spandex",
+          "label": "Superhero / Spandex",
+          "templates": [
+            "{bodysuit|armoured bodysuit|cape|flowing cape|domino mask|full-face mask|emblem on chest|gauntlets|thigh-high boots|utility belt|shoulder pauldrons|skin-tight suit|segmented armour|hooded costume|visor|arm bracers|battle skirt|cowl}"
+          ]
+        },
+        {
+          "id": "clothing_female_fetish_bondage",
+          "label": "Fetish / Bondage",
+          "templates": [
+            "{leather harness|body harness|latex catsuit|latex dress|collar|collar and leash|leather straps|buckled cuffs|corset lacing|fishnet bodystocking|opera gloves|ballet heels|garter harness|chain lingerie|strappy bodysuit|blindfold|choker with ring|thigh straps}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clothing_male",
+      "label": "Clothing male",
+      "children": [
+        {
+          "id": "clothing_male_modern_casual",
+          "label": "Modern / Casual",
+          "templates": [
+            "{t-shirt|graphic tee|henley|flannel shirt|oxford shirt|polo shirt|crewneck sweater|hoodie|denim jacket|bomber jacket|chinos|jeans|cargo shorts|corduroy trousers|sneakers|boots|beanie|baseball cap|layered shirt|rolled sleeves|open shirt over tee|windbreaker}"
+          ]
+        },
+        {
+          "id": "clothing_male_formal_suit",
+          "label": "Formal / Suit",
+          "templates": [
+            "{three-piece suit|tuxedo|dinner jacket|tailcoat|morning coat|waistcoat|dress shirt|bow tie|silk tie|pocket square|cufflinks|oxford shoes|suspenders|cummerbund|white tie|double-breasted suit|tie clip|dress gloves}"
+          ]
+        },
+        {
+          "id": "clothing_male_office_business",
+          "label": "Office / Business",
+          "templates": [
+            "{dress shirt and tie|loosened tie|rolled sleeves|blazer|slacks|sweater vest|lanyard|briefcase|messenger bag|pressed trousers|id badge|shirt with no jacket|wire-frame glasses|leather belt|wristwatch|suit without tie}"
+          ]
+        },
+        {
+          "id": "clothing_male_school_uniform",
+          "label": "School / Uniform",
+          "templates": [
+            "{gakuran|blazer uniform|school tie|striped tie|uniform trousers|cardigan|sweater vest|loafers|gym uniform|track jacket|prefect badge|satchel|rolled-up sleeves|untucked shirt|school jacket over shoulders}"
+          ]
+        },
+        {
+          "id": "clothing_male_streetwear_y2k",
+          "label": "Streetwear / Y2K",
+          "templates": [
+            "{oversized hoodie|layered tee|cargo pants|baggy jeans|bucket hat|snapback|chain necklace|high-top sneakers|puffer vest|puffer jacket|track pants|windbreaker|beanie|graphic hoodie|oversized flannel|crossbody bag}"
+          ]
+        },
+        {
+          "id": "clothing_male_athletic_sporty",
+          "label": "Athletic / Sporty",
+          "templates": [
+            "{tracksuit|basketball jersey|football kit|running shorts|compression shirt|tank top|sweatband|boxing shorts|wrapped hands|cycling jersey|rugby shirt|gym shorts|sleeveless hoodie|training vest|soccer kit|sweat-soaked shirt}"
+          ]
+        },
+        {
+          "id": "clothing_male_techwear",
+          "label": "Techwear",
+          "templates": [
+            "{technical shell|tactical harness|strap-laden trousers|respirator mask|magnetic buckles|matte black layers|asymmetric zip jacket|utility vest|cargo straps|high collar|articulated knee panels|modular pouches|hooded shell|tabi boots}"
+          ]
+        },
+        {
+          "id": "clothing_male_military_tactical",
+          "label": "Military / Tactical",
+          "templates": [
+            "{camouflage fatigues|flak jacket|plate carrier|combat boots|dog tags|beret|peaked cap|webbing|tactical gloves|field jacket|dress uniform|trench coat|greatcoat|flight suit|bomber jacket|helmet with netting|shemagh scarf|holstered sidearm|officer coat|desert fatigues}"
+          ]
+        },
+        {
+          "id": "clothing_male_fantasy_armor",
+          "label": "Fantasy / Armor",
+          "templates": [
+            "{plate armour|chainmail|scale mail|leather jerkin|hooded cloak|ranger cloak|pauldrons|greaves|vambraces|tabard|surcoat|wizard robes|mage cloak|travelling coat|knight helm|fur mantle|baldric|battle-worn armour|monk wraps|barbarian furs}"
+          ]
+        },
+        {
+          "id": "clothing_male_sci_fi_cyberpunk",
+          "label": "Sci-Fi / Cyberpunk",
+          "templates": [
+            "{armoured longcoat|neon-trimmed jacket|cybernetic arm|optic visor|exosuit|utility vest|holographic patches|synth-leather jacket|circuit-lined coat|techno-goggles|chrome plating|hardsuit|data jack|glowing seams|pilot rig}"
+          ]
+        },
+        {
+          "id": "clothing_male_space_mecha",
+          "label": "Space / Mecha",
+          "templates": [
+            "{pilot suit|flight harness|space suit|helmet under arm|sealed EVA suit|mecha pilot plugsuit|magnetic boots|oxygen rig|uniform with rank pins|cockpit jacket|thruster pack|visored helmet|pressure gloves}"
+          ]
+        },
+        {
+          "id": "clothing_male_gothic_alt",
+          "label": "Gothic / Alt",
+          "templates": [
+            "{black trench coat|buckled boots|studded belt|leather choker|ripped black jeans|mesh sleeves|silver rings|eyeliner|band shirt|long dark coat|high collar shirt|velvet frock coat|pointed boots|chain accents|fingerless gloves}"
+          ]
+        },
+        {
+          "id": "clothing_male_victorian_elegant",
+          "label": "Victorian / Elegant",
+          "templates": [
+            "{frock coat|tailcoat|cravat|waistcoat|pocket watch|top hat|walking cane|high collar shirt|riding coat|gloves|opera cape|ascot|breeches|buckled shoes|monocle}"
+          ]
+        },
+        {
+          "id": "clothing_male_steampunk",
+          "label": "Steampunk",
+          "templates": [
+            "{brass goggles|leather waistcoat|pinstripe trousers|gear-studded coat|mechanical arm|pocket watch chain|aviator cap|riveted bracers|tool harness|tailcoat with brass buttons|high boots|airship captain coat}"
+          ]
+        },
+        {
+          "id": "clothing_male_traditional_cultural",
+          "label": "Traditional / Cultural",
+          "templates": [
+            "{hakama|montsuki|yukata|haori|kimono|sherwani|kurta|kilt|sporran|thobe|hanbok|changshan|dashiki|poncho|turban|djellaba|tunic and sash}"
+          ]
+        },
+        {
+          "id": "clothing_male_winter_cold_weather",
+          "label": "Winter / Cold Weather",
+          "templates": [
+            "{parka|peacoat|wool overcoat|padded jacket|scarf|beanie|fur-lined hood|thermal layers|gloves|earmuffs|snow boots|shearling jacket|turtleneck|flannel-lined shirt|ski jacket}"
+          ]
+        },
+        {
+          "id": "clothing_male_loungewear_sleepwear",
+          "label": "Loungewear / Sleepwear",
+          "templates": [
+            "{pyjama set|flannel pyjamas|robe|open robe|boxers|sweatpants|undershirt|bare chest with towel|loose t-shirt|slippers|oversized tee|sleep shorts|unbuttoned shirt}"
+          ]
+        },
+        {
+          "id": "clothing_male_festival_rave",
+          "label": "Festival / Rave",
+          "templates": [
+            "{mesh tank|harness over bare chest|glow accessories|utility shorts|bandana mask|LED visor|open vest|body paint|fanny pack|platform boots|festival wristbands|sleeveless hoodie}"
+          ]
+        },
+        {
+          "id": "clothing_male_cosplay",
+          "label": "Cosplay",
+          "templates": [
+            "{armoured hero costume|shonen protagonist outfit|detective coat|pirate captain coat|samurai armour|ninja garb|wizard robes|space marine armour|vampire cloak|steampunk aviator|cyber ninja suit|western gunslinger|knight cosplay|anime school uniform}"
+          ]
+        },
+        {
+          "id": "clothing_male_swimwear_beach",
+          "label": "Swimwear / Beach",
+          "templates": [
+            "{swim trunks|board shorts|speedo|rash guard|open shirt over trunks|wet t-shirt|towel around neck|flip-flops|sunglasses|surf wetsuit|sun hat|tan lines|life vest|snorkel gear}"
+          ]
+        },
+        {
+          "id": "clothing_male_wedding_formal_event",
+          "label": "Wedding / Formal event",
+          "templates": [
+            "{groom tuxedo|morning suit|boutonniere|white dinner jacket|black tie|best man suit|waistcoat and tie|patent shoes|pocket square|cufflinks|tailored three-piece}"
+          ]
+        },
+        {
+          "id": "clothing_male_western_cowboy",
+          "label": "Western / Cowboy",
+          "templates": [
+            "{cowboy hat|stetson|duster coat|chaps|denim vest|plaid shirt|bolo tie|spurs|riding boots|gun belt|bandana|leather gloves|sheepskin coat|rancher shirt}"
+          ]
+        },
+        {
+          "id": "clothing_male_nautical_pirate",
+          "label": "Nautical / Pirate",
+          "templates": [
+            "{pirate coat|tricorne hat|eyepatch|sash|buccaneer boots|sailor uniform|peacoat|naval officer coat|captain hat|striped shirt|rope belt|shoulder cape|buckled boots|open ruffled shirt}"
+          ]
+        },
+        {
+          "id": "clothing_male_dance_stage",
+          "label": "Dance / Stage",
+          "templates": [
+            "{dance tights|fitted vest|open shirt|tango suit|flamenco shirt|stage jacket|sequined blazer|tap shoes|ballet slippers|performance harness|idol stage outfit|ribbon tie}"
+          ]
+        },
+        {
+          "id": "clothing_male_racing_biker",
+          "label": "Racing / Biker",
+          "templates": [
+            "{leather jacket|one-piece leathers|racing suit|motorcycle helmet|riding gloves|biker boots|knee sliders|pit crew shirt|racing stripes|armoured jacket|motocross gear|goggles|fingerless gloves}"
+          ]
+        },
+        {
+          "id": "clothing_male_post_apocalyptic",
+          "label": "Post-apocalyptic",
+          "templates": [
+            "{patched coat|gas mask|respirator|welding goggles|scrap armour|wrapped bandages|duster|leather harness|improvised pauldron|dust cloak|canteen and pouches|tattered scarf|stitched leathers|bandolier|rusted plating}"
+          ]
+        },
+        {
+          "id": "clothing_male_medical_service",
+          "label": "Medical / Service",
+          "templates": [
+            "{scrubs|lab coat|surgical mask|stethoscope|chef whites|apron|barista apron|waiter uniform|bartender vest|flight crew uniform|name badge|clogs|delivery uniform|hazmat suit|mechanic overalls}"
+          ]
+        },
+        {
+          "id": "clothing_male_religious_ceremonial",
+          "label": "Religious / Ceremonial",
+          "templates": [
+            "{monk robes|priest cassock|clerical collar|vestments|prayer beads|rosary|temple robes|ceremonial armour|acolyte robes|embroidered stole|pilgrim cloak|ritual sash}"
+          ]
+        },
+        {
+          "id": "clothing_male_historical_ancient",
+          "label": "Historical / Ancient",
+          "templates": [
+            "{toga|Roman armour|centurion helm|medieval tunic|doublet|hose|frock coat|cravat|Viking furs|chainmail hauberk|samurai armour|hanfu|laurel wreath|sandals with straps|leather lorica|o-yoroi|do-maru|kabuto helmet|menpo mask|sode shoulder guards|haidate|kote sleeves|lacquered plates|ashigaru armour|sashimono banner}"
+          ]
+        },
+        {
+          "id": "clothing_male_superhero_spandex",
+          "label": "Superhero / Spandex",
+          "templates": [
+            "{bodysuit|armoured bodysuit|cape|domino mask|full-face mask|emblem on chest|gauntlets|utility belt|shoulder pauldrons|skin-tight suit|segmented armour|hooded costume|visor|arm bracers|cowl}"
+          ]
+        },
+        {
+          "id": "clothing_male_fetish_bondage",
+          "label": "Fetish / Bondage",
+          "templates": [
+            "{leather harness|chest harness|latex bodysuit|collar|leather straps|buckled cuffs|studded belt|armbands|leather gloves|muzzle mask|strapped trousers|blindfold}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "accessories",
+      "label": "Accessories",
+      "children": [
+        {
+          "id": "accessories_jewellery",
+          "label": "Jewellery",
+          "templates": [
+            "{hoop earrings|stud earrings|dangling earrings|chandelier earrings|layered necklaces|pendant necklace|locket|choker with charm|pearl strand|signet ring|stacked rings|bracelet stack|bangles|cuff bracelet|anklet|toe ring|nose ring|nose stud|septum piercing|industrial bar|helix piercing|navel piercing|belly chain|body chain|brooch|tiara|circlet|hair pin|waist chain|arm cuff|ear cuff|no jewellery}"
+          ]
+        },
+        {
+          "id": "accessories_eyewear",
+          "label": "Eyewear",
+          "templates": [
+            "{round glasses|wire-frame glasses|thick-rimmed glasses|cat-eye glasses|half-rim glasses|rimless glasses|sunglasses|aviator sunglasses|oversized sunglasses|tiny sunglasses|sports visor|safety goggles|swimming goggles|ski goggles|monocle|pince-nez|eyepatch|blindfold|reading glasses on nose|glasses pushed up|no eyewear}"
+          ]
+        },
+        {
+          "id": "accessories_body_art",
+          "label": "Body art",
+          "templates": [
+            "{sleeve tattoo|half sleeve|back piece tattoo|chest tattoo|small wrist tattoo|ankle tattoo|floral tattoo|traditional tattoo|blackwork tattoo|fine-line tattoo|script tattoo|tribal markings|henna patterns|war paint|face paint|body paint|glowing markings|runic markings|scar across the face|scar on the eyebrow|stitched scar|beauty mark|mole under the eye|freckles across the nose|heavy freckles|birthmark|no markings}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "weapons",
+      "label": "Weapons",
+      "children": [
+        {
+          "id": "weapons_melee",
+          "label": "Melee",
+          "templates": [
+            "{katana|longsword|rapier|dual daggers|battle axe|claymore|scimitar|trident|halberd|war hammer|bo staff|quarterstaff|spear|shield|buckler|tower shield|kite shield|chains|whip|flail|morning star|gauntlets|brass knuckles|spiked gauntlets|nunchaku|tonfas|sai|baseball bat|crowbar|switchblade|balisong|machete|chainsaw|sledgehammer|pipe wrench|umbrella sword|cane sword|tactical knife|combat knife|bowie knife|tomahawk|hatchet|scythe|war fan|bladed fans|hook swords|mace|electric baton|stun baton|riot shield|ballistic shield|wrist blade|hidden blade|grappling hook|broadsword|greatsword|falchion|cutlass|dagger|stiletto|karambit|glaive|naginata|pike|lance|club|kanabo|kusarigama|meteor hammer|cestus|knuckle dusters|tanto|wakizashi|estoc|poleaxe}"
+          ]
+        },
+        {
+          "id": "weapons_ranged",
+          "label": "Ranged",
+          "templates": [
+            "{javelin|bow|crossbow|longbow|compound bow|recurve bow|hunting bow|hand crossbow|repeating crossbow|kunai|throwing knives|shuriken|throwing star|throwing axe|throwing spear|chakram|boomerang|blowgun|slingshot|sling|bolas|net|dart|harpoon|caltrops|smoke bomb|molotov cocktail|dynamite|flash grenade|quiver of arrows|bandolier of knives}"
+          ]
+        },
+        {
+          "id": "weapons_firearms",
+          "label": "Firearms",
+          "templates": [
+            "{pistol|dual pistols|revolver|desert eagle|shotgun|sawed-off shotgun|combat shotgun|break-action shotgun|sniper rifle|assault rifle|SMG|machine pistol|AK-47|carbine|lever-action rifle|bolt-action rifle|hunting rifle|anti-materiel rifle|belt-fed machine gun|minigun|silenced pistol|golden gun|derringer|flintlock pistol|musket|blunderbuss|hand cannon|RPG|grenade launcher|rocket launcher|flamethrower|frag grenade|pipe bomb|C4|holstered pistol|shoulder holster|bandolier|guitar case weapon|briefcase weapon}"
+          ]
+        },
+        {
+          "id": "weapons_fantasy",
+          "label": "Fantasy",
+          "templates": [
+            "{magical staff|mage staff|druid staff|wand|scepter|orb|crystal ball|magic tome|spellbook|grimoire|enchanted ring|amulet|talisman|sealing scroll|summoning circle|familiar|arcane focus|lantern|soul lantern|torch|floating wisp|runed greatsword|enchanted blade|flaming sword|frost axe|holy relic|cursed dagger|spirit blade|elven bow|dwarven axe|obsidian blade|crystal spear|void blade|blessed shield|warhorn|rune-carved shield|phylactery}"
+          ]
+        },
+        {
+          "id": "weapons_future_energy",
+          "label": "Future / Energy",
+          "templates": [
+            "{railgun|plasma rifle|plasma pistol|pulse rifle|particle beam|disintegrator|gauss rifle|laser cannon|laser pistol|phaser|photon blaster|ion cannon|energy sword|lightsaber|beam katana|cyber blade|monomolecular blade|vibroblade|nanoblade|arm cannon|gravity hammer|power fist|tesla coil gauntlet|shock lance|sonic emitter|EMP grenade|grav gun|energy shield|holographic shield|hardlight shield|deflector field|drone|combat drone|hover turret|exosuit gauntlet|neural whip}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mammals",
+      "label": "Mammals",
+      "children": [
+        {
+          "id": "mammals_raccoon",
+          "label": "Raccoon",
+          "templates": [
+            "raccoon ears,{round ears|striped ears}, {raccoon tail|fluffy striped tail|bushy tail}, {dark eye markings|heavy mascara}, {small hands|dexterous hands|human hands}, {striped|banded pattern|no pattern:2}"
+          ]
+        },
+        {
+          "id": "mammals_bat",
+          "label": "Bat",
+          "templates": [
+            "bat wings,{membrane wings|large bat wings|small bat wings|folded wings}, {bat ears|large pointed ears|tall ears}, {fangs|small fangs|no fangs:2}, {dark skin|pale skin|grey skin|normal skin}, {clawed feet|human feet}, small eyes"
+          ]
+        },
+        {
+          "id": "mammals_sheep",
+          "label": "Sheep",
+          "templates": [
+            "sheep ears,{floppy ears|wool-covered ears}, {fluffy wool|white wool|black wool|brown wool|pink wool|curly wool|thick wool}, {sheep horns|curved horns|no horns:3}, sheep tail"
+          ]
+        },
+        {
+          "id": "mammals_cow",
+          "label": "Cow",
+          "templates": [
+            "cow ears,{cow horns|small horns|curved horns|no horns:2}, {cow tail|long tail with tuft}, {spotted skin|holstein pattern|brown skin|white skin}, {cow bell|bell collar|no bell:3}, {hooves|no hooves:2}"
+          ]
+        },
+        {
+          "id": "mammals_skunk",
+          "label": "Skunk",
+          "templates": [
+            "skunk ears,{round ears|small ears}, skunk tail,{large fluffy tail|bushy black and white tail},"
+          ]
+        },
+        {
+          "id": "mammals_squirrel",
+          "label": "Squirrel",
+          "templates": [
+            "squirrel ears,{small pointed ears|tufted ears}, squirrel tail,{large fluffy tail|bushy tail|curled tail}, {small|petite|nimble}, {cheek pouches|puffy cheeks|normal cheeks:2}"
+          ]
+        },
+        {
+          "id": "mammals_porcupine",
+          "label": "Porcupine",
+          "templates": [
+            "{porcupine quills|long spines|sharp quills|barbed quills}, {small ears|round ears}, {raised quills|relaxed quills|defensive quills}"
+          ]
+        },
+        {
+          "id": "mammals_pig",
+          "label": "Pig",
+          "templates": [
+            "pig ears,{floppy ears|large floppy ears}, {pig nose|snout|button nose}, pig tail,{curly tail|short curly tail}, {pink skin|pale pink skin|spotted skin|muddy skin},"
+          ]
+        },
+        {
+          "id": "mammals_giraffe",
+          "label": "Giraffe",
+          "templates": [
+            "giraffe ears,{small horns|ossicones|short ossicones}, giraffe spots,{spotted skin|spot pattern|brown patches on skin}, {long neck|elegant neck|tall}, {tall|statuesque|elegant|lanky}, giraffe tail,{long thin tail|tufted tail}"
+          ]
+        },
+        {
+          "id": "mammals_mouse",
+          "label": "Mouse",
+          "templates": [
+            "mouse ears,{round mouse ears|large round ears|small round ears}, mouse tail,{thin tail|long thin tail}, {whiskers|no whiskers:2}, {buck teeth|small teeth|no teeth}"
+          ]
+        },
+        {
+          "id": "mammals_otter",
+          "label": "Otter",
+          "templates": [
+            "otter ears,{small round ears|sleek ears}, otter tail,{flat tail|thick tail}, whiskers,human skin,"
+          ]
+        },
+        {
+          "id": "mammals_bear",
+          "label": "Bear",
+          "templates": [
+            "bear ears,{round ears|small round ears}, {large claws|sharp claws|no claws:2}, bear tail,{bear paws|large hands|human hands}"
+          ]
+        },
+        {
+          "id": "mammals_goat",
+          "label": "Goat",
+          "templates": [
+            "goat ears,{floppy ears|long ears}, goat horns,{curved horns|small horns|ram horns|no horns:2}, goat tail{short tail|no tail}, {hooves|no hooves:2}"
+          ]
+        },
+        {
+          "id": "mammals_dog",
+          "label": "Dog",
+          "templates": [
+            "dog ears, dog tail, {fangs|no fangs:2}, {floppy ears|perky ears|dog ears}"
+          ]
+        },
+        {
+          "id": "mammals_rabbit",
+          "label": "Rabbit",
+          "templates": [
+            "rabbit ears, rabbit tail, {floppy ears|rabbit ears:2}, {red eyes|normal eyes:2}"
+          ]
+        },
+        {
+          "id": "mammals_cat",
+          "label": "Cat",
+          "templates": [
+            "cat ears, cat tail, {slit pupils|normal pupils:2}, {fangs|no fangs:2}"
+          ]
+        },
+        {
+          "id": "mammals_horse",
+          "label": "Horse",
+          "templates": [
+            "horse ears, horse tail, {long hair|very long hair|ponytail}"
+          ]
+        },
+        {
+          "id": "mammals_deer",
+          "label": "Deer",
+          "templates": [
+            "deer ears, {antlers|small antlers|deer antlers}, {deer tail|short tail}"
+          ]
+        },
+        {
+          "id": "mammals_tiger",
+          "label": "Tiger",
+          "templates": [
+            "tiger ears, tiger tail, {bold black stripes|striped markings}, {fangs|no fangs:2}, {slit pupils|round pupils:2}"
+          ]
+        },
+        {
+          "id": "mammals_lion",
+          "label": "Lion",
+          "templates": [
+            "lion ears, lion tail with tuft, {thick mane|no mane:2}, {broad muzzle|soft muzzle}, {fangs|no fangs}"
+          ]
+        },
+        {
+          "id": "mammals_panda",
+          "label": "Panda",
+          "templates": [
+            "panda ears, {short panda tail|no tail:2}, black and white fur, {black eye patches|dark eye rings}, {round face|soft features}"
+          ]
+        },
+        {
+          "id": "mammals_red_panda",
+          "label": "Red panda",
+          "templates": [
+            "red panda ears, {ringed bushy tail|long striped tail}, {ringed tail markings|banded markings}, {pale face markings|masked face}"
+          ]
+        },
+        {
+          "id": "mammals_ferret",
+          "label": "Ferret",
+          "templates": [
+            "ferret ears, {long slender tail|bushy tail}, {masked face markings|plain face}, {slender body|low-slung body}"
+          ]
+        },
+        {
+          "id": "mammals_hyena",
+          "label": "Hyena",
+          "templates": [
+            "hyena ears, {short tufted tail|bushy tail}, {spotted markings|striped markings}, {dark mane along the neck|no mane:2}, {toothy grin|no grin:2}"
+          ]
+        },
+        {
+          "id": "mammals_lynx",
+          "label": "Lynx",
+          "templates": [
+            "lynx ears, {tufted ear tips|long ear tufts}, {short bobbed tail|stub tail}, {spotted markings|faint spotting}, {cheek ruff|no ruff:2}"
+          ]
+        },
+        {
+          "id": "mammals_panther",
+          "label": "Panther",
+          "templates": [
+            "panther ears, long tail, {faint rosette markings|solid sleek coat}, {bright eyeshine|no eyeshine:2}, {fangs|no fangs:2}"
+          ]
+        },
+        {
+          "id": "mammals_kangaroo",
+          "label": "Kangaroo",
+          "templates": [
+            "kangaroo ears, {thick tapered tail|heavy tail}, {pouch|no pouch:2}, {thick muscular hind legs|slender hind legs:2}, {long narrow feet|no emphasis on feet:2}"
+          ]
+        },
+        {
+          "id": "mammals_sloth",
+          "label": "Sloth",
+          "templates": [
+            "sloth ears, {no tail:3|short tail}, {shaggy fur|mossy shaggy fur}, {long curved claws|blunt claws}, {half-lidded eyes|soft closed-mouth smile}"
+          ]
+        },
+        {
+          "id": "mammals_hedgehog",
+          "label": "Hedgehog",
+          "templates": [
+            "hedgehog ears, {no tail:3|tiny tail}, {quills along the back|spiny hair}, {small round nose|button nose}, {soft belly fur|no belly emphasis:2}"
+          ]
+        },
+        {
+          "id": "mammals_alpaca",
+          "label": "Alpaca",
+          "templates": [
+            "alpaca ears, {short tail|fluffy tail}, {woolly fleece|thick curled fleece}, {fringe over the eyes|tufted forelock}"
+          ]
+        },
+        {
+          "id": "mammals_boar",
+          "label": "Boar",
+          "templates": [
+            "boar ears, {short tufted tail|curled tail}, {coarse bristled fur|thick bristles}, {small tusks|large tusks|no tusks:2}, {snout|no snout emphasis:2}"
+          ]
+        },
+        {
+          "id": "mammals_moose",
+          "label": "Moose",
+          "templates": [
+            "moose ears, {short tail|no tail:2}, {broad flat antlers|palmate antlers|no antlers:2}, {shaggy fur|long coarse fur}, {dewlap|no dewlap:2}"
+          ]
+        },
+        {
+          "id": "mammals_zebra",
+          "label": "Zebra",
+          "templates": [
+            "zebra ears, {tufted tail|striped tail}, black and white striped skin, {upright mane|short bristly mane}"
+          ]
+        },
+        {
+          "id": "mammals_wolf",
+          "label": "Wolf",
+          "templates": [
+            "wolf ears, {wolf tail|bushy tail}, {fangs:2|no fangs}, {claws|clawed hands|no claws:2}, {slit pupils|normal pupils:2}, {coarse fur|thick pelt|no extra fur:3}, {elongated jaw|no elongation:4}"
+          ]
+        },
+        {
+          "id": "mammals_fox",
+          "label": "Fox",
+          "templates": [
+            "{fox ears|large fox ears}, {fox tail:3|multiple fox tails|nine tails|two tails}, {fangs|no fangs:2}, {slit pupils|normal pupils}, {faint foxfire|no foxfire:4}, {shrine markings|no markings:4}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "birds_reptiles_amphibians",
+      "label": "Birds, reptiles & amphibians",
+      "children": [
+        {
+          "id": "birds_reptiles_amphibians_chameleon",
+          "label": "Chameleon",
+          "templates": [
+            "{chameleon eyes|independent eyes|swiveling eyes|turret eyes}, {color-changing skin|multicolored skin|iridescent skin|chromatophore skin}, {chameleon tail|curled tail|prehensile tail|spiral tail}, {long tongue|extendable tongue|no tongue:2}, {scales|textured skin|bumpy skin}, {green and purple gradient|rainbow skin|shifting colors|spotted colors}, {camouflage|invisible|blending|no camouflage:2}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_lizard",
+          "label": "Lizard",
+          "templates": [
+            "lizard tail,{long tail|detachable tail|regenerating tail}, {scales|rough scales|smooth scales|textured skin}, {lizard eyes|slit pupils|reptile eyes}, {frill|neck frill|no frill:3}, {claws|sharp claws|climbing claws|no claws}, {green|brown|desert tan|spotted|striped}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_crow",
+          "label": "Crow",
+          "templates": [
+            "crow wings,{black wings|large dark wings|ragged wings|folded wings}, {black feathers|iridescent black feathers|glossy feathers}, {crow beak|sharp beak|no beak:2}, {dark eyes|intelligent eyes|beady eyes}, {all black|dark purple sheen|midnight blue sheen}, {feathered hair|messy black hair|sleek black hair}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_peacock",
+          "label": "Peacock",
+          "templates": [
+            "peacock tail,{fan tail|peacock feathers|elaborate tail display|folded tail}, {peacock crest|head crest|feather crown|plume}, {iridescent feathers|blue and green feathers|shimmering plumage}, {blue skin|blue-green|teal|normal skin}, {eye pattern feathers|ocelli|peacock eye markings}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_turtle",
+          "label": "Turtle",
+          "templates": [
+            "turtle shell,{large shell|ornate shell|shell on back}, {green skin|brown skin|olive skin|wrinkled skin}, {webbed feet|flippers|clawed feet|feet}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_frog",
+          "label": "Frog",
+          "templates": [
+            "{frog eyes|large round eyes|bulging eyes|golden eyes}, {frog legs|powerful legs|webbed feet}, {smooth wet skin|slimy skin|moist skin}, {green skin|blue skin|red skin|yellow skin|poison dart colored skin|normal skin:2}, {long tongue|sticky tongue|no tongue:2}, {spots|stripes}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_owl",
+          "label": "Owl",
+          "templates": [
+            "{owl ears|ear tufts|feathered ears|horn-like ear tufts}, {owl wings|large feathered wings|silent wings|folded wings|barn owl wings}, {owl eyes|large round eyes|golden eyes|amber eyes}, {feathered body|soft feathers|downy feathers|speckled feathers}, {owl face|flat face|facial disc|round face}, {brown|white|grey|tawny|snowy white|speckled brown}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_raven",
+          "label": "Raven",
+          "templates": [
+            "raven wings, {glossy black feathers|iridescent black feathers}, {feathered tail|fanned tail}, {black talons|dark claws}, {sharp beak-like nose|no beak:3}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_eagle",
+          "label": "Eagle",
+          "templates": [
+            "eagle, eagle wings, {brown and white feathers|golden-brown feathers}, {fanned tail feathers|broad tail}, {hooked talons|sharp talons}, {hooked beak|no beak:2}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_falcon",
+          "label": "Falcon",
+          "templates": [
+            "falcon wings, {slate-grey feathers|barred feathers}, {narrow pointed wings|narrow swept-back wings}, {dark eye stripe|no markings:2}, {talons|no talons:2}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_swan",
+          "label": "Swan",
+          "templates": [
+            "swan wings, {pure white feathers|black feathers}, {long curved neck|arched neck}, {webbed feet|no webbing:2}, {orange bill accents|no accents:2}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_parrot",
+          "label": "Parrot",
+          "templates": [
+            "parrot wings, {vivid green feathers|red and blue feathers|yellow and blue feathers}, {long tail feathers|fanned tail}, {crest feathers|no crest:2}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_penguin",
+          "label": "Penguin",
+          "templates": [
+            "penguin flippers, {black and white plumage|tuxedo markings}, {short stubby tail|no tail:2}, {webbed feet|orange feet}, {crest feathers|no crest:3}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_flamingo",
+          "label": "Flamingo",
+          "templates": [
+            "flamingo wings, {pink feathers|coral pink plumage}, {one leg raised|both legs down:2}, {curved neck|S-curved neck}, {black wingtips|no wingtips:2}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_gecko",
+          "label": "Gecko",
+          "templates": [
+            "gecko tail, {mottled green skin|sandy scaled skin|blue spotted skin}, {sticky toe pads|clawed fingers}, {lidless eyes|slit pupils}, {small horns|no horns:3}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_crocodile",
+          "label": "Crocodile",
+          "templates": [
+            "crocodile tail, {ridged scaled back|armoured scales}, {olive-green scales|dark scales}, {sharp teeth|toothy grin}, {slit pupils|vertical pupils}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_cobra",
+          "label": "Cobra",
+          "templates": [
+            "cobra tail, {hooded neck frill|flared hood}, {smooth dark scales|banded scales}, {forked tongue|no tongue:2}, {slit pupils|round pupils}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_salamander",
+          "label": "Salamander",
+          "templates": [
+            "salamander tail, {glossy black skin with yellow spots|orange mottled skin}, {damp glistening skin|smooth skin}, {small clawed hands|webbed fingers}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_tortoise",
+          "label": "Tortoise",
+          "templates": [
+            "tortoise, {domed shell|patterned shell}, {short thick tail|no tail:2}, {scaled leathery skin|wrinkled skin}, {low heavy stance|hunched shoulders}"
+          ]
+        },
+        {
+          "id": "birds_reptiles_amphibians_snake",
+          "label": "Snake",
+          "templates": [
+            "{snake eyes|slit pupils|slitted eyes}, {serpentine lower body|long coiled tail|snake tail|coiled tail}, {scales|iridescent scales|patterned scales|matte scales|smooth scales}, {forked tongue|long tongue|no tongue:2}, {fangs|venomous fangs|no fangs:2}, {green|black|red|white|golden|patterned}, {hooded neck frill|cobra hood|no hood:3}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "aquatic",
+      "label": "Aquatic",
+      "children": [
+        {
+          "id": "aquatic_coral",
+          "label": "Coral",
+          "templates": [
+            "{coral growths|coral horns|branching coral on body|coral crown}, {coral skin|textured skin|rough skin|colorful skin}, {polyps|small growths|no growths:2}, {pink|orange|white|blue|red|purple},{hard coral|soft coral|fan coral|brain coral}"
+          ]
+        },
+        {
+          "id": "aquatic_sea_slug",
+          "label": "Sea Slug",
+          "templates": [
+            "{nudibranch|sea slug|colorful slug}, {cerata|frilly back|ruffled appendages|feathery gills}, {vibrant skin|neon skin|spotted skin|striped skin}, {blue and yellow|orange and white|pink and purple|rainbow}, {soft body|gelatinous|slimy|smooth}"
+          ]
+        },
+        {
+          "id": "aquatic_shark",
+          "label": "Shark",
+          "templates": [
+            "{shark fin|dorsal fin|back fin}, {shark tail|powerful tail|shark tail fin}, {sharp teeth|rows of teeth|fangs|no visible teeth}, {grey skin|blue-grey skin|dark skin|white underbelly}, {gills|neck gills|side gills}"
+          ]
+        },
+        {
+          "id": "aquatic_jellyfish",
+          "label": "Jellyfish",
+          "templates": [
+            "{jellyfish tentacles|flowing tentacles|translucent tentacles|glowing tentacles}, {jellyfish hood|bell head|dome head|jellyfish cap}, {translucent skin|transparent skin|glowing skin|bioluminescent skin}, {floating|drifting|weightless}, {glowing|bioluminescent|luminous|soft glow|no glow}, {stinging|electric|no special effect:2}, {pink|blue|purple|white|iridescent}"
+          ]
+        },
+        {
+          "id": "aquatic_starfish",
+          "label": "Starfish",
+          "templates": [
+            "{starfish hair ornament|star-shaped accessories|five-pointed crown}, {textured skin|bumpy skin|speckled skin|suction cup skin}, {orange|red|purple|pink|blue|yellow}, {five arms|star pattern on body|no special limbs:2}"
+          ]
+        },
+        {
+          "id": "aquatic_octopus",
+          "label": "Octopus",
+          "templates": [
+            "{tentacle hair|octopus tentacles|tentacle arms|suction cups}, {octopus hood|rounded head|bulbous head|normal head}, {color-changing skin|chromatophore skin|spotted skin|normal skin}, {ink|ink cloud|no ink:3}, {eight arms|extra arms|tentacle limbs|no extra limbs:2}, {suction cups|no suction cups:2}"
+          ]
+        },
+        {
+          "id": "aquatic_axolotl",
+          "label": "Axolotl",
+          "templates": [
+            "{axolotl gills|external gills|feathery gills|frilly gills}, {axolotl tail|flat tail|fin tail}, {pink skin|white skin|albino|golden|dark grey|leucistic}, {frills|gill frills|head frills}, {spots|freckles|no markings:2}"
+          ]
+        },
+        {
+          "id": "aquatic_whale",
+          "label": "Whale",
+          "templates": [
+            "whale tail,{large tail|flukelike tail}, {blowhole|no blowhole:2}, {blue skin|grey skin|dark skin|white patches}, {baleen|no baleen:2}, {barnacles|smooth skin:3}"
+          ]
+        },
+        {
+          "id": "aquatic_shrimp",
+          "label": "Shrimp",
+          "templates": [
+            "shrimp antennae,{long antennae|multiple antennae}, {shrimp tail|segmented tail|curved tail}, {exoskeleton|shell armor|light shell|no armor}, {red skin|pink skin|orange skin|translucent skin}, {small|petite|nimble}, {segmented body|armored segments|no segments:2}"
+          ]
+        },
+        {
+          "id": "aquatic_snail",
+          "label": "Snail",
+          "templates": [
+            "snail shell,{spiral shell|large shell on back|ornate shell}, {antennae|eye stalks|head antennae}, {slimy skin|wet skin|glistening skin|normal skin}, {slow|gentle|calm}, {slime trail|mucus|no slime:3}, {soft body|no shell|shell|large shell}, {pastel colors|brown|green|purple|normal skin}"
+          ]
+        },
+        {
+          "id": "aquatic_crab",
+          "label": "Crab",
+          "templates": [
+            "crab claws,{pincer hands|large claws|small claws}, {crab shell|carapace|armored back|shell on back}, {crab legs|extra legs|no extra legs:2}, {red skin|orange skin|brown skin|blue skin}, {hard shell|exoskeleton|armored|no armor}, {antennae|no antennae:2}"
+          ]
+        },
+        {
+          "id": "aquatic_fish",
+          "label": "Fish",
+          "templates": [
+            "fish fins,{dorsal fin|side fins|fin ears}, {scales|shimmering scales|fish scales|iridescent scales}, {fish tail|tail fin|no tail}, {gills|neck gills|no gills:2}, {blue skin|silver skin|golden skin|orange skin|normal skin},{wide eyes|fish eyes|round eyes|normal eyes}"
+          ]
+        },
+        {
+          "id": "aquatic_seahorse",
+          "label": "Seahorse",
+          "templates": [
+            "{frilled ears|fin ears|ornate fins on head|decorative head fins}, {curled tail|spiral tail|prehensile tail}, {scaled skin|plated skin|segmented skin|ridged skin}, {crown|small crown|head crest|fin crest},{coral accessories|pearl accessories}"
+          ]
+        },
+        {
+          "id": "aquatic_dolphin",
+          "label": "Dolphin",
+          "templates": [
+            "dolphin tail fluke, {smooth grey skin|pale belly}, {dorsal fin|small dorsal fin}, {side fins|flippers}, {upturned mouth line|straight mouth line:2}"
+          ]
+        },
+        {
+          "id": "aquatic_orca",
+          "label": "Orca",
+          "templates": [
+            "orca tail fluke, black and white markings, {tall dorsal fin|curved dorsal fin}, {white eye patch|no patch:2}, {smooth skin|glossy skin}"
+          ]
+        },
+        {
+          "id": "aquatic_manta_ray",
+          "label": "Manta ray",
+          "templates": [
+            "manta ray, {broad wing-like fins|manta wings}, {long whip tail|slender tail}, {dark blue back|spotted back}, {pale underside|white belly}"
+          ]
+        },
+        {
+          "id": "aquatic_eel",
+          "label": "Eel",
+          "templates": [
+            "eel tail, {long sinuous body|ribbon-like body}, {slick dark skin|mottled skin}, {small sharp teeth|no teeth:2}, {faint bioluminescence|no glow:2}"
+          ]
+        },
+        {
+          "id": "aquatic_anglerfish",
+          "label": "Anglerfish",
+          "templates": [
+            "anglerfish, {bioluminescent lure on a stalk|glowing lure}, {needle teeth|jagged teeth}, {dark abyssal skin|black scaled skin}, {milky eyes|no eyes:2}"
+          ]
+        },
+        {
+          "id": "aquatic_pufferfish",
+          "label": "Pufferfish",
+          "templates": [
+            "pufferfish, {spiny skin|inflatable spines|no spines:2}, {round cheeks|puffed cheeks}, {mottled tan skin|spotted skin}, {small fins|fan fins}"
+          ]
+        },
+        {
+          "id": "aquatic_koi",
+          "label": "Koi",
+          "templates": [
+            "koi tail fins, {white scales with red patches|black and orange scales|golden scales}, {trailing fins|flowing fins}, {whisker barbels|no barbels:2}"
+          ]
+        },
+        {
+          "id": "aquatic_squid",
+          "label": "Squid",
+          "templates": [
+            "squid, {tentacles|writhing tentacles}, {two long feeding arms|no long arms:2}, {translucent mantle|pale mantle}, {shifting patches of colour on the skin|shifting skin colour}"
+          ]
+        },
+        {
+          "id": "aquatic_lobster",
+          "label": "Lobster",
+          "templates": [
+            "lobster, {large claws|pincer claws}, {segmented armoured shell|red carapace}, {antennae|long feelers}, {jointed tail|fanned tail}"
+          ]
+        },
+        {
+          "id": "aquatic_narwhal",
+          "label": "Narwhal",
+          "templates": [
+            "narwhal, {spiral tusk|long ivory tusk}, {mottled grey skin|speckled skin}, {tail fluke|broad fluke}, {no dorsal fin:2|small ridge}"
+          ]
+        },
+        {
+          "id": "aquatic_seal",
+          "label": "Seal",
+          "templates": [
+            "seal, {sleek grey fur|spotted pelt}, {flippers|front flippers}, {whiskers|long whiskers}, {large dark eyes|round eyes}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "insects_arachnids",
+      "label": "Insects & arachnids",
+      "children": [
+        {
+          "id": "insects_arachnids_praying_mantis",
+          "label": "Praying Mantis",
+          "templates": [
+            "{mantis arms|scythe arms|raptorial arms|bladed forearms},mantis, wings{transparent wings|folded wings}, {compound eyes|large eyes|triangular head}, {green exoskeleton|brown exoskeleton|pink exoskeleton|leaf-like}, {antennae|thin antennae}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_moth",
+          "label": "Moth",
+          "templates": [
+            "moth wings,{large fluffy wings|feathered wings|patterned wings|luna moth wings}, {moth antennae|feathered antennae|large fluffy antennae}, {fluffy|fuzzy body|soft fur|fluffy collar}, {compound eyes|large dark eyes|glowing eyes},{white|brown|pink|green|orange|cream}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_scorpion",
+          "label": "Scorpion",
+          "templates": [
+            "scorpion tail,{stinger tail|segmented tail|curved tail with stinger}, {scorpion claws|pincer hands|large claws}, {exoskeleton|armored body|segmented armor}, {black|dark red|brown|golden|tan},"
+          ]
+        },
+        {
+          "id": "insects_arachnids_ant",
+          "label": "Ant",
+          "templates": [
+            "ant antennae,{segmented antennae|elbowed antennae}, {mandibles|small mandibles|no mandibles:2}, {exoskeleton|segmented body|armored segments}, {black|red|brown|dark skin}, {extra arms|six arms|2arms:2}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_cockroach",
+          "label": "Cockroach",
+          "templates": [
+            "cockroach antennae,{long antennae|twitching antennae}, {cockroach wings|brown wings|folded wings|no wings:2}, {brown exoskeleton|dark brown shell|reddish-brown armor}, {hard shell|carapace|armored back}, {extra legs|legs:3}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_beetle",
+          "label": "Beetle",
+          "templates": [
+            "{beetle horn|rhinoceros horn|stag mandibles|scarab horn}, {beetle wings|elytra|hard wing covers|iridescent wing covers}, {exoskeleton|armored body|hard shell|carapace|chitinous armor}, {black|metallic green|metallic blue|scarlet|golden|brown}, {compound eyes|small eyes|normal eyes},{mandibles|pincers}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_fly",
+          "label": "Fly",
+          "templates": [
+            "fly wings,{transparent wings|buzzing wings|iridescent wings}, {compound eyes|large red eyes|multifaceted eyes}, {antennae|short antennae}, {dark exoskeleton|black body|dark skin|metallic green skin}, {extra arms|2 arms}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_bee_wasp",
+          "label": "Bee/Wasp",
+          "templates": [
+            "bee wings,{transparent wings|buzzing wings|iridescent wings}, {antennae|short antennae|bobbing antennae}, {yellow and black stripes|black and gold stripes|honeycomb pattern}, {stinger|bee stinger tail|no stinger:2}, {compound eyes|golden eyes|large eyes}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_dragonfly",
+          "label": "Dragonfly",
+          "templates": [
+            "dragonfly wings,{four transparent wings|iridescent wings|long thin wings|double wings}, {large compound eyes|huge eyes|multifaceted eyes|wrap-around eyes}, {long tail|thin tail|segmented tail|dragonfly abdomen}, {iridescent skin|metallic skin|shimmering skin|normal skin}, {blue|green|red|golden|teal|purple|iridescent}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_butterfly",
+          "label": "Butterfly",
+          "templates": [
+            "{butterfly wings|large patterned wings|monarch wings}, {antennae|feathered antennae}, {scaled wing dust|iridescent scales}, {slender body|no emphasis:2}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_firefly",
+          "label": "Firefly",
+          "templates": [
+            "firefly, {glowing abdomen|bioluminescent glow}, {translucent wings|folded wing cases}, {antennae|short antennae}, {soft yellow-green light|warm glow}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_cicada",
+          "label": "Cicada",
+          "templates": [
+            "cicada, {veined transparent wings|folded wings}, {segmented body|ridged thorax}, {large compound eyes|wide-set eyes}, {short antennae|no antennae:2}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_ladybug",
+          "label": "Ladybug",
+          "templates": [
+            "ladybug, {red wing cases with black spots|orange wing cases}, {small black antennae|short antennae}, {folded underwings|hidden wings}, {round shell back|domed back}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_centipede",
+          "label": "Centipede",
+          "templates": [
+            "centipede, {many jointed legs|countless legs}, {segmented armoured body|banded segments}, {long antennae|twitching antennae}, {curved venom fangs|no fangs:2}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_hornet",
+          "label": "Hornet",
+          "templates": [
+            "hornet, {yellow and black striped abdomen|banded abdomen}, {translucent wings|fast-beating wings}, {stinger|no stinger:2}, {angular antennae|antennae}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_caterpillar",
+          "label": "Caterpillar",
+          "templates": [
+            "caterpillar, {segmented soft body|banded segments}, {tufts of bristles|smooth skin}, {many small legs|rows of stubby legs}, {tiny simple eyes|dark eyespots}"
+          ]
+        },
+        {
+          "id": "insects_arachnids_spider",
+          "label": "Spider",
+          "templates": [
+            "{spider eyes|multiple eyes|six eyes|eight eyes|extra eyes}, {spider lower body|eight spider legs|extra legs|two human legs}, {spinnerets|web|spider silk|silk thread}, {fangs|fanged mouthparts|small fangs|no fangs:2}, {black|red and black|brown|white|purple}, {chitin plating|smooth chitin|bug exoskeleton|hairy bristled legs|thick furred legs}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "plants_fungi",
+      "label": "Plants & fungi",
+      "children": [
+        {
+          "id": "plants_fungi_mushroom",
+          "label": "Mushroom",
+          "templates": [
+            "{mushroom cap|amanita cap|toadstool hat|mushroom hat|flat cap|round cap}, {mycelium hair|spore hair|fungal hair|normal hair}, {bioluminescent spots|glowing spots|glowing markings|no glow:2}, {spore particles|floating spores|spore cloud|no spores:2}, {blue skin|purple skin|red skin|white skin|brown skin}"
+          ]
+        },
+        {
+          "id": "plants_fungi_moss",
+          "label": "Moss",
+          "templates": [
+            "{moss covered|overgrown body|moss patches on skin|lichen covered}, {small flowers growing|tiny mushrooms growing|ferns growing|no growths}, {green skin|earthy skin|damp skin|moist skin}, {soft texture|fuzzy|velvety|spongy}"
+          ]
+        },
+        {
+          "id": "plants_fungi_dryad",
+          "label": "Dryad",
+          "templates": [
+            "{branch antlers|twig horns|wooden horns|leaf crown|no horns}, {bark skin|wooden skin|tree bark texture|rough skin}, {leaf hair|foliage hair|moss hair|branch hair}, {root feet|wooden limbs|bark covered limbs|normal limbs}, {green|brown|autumn colors|spring green|mossy}"
+          ]
+        },
+        {
+          "id": "plants_fungi_flower",
+          "label": "Flower",
+          "templates": [
+            "{petal hair|flower hair|blooming hair|rose petals in hair|flower crown}, {vine arms|vine limbs|thorny vines|no vines:2},{green skin|pastel skin|normal skin|petal-colored skin},{blooming|wilting|budding|in full bloom|no special state}, {rose|lily|sunflower|cherry blossom|wildflower|flower}"
+          ]
+        },
+        {
+          "id": "plants_fungi_cactus",
+          "label": "Cactus",
+          "templates": [
+            "{cactus spines|small spines on shoulders|thorns on skin|needle-like protrusions}, {flower blooming from hair|cactus flower crown|desert flower|no flower:2}, {green skin|succulent skin|waxy skin|thick skin},{spines|thorns|no spines:2}, {pink flower|yellow flower|red flower|white flower|orange flower|no flower}"
+          ]
+        },
+        {
+          "id": "plants_fungi_venus_flytrap",
+          "label": "Venus Flytrap",
+          "templates": [
+            "{flytrap head|venus flytrap hair|trap-like accessories|jaw-like hair clips}, {teeth-like petals|serrated edges|toothed leaves|spiky}, {vine arms|tendril limbs|creeping vines|no vines:2}, {green skin|red-tinged skin|green and red skin|normal skin}, {sticky|dew drops|nectar|no special effect:2}"
+          ]
+        },
+        {
+          "id": "plants_fungi_vine",
+          "label": "Vine",
+          "templates": [
+            "{climbing vines|creeping tendrils}, {green leafy growth|coiling stems}, {small flowers|no flowers:2}, {roots at the feet|no roots:2}"
+          ]
+        },
+        {
+          "id": "plants_fungi_ivy",
+          "label": "Ivy",
+          "templates": [
+            "{trailing ivy|clinging ivy leaves}, {dark green foliage|variegated leaves}, {tendrils in the hair|leafy crown}, {no flowers:3|tiny blossoms}"
+          ]
+        },
+        {
+          "id": "plants_fungi_fern",
+          "label": "Fern",
+          "templates": [
+            "fern, {unfurling fronds|feathered fronds}, {deep green foliage|spore-dusted underside}, {tightly curled new fronds|fully unfurled fronds}, {damp shaded look|soft shade}"
+          ]
+        },
+        {
+          "id": "plants_fungi_bamboo",
+          "label": "Bamboo",
+          "templates": [
+            "{jointed bamboo stalks|segmented green stalks}, {narrow leaves|slender foliage}, {smooth nodes|ringed nodes}, {upright posture|leaning stalks:2}"
+          ]
+        },
+        {
+          "id": "plants_fungi_lotus",
+          "label": "Lotus",
+          "templates": [
+            "{lotus blossom|layered pink petals|white petals}, {broad flat leaves|floating pads}, {golden centre|seed pod}, {water droplets|no water:2}"
+          ]
+        },
+        {
+          "id": "plants_fungi_rose",
+          "label": "Rose",
+          "templates": [
+            "{rose blossoms|deep red petals|white petals}, {thorned stems|no thorns:2}, {dark green leaves|glossy leaves}, {scattered petals|no petals falling:2}"
+          ]
+        },
+        {
+          "id": "plants_fungi_sunflower",
+          "label": "Sunflower",
+          "templates": [
+            "{sunflower crown|golden ray petals}, {dark seeded centre|broad disc}, {tall thick stalk|no stalk:2}, {broad rough leaves|heart-shaped leaves}"
+          ]
+        },
+        {
+          "id": "plants_fungi_mandrake",
+          "label": "Mandrake",
+          "templates": [
+            "mandrake, {root-like limbs|knotted root body}, {leafy crown of foliage|sprouting greens}, {soil clinging to the roots|no soil:2}, {screaming expression|blank face|no expression:2}"
+          ]
+        },
+        {
+          "id": "plants_fungi_alraune",
+          "label": "Alraune",
+          "templates": [
+            "alraune, {giant flower around the body|petal skirt}, {vine limbs|thorned vines}, {pollen in the air|no pollen:2}, {nectar sheen|no sheen:2}"
+          ]
+        },
+        {
+          "id": "plants_fungi_treant",
+          "label": "Treant",
+          "templates": [
+            "treant, {bark-covered skin|wooden limbs}, {branching antlers of wood|leafy canopy hair}, {moss growing on the shoulders|lichen patches}, {hollow glowing eyes|dark knothole eyes}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mythical",
+      "label": "Mythical",
+      "children": [
+        {
+          "id": "mythical_mermaid",
+          "label": "Mermaid",
+          "templates": [
+            "{mermaid tail|fish tail|long fish tail|scaled tail}, {scales|shimmering scales|iridescent scales}, {fins|back fins|arm fins|ear fins|no fins}, {seashell accessories|pearl accessories|coral accessories|no accessories}"
+          ]
+        },
+        {
+          "id": "mythical_angel",
+          "label": "Angel",
+          "templates": [
+            "{angel wings|white wings|feathered wings|large wings|small wings|multiple wings}, {halo|glowing halo|broken halo|no halo:2}, {white dress|flowing clothes|no special clothes:2}, {glowing|no glow:3},"
+          ]
+        },
+        {
+          "id": "mythical_harpy",
+          "label": "Harpy",
+          "templates": [
+            "{bird wings|feathered wings|large wings}, {feathered arms|wing arms}, {talons|bird legs|clawed feet}, {tail feathers|feathered tail}, {feathers|feathered hair|no extra feathers}, {bird ears|pointed ears|normal ears},"
+          ]
+        },
+        {
+          "id": "mythical_elf",
+          "label": "Elf",
+          "templates": [
+            "pointed ears, elf, {long ears|pointed ears}, {elegant|graceful|ethereal}, {long hair|very long hair|flowing hair}, {slender|slim|tall}, {fair skin|pale skin|light skin}"
+          ]
+        },
+        {
+          "id": "mythical_succubus",
+          "label": "Succubus",
+          "templates": [
+            "succubus, {demon horns|small horns|curved horns}, {demon tail|spade tail|pointed tail}, {demon wings|bat wings|small wings|no wings:2}, {fangs|no fangs:2}, {seductive|alluring|confident|smug}, {pale skin|purple skin|red skin|dark skin|normal skin:2}, {slit pupils|heart-shaped pupils|normal pupils}"
+          ]
+        },
+        {
+          "id": "mythical_goblin",
+          "label": "Goblin",
+          "templates": [
+            "goblin, {green skin|dark green skin|light green skin|olive skin}, {small|short|petite}, {pointed ears|long pointed ears}, {sharp teeth|fangs|no fangs}, {large eyes|beady eyes|round eyes}, {messy hair|short hair|wild hair}, {mischievous|grinning|cunning|feral|playful}"
+          ]
+        },
+        {
+          "id": "mythical_fairy",
+          "label": "Fairy",
+          "templates": [
+            "{fairy wings|insect wings|butterfly wings|dragonfly wings|transparent wings|glowing wings|small wings}, {small|tiny|petite}, {glowing|sparkling|luminous|no glow:2}, {antenna|no antenna:2}, {pointed ears|small pointed ears}, {flower|nature|magical|ethereal}"
+          ]
+        },
+        {
+          "id": "mythical_minotaur",
+          "label": "Minotaur",
+          "templates": [
+            "{bull horns|large horns|curved horns|broken horn}, {bull ears|cow ears|furry ears}, {bull tail|long tail|tufted tail}, {muscular|powerful|massive|strong build}, {fur|body fur|shaggy fur|no fur:2}, {nose ring|brass ring|no ring:3}, {hooves|no hooves:2}"
+          ]
+        },
+        {
+          "id": "mythical_centaur",
+          "label": "Centaur",
+          "templates": [
+            "{horse body|horse lower body|equine body}, {horse tail|flowing tail|braided tail}, {hooves|horseshoes|no horseshoes}, {brown horse body|white horse body|black horse body|spotted horse body}, {horse ears|pointed ears|normal ears}"
+          ]
+        },
+        {
+          "id": "mythical_sphinx",
+          "label": "Sphinx",
+          "templates": [
+            "{lion body|lion lower body|feline body}, {lion tail|tufted tail|long tail}, {large wings|feathered wings|golden wings|folded wings|no wings:2}, {egyptian headdress|pharaoh crown|golden crown|no headdress:2}, {golden skin|tan skin|bronze skin|dark skin}"
+          ]
+        },
+        {
+          "id": "mythical_phoenix",
+          "label": "Phoenix",
+          "templates": [
+            "phoenix wings,{fire wings|flame wings|burning wings|ember wings}, {fire hair|flame hair|burning hair|ember-tipped hair}, {golden eyes|fire eyes|glowing orange eyes}, {red|orange|golden|scarlet|crimson|flame-colored}, {fire|flames|embers|sparks|ash|no fire effect}"
+          ]
+        },
+        {
+          "id": "mythical_unicorn",
+          "label": "Unicorn",
+          "templates": [
+            "unicorn horn,{spiral horn|glowing horn|crystal horn}, {unicorn ears|horse ears|pointed ears}, unicorn tail, horse tail,{long flowing tail|rainbow tail|sparkly tail}, {white hair|silver hair|rainbow hair|pastel hair|iridescent hair}"
+          ]
+        },
+        {
+          "id": "mythical_vampire",
+          "label": "Vampire",
+          "templates": [
+            "vampire, {fangs|long fangs}, {pale skin|bloodless pallor}, {sunken eyes|sharp hooded eyes}, {widows peak|no widows peak:2}, {blood on the lips|no blood:2}, {high collar|no collar:2}"
+          ]
+        },
+        {
+          "id": "mythical_oni",
+          "label": "Oni",
+          "templates": [
+            "oni, {single horn|two horns|broken horn}, {red skin:3|crimson skin|deep red skin|blue skin:3|pale blue skin|indigo skin|green skin|olive green skin|black skin|charcoal skin|white skin|ashen skin|yellow skin|ochre skin|purple skin|grey skin}, {tusked fangs|no tusks:2}, {wild hair|thick mane of hair}, {bare muscular chest|no bare chest:2}"
+          ]
+        },
+        {
+          "id": "mythical_tengu",
+          "label": "Tengu",
+          "templates": [
+            "tengu, {black feathered wings|crow wings}, {long nose|beaked mask|no mask:2}, {red face|no colouring:2}, {feathered fan|no fan:2}, {high geta|no geta:2}"
+          ]
+        },
+        {
+          "id": "mythical_yuki_onna",
+          "label": "Yuki-onna",
+          "templates": [
+            "yuki-onna, {pale blue-white skin|snow-pale skin}, {frost in the hair|icy white hair}, {breath fogging the air|no breath:2}, {frost patterns on the skin|no patterns:2}"
+          ]
+        },
+        {
+          "id": "mythical_gorgon",
+          "label": "Gorgon",
+          "templates": [
+            "gorgon, {snakes for hair|writhing serpents}, {green snakes:2|black snakes|brown banded snakes|emerald snakes|copper snakes|viper-patterned snakes|white snakes}, {scaled patches on the skin|smooth skin:2}, {green scales:2|olive scales|bronze scales|grey scales|iridescent scales|black scales}, {slit pupils|narrow reptilian pupils}, {serpent tail|legs:2}, {stone-grey skin|pale olive skin|ashen skin|sallow skin|no greying:2}"
+          ]
+        },
+        {
+          "id": "mythical_djinn",
+          "label": "Djinn",
+          "templates": [
+            "djinn, {smoke instead of legs|wisps of smoke}, {blue smoke:2|violet smoke|green smoke|black smoke|golden smoke|red smoke|grey smoke}, {glowing markings|arcane tattoos}, {gold cuffs|silver cuffs|brass cuffs|heavy bangles}, {burning eyes|glowing eyes|no glow:2}, {swirling ember trail|no embers:2}"
+          ]
+        },
+        {
+          "id": "mythical_satyr",
+          "label": "Satyr",
+          "templates": [
+            "satyr, {curled ram horns|short horns}, {goat legs|furred legs}, {cloven hooves|no hooves:2}, {shaggy lower body fur|coarse fur}, {pointed ears|rounded ears}"
+          ]
+        },
+        {
+          "id": "mythical_griffin",
+          "label": "Griffin",
+          "templates": [
+            "griffin, {eagle wings|broad feathered wings}, {feathered upper body|feathered arms}, {taloned hands|clawed hands}, {lion tail|tufted tail}, {beak-like features|no beak:3}"
+          ]
+        },
+        {
+          "id": "mythical_chimera",
+          "label": "Chimera",
+          "templates": [
+            "chimera, {lion head|lion mane|shaggy dark mane|no mane:1}, {goat horns|curved ram horns}, {serpent tail|snake-headed tail}, {feathered wing and leathery wing|mismatched wings|no wings:2}, {differently coloured eyes|heterochromia}"
+          ]
+        },
+        {
+          "id": "mythical_golem",
+          "label": "Golem",
+          "templates": [
+            "golem, {stone body:2|granite body|sandstone body|marble body|obsidian body|basalt body|clay body|terracotta body|iron body|bronze body|copper body|wooden body|ice body|crystal body|jade body}, {glowing blue runes|glowing amber runes|glowing red runes|green glowing runes|etched sigils|no runes:2}, {seams and cracks|fissured surface|chipped edges}, {blank featureless face|blunt carved features}, {moss in the crevices|dust in the seams|no growth:2}"
+          ]
+        },
+        {
+          "id": "mythical_nymph",
+          "label": "Nymph",
+          "templates": [
+            "nymph, {faintly glowing skin|soft inner glow|no glow:2}, {green undertone to the skin|pale luminous skin}, {hair drifting as if underwater|hair moving without wind|no hair movement:2}, {water beading on the skin|dry skin:2}, {leaves suspended in the air around her|drifting petals|no floating leaves:2}, {bare feet|no shoes}"
+          ]
+        },
+        {
+          "id": "mythical_imp",
+          "label": "Imp",
+          "templates": [
+            "imp, {tiny|small|diminutive}, {small curved horns|tiny horns}, {small bat wings|little leathery wings}, {barbed tail|arrow-tipped tail}, {red skin|purple skin}, {wide toothy grin|sharp grin}"
+          ]
+        },
+        {
+          "id": "mythical_slime_girl",
+          "label": "Slime Girl",
+          "templates": [
+            "slimegirl, {translucent skin|transparent body|semi-transparent body|see-through torso|gooey|gelatinous|jelly-like flesh|viscous body|soft yielding body|glassy body|cloudy translucent skin|liquid-filled body}, {blue slime|green slime|pink slime|purple slime|red slime|clear slime|rainbow slime|yellow slime|orange slime|black slime|white slime|milky slime|amber slime|teal slime|iridescent slime|lavender slime}, {melting|dripping|stretchy|wobbly|no effect}, {shiny|glossy|wet|reflective}, {solid form|semi-solid|liquid form}, {visible core|no core:2}"
+          ]
+        },
+        {
+          "id": "mythical_demon",
+          "label": "Demon",
+          "templates": [
+            "{demon horns|curved horns|small horns|long horns|oni horns}, {demon tail|pointed tail|spade tail}, {demon wings|bat wings|no wings:2}, {fangs|sharp teeth|no fangs}, {pointed ears|elf ears}, {red skin:3|crimson skin|dark red skin|pale skin|grey skin|ashen skin|black skin|charcoal skin|blue skin|purple skin|dark skin|normal skin:6}"
+          ]
+        },
+        {
+          "id": "mythical_dragon",
+          "label": "Dragon",
+          "templates": [
+            "{dragon horns|curved horns|long horns|short horns}, dragon tail, {dragon wings|large wings|small wings|no wings:2}, {{red|crimson|green|emerald|black|onyx|blue|sapphire|gold|silver|bronze|copper|white|pearl|purple|amethyst|jade|obsidian|rainbow|iridescent|opalescent|rust-red|molten orange|ice-blue} scales|no scales:3}, {slit pupils:2|normal pupils}, {fangs:2|sharp teeth|no fangs}, {claws|no claws:2}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "undead_horror",
+      "label": "Undead & horror",
+      "children": [
+        {
+          "id": "undead_horror_ghost",
+          "label": "Ghost",
+          "templates": [
+            "{transparent|translucent|semi-transparent|ethereal}, {pale skin|white skin|blue skin|grey skin}, {glowing eyes|empty eyes|hollow eyes|normal eyes}, {floating|levitating|hovering|standing}, {wispy|fading|dissolving|no effect:2}, {white hair|silver hair|pale blue hair|grey hair}, {cold|eerie|lonely|peaceful|sorrowful}"
+          ]
+        },
+        {
+          "id": "undead_horror_zombie",
+          "label": "Zombie",
+          "templates": [
+            "{rotting skin|decaying skin|grey skin|pale green skin|discolored skin}, {exposed bones|visible ribs|no exposed bones:2}, {torn clothes|tattered clothes|ripped clothes|dirty clothes}, {wounds|stitches|scars|bite marks|no wounds:2}, {glowing eyes|empty eyes|sunken eyes|milky eyes}"
+          ]
+        },
+        {
+          "id": "undead_horror_mummy",
+          "label": "Mummy",
+          "templates": [
+            "{bandages|wrapped bandages|loose bandages|unraveling bandages}, {ancient|dried skin|preserved skin|golden skin}, {glowing eyes|sunken eyes|empty eye sockets|golden eyes}, {egyptian jewelry|scarab|ankh|no jewelry:2},{linen wraps|white bandages|dirty bandages|ornate wrappings}"
+          ]
+        },
+        {
+          "id": "undead_horror_eldritch_horror",
+          "label": "Eldritch Horror",
+          "templates": [
+            "{antlers|horns|branch-like horns|twisted horns|no horns}, {scales|fur patches|feathers|chitin|bark skin|smooth skin|wet skin|no special skin}, {extra eyes|multiple eyes|eyes on body|one eye|no extra eyes:2}, {sharp teeth|too many teeth|wide smile|fangs|mouth on neck|no special mouth:2}, {claws|talons|hooves|tentacle fingers|elongated fingers|no special hands}, {tail|multiple tails|tentacle tail|segmented tail|forked tail|no tail:2}, {backwards joints|elongated limbs|extra arms|asymmetrical body|no distortion:2}, {fur and scales|feathers and chitin|skin and bark|mismatched textures|no mixed textures:2}, {hollow eyes|glowing eyes|black sclera|too many pupils|spiral eyes|empty eye sockets|normal eyes}, {almost human|uncanny|wrong|distorted|unsettling|familiar but off|no special modifier:2}, {deer skull|animal skull face|mask-like face|cracked face|no skull:3}, {dripping|oozing|leaking dark fluid|no dripping:3}, {too tall|stretched|gaunt|emaciated|lanky|no special build:2}, {shadow|darkness|fog|static|glitch|no special effect:2}, {pale skin|grey skin|white skin|translucent skin|mottled skin|dark skin}"
+          ]
+        },
+        {
+          "id": "undead_horror_skeleton",
+          "label": "Skeleton",
+          "templates": [
+            "skeleton, {visible bone|skeletal limbs}, {hollow eye sockets|glowing eye sockets}, {exposed ribcage|no exposure:2}, {tattered wrappings|no wrappings:2}"
+          ]
+        },
+        {
+          "id": "undead_horror_lich",
+          "label": "Lich",
+          "templates": [
+            "lich, {withered skin over bone|desiccated features}, {glowing eye sockets|empty eye sockets}, {ornate robes|tattered finery}, {floating arcane sigils|no sigils:2}, {bone crown|iron circlet|no crown:2}"
+          ]
+        },
+        {
+          "id": "undead_horror_wraith",
+          "label": "Wraith",
+          "templates": [
+            "wraith, {translucent body|smoke-like form}, {no legs:2|trailing tatters}, {hollow glowing eyes|empty sockets}, {drifting shroud|billowing cloth}"
+          ]
+        },
+        {
+          "id": "undead_horror_ghoul",
+          "label": "Ghoul",
+          "templates": [
+            "ghoul, {grey mottled skin|ashen skin}, {elongated claws|blackened nails}, {sunken eyes|hollow cheeks}, {jagged teeth|no teeth emphasis:2}"
+          ]
+        },
+        {
+          "id": "undead_horror_uncanny",
+          "label": "Uncanny",
+          "templates": [
+            "{uneven features|asymmetric face}, {blank unreadable expression|fixed wide smile}, {seam at the jaw|faint seam at the hairline|no seam:2}, {waxy skin|featureless smooth skin}, {unblinking eyes|wide-open eyes}"
+          ]
+        },
+        {
+          "id": "undead_horror_banshee",
+          "label": "Banshee",
+          "templates": [
+            "banshee, {screaming mouth|open wailing mouth}, {wild pale hair|tangled hair}, {tattered grey shroud|funeral rags}, {tear-streaked face|hollow eyes}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nsfw",
+      "label": "NSFW",
+      "children": [
+        {
+          "id": "nsfw_penetration",
+          "label": "penetration",
+          "templates": [
+            "{deep penetration|penetration|shallow penetration|hard penetration|just the tip}"
+          ]
+        },
+        {
+          "id": "nsfw_male_size",
+          "label": "male size",
+          "templates": [
+            "{penis:4|thick penis|large penis|small penis|huge penis|massive penis}"
+          ]
+        },
+        {
+          "id": "nsfw_self",
+          "label": "Self",
+          "templates": [
+            "{masturbation|fingering|fingering knuckle deep|nipple pinch|nipple pull|nipple tweak|fingering ass|fingers in mouth|choking self|rubbing vulva}"
+          ]
+        },
+        {
+          "id": "nsfw_nsfw_non_penetration",
+          "label": "nsfw non penetration",
+          "templates": [
+            "{handjob|buttjob|assjob|naizuri|thighjob|penis on face|footjob|groping penis|biting penis|hairjob|rubbing against vulva|spanking}"
+          ]
+        },
+        {
+          "id": "nsfw_group",
+          "label": "Group",
+          "templates": [
+            "{double penetration|gangbang|group sex|orgy|triple penetration|threesome|double oral stimulation|foursome},{groping breasts|grabing ass|pussy licking|sucking breasts|scissoring|cunnilingus}"
+          ]
+        },
+        {
+          "id": "nsfw_bj",
+          "label": "BJ",
+          "templates": [
+            "blowjob, {deepthroat|tonguejob|ball sucking|penis licking|sucking on penis|licking tip of penis|raking lips along shaft|RIMMING glans/tip|honey hole grinding tip}"
+          ]
+        },
+        {
+          "id": "nsfw_toy_object",
+          "label": "Toy/Object",
+          "templates": [
+            "{pillow humping|table humping|humping stuffed animal|riding dildo|holding dildo|anal bead insertion|using vibrator|butt plug}"
+          ]
+        },
+        {
+          "id": "nsfw_position",
+          "label": "Position",
+          "templates": [
+            "{cowgirl position|piledriver|missionary|doggystyle|prone bone|sumata|amazon position|upright straddle|anvil position|folded|squatting cowgirl|reverse cowgirl|full nelson|mating press|leg lock|armpit carry|princess carry|straddling penis|penetration, against wall|lotus position|69|legs-over-shoulders|standing bend over|chair lift|spooning|reverse spooning|wheelbarrow|kama sutra cradle|bridal carry|vertical leg raise|back-to-back missionary|yoga wheel, face down|edge of bed|seated face to face}"
+          ]
+        },
+        {
+          "id": "nsfw_poses",
+          "label": "Poses",
+          "templates": [
+            "{ass lift|breast lift|presenting ass|presenting breasts|pussy squeeze|breast squeeze|speading pussy|spreading ass|hanging suspension|on knees|spread legs|arched back|standing|on stomach|on back|legs-raised-high|tied up, hanging suspension|bent-at-waist|sitting-tailback}"
+          ]
+        },
+        {
+          "id": "nsfw_cum",
+          "label": "Cum",
+          "templates": [
+            "{cum on face|cum on hair|cum on breasts|cum leaking|cum on stomach|cum on thighs|cum on pussy|cum on feet|cum on hands}"
+          ]
+        },
+        {
+          "id": "nsfw_pubic_hair",
+          "label": "Pubic Hair",
+          "templates": [
+            "{triangle shaped pubic hair|heart shaped pubic hair|landing strip public hair|pubic hair}"
+          ]
+        }
+      ]
+    }
+  ]
+}

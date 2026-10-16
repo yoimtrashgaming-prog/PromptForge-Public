@@ -1,0 +1,1913 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PromptForge</title>
+  <link rel="stylesheet" href="/styles.css">
+  <!-- Per-person colour schemes and typefaces. Loaded after styles.css so its
+       :root blocks win, and only ever active when <html> carries a data-theme
+       or data-font attribute — with none set, the default palette in
+       styles.css :root is what renders, exactly as before themes existed. -->
+  <link rel="stylesheet" href="/themes.css">
+  <!-- Applied before first paint, from this browser's cache of the account's
+       choice. Waiting for /api/account would show the default palette for a
+       few hundred milliseconds and then swap it, which reads as a flicker on
+       every single load. The account is still the authority: app.js re-applies
+       from preferences the moment they arrive, and corrects this if they
+       disagree. Inline because an external file would be one more round trip
+       in front of the paint this exists to get right. -->
+  <script>
+    (function () {
+      try {
+        var a = JSON.parse(localStorage.getItem('promptforge-appearance') || '{}');
+        var r = document.documentElement;
+        // 'midnight' is the default palette and lives in styles.css :root, so
+        // it is expressed as the ABSENCE of the attribute.
+        if (a.theme && a.theme !== 'midnight') r.setAttribute('data-theme', a.theme);
+        if (a.font && a.font !== 'default') r.setAttribute('data-font', a.font);
+        if (a.text_size && a.text_size !== 'normal') r.setAttribute('data-textsize', a.text_size);
+      } catch (e) { /* private mode, or nothing cached yet */ }
+    })();
+  </script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">PromptForge<span>/v2</span></div>
+    <div class="model-status">
+      <span class="status-dot offline" id="status-dot"></span>
+      <span id="status-text">checking…</span>
+      <!-- How long until the resident model is unloaded from VRAM, so the
+           cost of the next generate is visible before paying it. The data has
+           always been on /api/status; until 26 Aug 2026 it only rendered in
+           the owner-gated GPU panel, where the people waiting on it could not
+           see it. Ticks locally every second, re-synced on each poll — see
+           offloadView and paintOffload in app.js. -->
+      <span class="offload-timer" id="offload-timer" hidden></span>
+    </div>
+    <!-- Who else has the app open. Hidden when you are the only one. -->
+    <div class="presence" id="presence" hidden></div>
+    <!-- Shown only when the running server booted from a different commit than
+         the one checked out. Three bugs in one session on 22 Aug were all a
+         stale process, and the app gave no way to tell - the static files are
+         served fresh from disk, so the page looks current while the API behind
+         it is not. -->
+    <div class="stale-warning" id="stale-warning" hidden
+         title="The server is running code older than what is checked out. Stop it and run npm start again.">
+      Server needs a restart
+    </div>
+  </div>
+  <div class="topbar-right">
+    <!-- Owner-only, and hidden for everyone else. The button being hidden is
+         a convenience: /api/admin/* is enforced server-side regardless. -->
+    <button class="topbar-btn" id="btn-accounts" hidden>
+      Accounts<span class="pending-pip" id="accounts-pip" hidden></span>
+    </button>
+    <!-- Owner-only: Setup - the LLM server, the image taggers, and who can
+         connect. Was "Backend" until 22 Sep 2026, when it grew the other two. -->
+    <button class="topbar-btn" id="btn-backend" hidden title="LLM server, image taggers, who can connect">Setup</button>
+    <!-- Owner-only: opens the Grafana monitoring dashboard in a new tab.
+         Hidden until Grafana answers, so installs without the monitoring
+         profile never show it. /grafana/ is refused to everyone else
+         server-side. -->
+    <button class="topbar-btn" id="btn-monitoring" hidden title="Open monitoring dashboard">Monitoring</button>
+    <!-- Its own button rather than a section inside Accounts: this gets
+         opened when you are thinking about disk space, which is nothing to do
+         with managing people. Owner-only, and enforced on /api/admin/usage
+         server-side like the rest. -->
+    <button class="topbar-btn" id="btn-usage" hidden
+            title="How often each LLM has been used">Model usage</button>
+    <button class="topbar-btn" id="btn-warmup"
+            title="Load the model into VRAM now, so your first generate does not wait for it">Warm up</button>
+    <button class="topbar-btn" id="btn-reload-prompts" title="Re-read prompts/ from disk">Reload prompts</button>
+    <!-- A button, not a label: it is how you reach your own password. -->
+    <!-- Sign out moved inside the account panel; this is the way in. -->
+    <button class="whoami" id="whoami" hidden title="Your account"></button>
+  </div>
+</header>
+
+<!-- Live host usage, across the top under the bar.
+     Its own 2s poll rather than a ride on the 10s /api/status one: this is
+     meant to read as live, and a bar that steps once every ten seconds reads
+     as broken. Cheap to serve — CPU and RAM are in-process, and nvidia-smi is
+     cached server-side. Hidden entirely when the server reports nothing, so a
+     box without a GPU or with monitoring switched off shows no empty strip. -->
+<div class="sysbar" id="sysbar" hidden></div>
+
+<nav class="main-tabs" id="main-tabs">
+  <button class="main-tab active" data-tab="prompt">Prompt Assistance</button>
+  <button class="main-tab" data-tab="lora">LoRA Training</button>
+  <button class="main-tab" data-tab="analysis">Image Analysis</button>
+  <!-- Tag Suggestions (Tab 4) was removed 21 Aug. Everything it was specced to
+       do now lives in Tab 1's tag builder — search with autocomplete, category
+       filtering, and character traits with Add all — so a whole tab for it was
+       a second place to do the same job. The one specced capability that does
+       NOT exist anywhere is natural-language tag finding; see HANDOFF. -->
+  <!-- Edit (4 Oct 2026): change a picture with Qwen Image 2.1. Shown only to
+       someone holding the "render" grant, and only when the server has
+       editing set up. -->
+  <button class="main-tab" data-tab="edit" hidden>Edit</button>
+  <button class="main-tab" data-tab="chat">Chat</button>
+  <!-- Benchmarks. Every measurement this project has taken lived in docs/ as
+       a filename you had to already know, which meant the numbers got re-asked
+       in chat instead. This reads them; it runs nothing. -->
+  <button class="main-tab" data-tab="bench" hidden>Benchmarks</button>
+  <!-- Pinboard. A picture and the prompt that made it, put up by anybody,
+       visible to everybody.
+
+       Named for the behaviour rather than the file type, because the tab
+       holds two things at once — "use this" reference material and "look at
+       this" output — and every name for one of those undersells the other.
+       "Shared Works" reads as finished results only; "Reference Sheet" as
+       swatches only. NOT "Library": the saved-prompt panel on Tab 1 is
+       already the library, down to /api/library and a dictionary entry.
+
+       The route and the folder are still shared-images. This is the display
+       name, and renaming the rest is churn nobody would see. -->
+  <button class="main-tab" data-tab="shared">Pinboard</button>
+</nav>
+
+<!-- ═══════════════ Tab 1 — Prompt Assistance ═══════════════ -->
+<main class="tab-panel active" id="panel-prompt">
+  <div class="sub-nav">
+    <div class="seg-toggle" id="type-toggle">
+      <button data-type="image" class="active">Image Models</button>
+      <button data-type="video">Video Models</button>
+    </div>
+    <label class="field" style="min-width:220px">
+      <select id="model-select"></select>
+    </label>
+    <span class="badge" id="format-badge">—</span>
+
+    <!-- Which LLM writes the prompt, as opposed to which model the prompt is
+         being written FOR. Two dropdowns side by side is a genuine confusion
+         risk, so this one is labelled and pushed to the right rather than
+         sitting flush against the target selector.
+
+         It is the same `prompt_llm` preference the account panel offers, not a
+         second setting: changing it here saves, and both surfaces show the
+         same value. A target that pins its own LLM in the registry disables
+         this and says why — that pin is a measured requirement, not a
+         preference to be overridden. -->
+    <label class="field prompt-llm-pick">
+      <span class="prompt-llm-label">Written by</span>
+      <select id="prompt-llm-select"></select>
+    </label>
+    <span class="prompt-llm-note" id="prompt-llm-note"></span>
+    <button class="ghost" id="btn-llm-notes-1" type="button" title="What everyone has found each model is good at">Model notes</button>
+  </div>
+
+  <div class="split">
+    <section class="panel">
+      <!-- Title and its one action on a single row, the same shape the Output
+           panel uses. The Randomizer button sat on its own line underneath
+           until 5 Sep 2026 and read as a stray control. Image models only,
+           hidden by app.js off `type` in the registry, never by name. -->
+      <div class="builder-head">
+        <div class="panel-title" id="builder-title" style="margin:0">Build</div>
+        <button class="ghost" id="btn-randomizer" type="button" hidden
+                title="Fill the brief with random ideas — no model involved">Randomizer</button>
+      </div>
+      <!-- Which system prompt this model runs on, above the brief because it
+           decides how everything below it is interpreted. "Base" is what this
+           repo ships and is always the first option; anything else is
+           somebody's own, and replaces it. -->
+      <div class="sysprompt-bar">
+        <label class="sysprompt-pick">
+          <span class="prompt-llm-label">System prompt</span>
+          <select id="sysprompt-active"></select>
+        </label>
+        <button class="ghost" id="btn-sysprompt-new" type="button">Add</button>
+        <button class="ghost" id="btn-sysprompt-manage" type="button">Manage</button>
+      </div>
+      <div class="sysprompt-warning" id="sysprompt-note" hidden></div>
+      <div id="builder-mount"></div>
+    </section>
+
+    <!-- The read-back, in the Output panel's slot rather than beside it.
+         Exactly one of the two is ever visible: this opens when Analyze is
+         pressed and closes when a generation starts, so a finished prompt and
+         a reading of the picture it came from never sit under each other
+         competing to be the thing on screen.
+
+         It lives here, in the wide column, because the alternative was the
+         card in the narrow one — and 70-plus chips under a card was already
+         reported as "there is so much scrolling" before any prose existed. -->
+    <section class="panel" id="refanalysis-panel" hidden>
+      <div class="output-head">
+        <div class="panel-title" style="margin:0">Analysis of this reference</div>
+        <div class="output-actions">
+          <button class="ghost" id="btn-refanalysis-again" hidden>Analyze again</button>
+          <button class="ghost" id="btn-refanalysis-close">Close</button>
+        </div>
+      </div>
+      <div class="refanalysis-head">
+        <img id="refanalysis-thumb" alt="">
+        <div>
+          <p class="refanalysis-what" id="refanalysis-what"></p>
+          <p class="refanalysis-note" id="refanalysis-note"></p>
+        </div>
+      </div>
+      <!-- Says so when the role, the fidelity or the note has changed since
+           this was written. A read-back is a confirmation of the instructions
+           it was generated under, and one displayed beside different
+           instructions confirms nothing. -->
+      <p class="refanalysis-stale" id="refanalysis-stale" hidden></p>
+      <div id="refanalysis-body"></div>
+    </section>
+
+    <section class="panel" id="output-panel">
+      <div class="output-head">
+        <div class="panel-title" style="margin:0">Output</div>
+        <!-- The parts of a continued story. Shown once there is a second part. -->
+        <div class="story-nav" id="story-nav" hidden>
+          <button class="ghost" id="btn-part-prev" aria-label="Previous part">&lsaquo;</button>
+          <span id="story-part"></span>
+          <button class="ghost" id="btn-part-next" aria-label="Next part">&rsaquo;</button>
+        </div>
+        <div class="output-actions">
+          <button class="ghost" id="btn-copy-all" disabled>Copy all</button>
+          <button class="ghost" id="btn-save" disabled>Save</button>
+          <button class="ghost" id="btn-download" disabled>Download</button>
+          <button class="ghost" id="btn-clear" disabled>Clear</button>
+        </div>
+      </div>
+
+      <div class="refine">
+        <input type="text" id="refine-input" placeholder="Refine — e.g. make the lighting colder · or what happens next, for Continue story" disabled>
+        <button class="ghost" id="btn-refine" disabled>Refine</button>
+        <button class="ghost" id="btn-second-pass" disabled
+                title="Hand this back to the model with the brief and ask it to revise. Slower — roughly another 30-60 seconds.">Second pass</button>
+        <button class="ghost" id="btn-continue" disabled hidden
+                title="Write the next part of the video, starting where this one ends. Type in the box to say what happens next.">Continue story</button>
+        <button class="ghost" id="btn-undo" disabled>Undo</button>
+      </div>
+
+      <div id="output-mount">
+        <div class="empty-state">
+          <strong>No prompt yet</strong>
+          Write a brief on the left and press generate.<br>
+          Output appears here in the format this model expects.
+        </div>
+      </div>
+
+      <!-- Render from PromptForge (docs/render-plan.md). Compact on purpose:
+           everything else lives in the Render settings pop-out. Shown only
+           for a model with a workflow, only to someone allowed to render, and
+           disabled until a prompt exists. Cleared on model switch. -->
+      <div class="render" id="render-section" hidden>
+        <div class="render-head">
+          <span class="title">Render</span>
+          <select id="render-preset" title="Preset"></select>
+          <button class="ghost" id="btn-render-settings" type="button">⚙ Settings</button>
+          <button class="primary" id="btn-render" type="button" disabled>Render</button>
+        </div>
+        <div class="render-summary" id="render-summary"></div>
+        <div class="field" id="render-progress" hidden>
+          <span>Rendering</span>
+          <div class="render-bar"><i id="render-bar"></i></div>
+          <!-- The picture forming, when ComfyUI sends previews. -->
+          <img class="render-preview" id="render-preview" alt="Preview of the picture forming" hidden>
+          <div class="render-progress-line">
+            <span class="field-note" id="render-status"></span>
+            <button class="ghost" id="btn-render-cancel" type="button">Cancel</button>
+          </div>
+        </div>
+        <div class="render-result" id="render-result" hidden>
+          <a id="render-open" target="_blank" rel="noopener"><img id="render-img" alt="The rendered picture"></a>
+          <div>
+            <div class="render-meta" id="render-meta"></div>
+            <div class="render-actions">
+              <button class="ghost" id="btn-render-download" type="button">Download PNG</button>
+              <button class="ghost" id="btn-render-pin" type="button">Pin to pinboard</button>
+              <button class="ghost" id="btn-render-again" type="button">Render again (seed +1)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Everything generated since this tab was opened. Distinct from the
+         Library below it, which is the deliberate "keep this one" path and
+         lives on disk under your account. This list is sessionStorage: it
+         survives a refresh, dies when the tab closes, and is wiped on sign
+         out. Nothing here is ever written to disk, which is what makes it
+         safe on a box five people share. -->
+    <section class="panel" id="session-panel">
+      <div class="output-head">
+        <div class="panel-title" style="margin:0">This session</div>
+        <button class="ghost" id="btn-session-clear" hidden>Clear</button>
+      </div>
+      <div id="session-list"></div>
+    </section>
+    <section class="panel" id="library-panel">
+      <div class="output-head">
+        <div class="panel-title" style="margin:0">Library</div>
+        <button class="ghost" id="btn-library-refresh">Refresh</button>
+      </div>
+      <div id="library-list"></div>
+    </section>
+  </div>
+</main>
+
+<!-- LoRA Training. The tab is hidden from anyone without the "train" grant
+     (paintLoraTab in app.js), so there is no notice for people who cannot
+     use it: they never see the tab. -->
+<main class="tab-panel" id="panel-lora">
+  <!-- TrainFlow's own UI, proxied through /trainflow/ (owner only, enforced
+       server-side). Not a reimplementation of its form: the owner asked for
+       TrainFlow itself in here, so every field, and the log panel, stay
+       TrainFlow's and keep working when it changes them. -->
+  <div class="panel" id="lora-admin" hidden>
+    <div class="panel-title">LoRA Training — admin test</div>
+    <p class="placeholder-tab">TrainFlow, running on this box for this test only —
+      not a shipped feature, and gone from this panel once testing is done.</p>
+    <!-- Dataset upload. Lives on PromptForge's side of the tab rather than
+         inside the frame because TrainFlow has no upload route at all - it
+         only reads paths that already exist on the box. Upload here, then
+         paste the path it gives you into TrainFlow's Dataset Path. -->
+    <div class="lora-upload" id="lora-upload">
+      <div class="lora-upload-row">
+        <label class="field"><span>Dataset name</span>
+          <input id="lora-ds-name" autocomplete="off" placeholder="my-dataset" spellcheck="false"></label>
+        <button id="lora-ds-pick" class="topbar-btn" type="button">Choose folder…</button>
+        <button id="lora-ds-pickfiles" class="topbar-btn" type="button">Choose files…</button>
+        <!-- Nothing is sent until this is pressed. Picking a folder used to
+             start the upload at once, which left no moment to see or change
+             where it was going. -->
+        <button id="lora-ds-go" class="primary" type="button" hidden>Upload</button>
+        <button id="lora-ds-cancel" class="topbar-btn" type="button" hidden>Cancel</button>
+      </div>
+      <!-- Its own line. Sharing the button row meant the progress figures were
+           clipped at the right edge, which reads as nothing happening. -->
+      <div id="lora-ds-status" class="lora-ds-status"></div>
+      <div class="lora-ds-dest" id="lora-ds-dest" hidden></div>
+      <!-- webkitdirectory is how a whole training folder gets picked in one
+           go; the plain input is the fallback for picking loose files. -->
+      <input id="lora-ds-dir" type="file" webkitdirectory directory multiple hidden>
+      <input id="lora-ds-files" type="file" multiple hidden>
+      <div class="lora-ds-bar" id="lora-ds-bar" hidden><div id="lora-ds-fill"></div></div>
+      <div class="lora-ds-path" id="lora-ds-path" hidden></div>
+      <!-- The paths to paste into TrainFlow, filled from /api/admin/training/
+           layout so they always match what the server actually uses rather
+           than being written twice. -->
+      <div class="lora-ds-paths" id="lora-ds-layout" hidden></div>
+    </div>
+    <div id="lora-frame-error" class="placeholder-tab" hidden></div>
+    <iframe id="lora-frame" title="TrainFlow" style="width:100%;height:calc(100vh - 230px);min-height:520px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated)"></iframe>
+  </div>
+</main>
+<!-- ═══════════════ Edit — picture edits ═══════════════
+     A picture and a plain request go in; an LLM that can see the picture
+     writes the instruction the editor reads (prompts/edit/), and ComfyUI makes
+     the edit. Each result becomes the picture, so the next request edits it;
+     the strip under it steps back to any earlier version. Nothing here is
+     saved in the page: the results live on the server for keep_hours, like
+     renders, and the strip is gone with the tab. -->
+<main class="tab-panel" id="panel-edit">
+  <div class="sub-nav">
+    <span class="badge" id="edit-badge">—</span>
+    <label class="field" style="min-width:240px" title="The LLM that looks at the picture and writes the instruction">
+      <select id="edit-llm"></select>
+    </label>
+  </div>
+
+  <div class="split">
+    <section class="panel">
+      <div class="panel-title">Picture</div>
+      <div class="edit-stage" id="edit-stage">
+        <canvas id="edit-canvas" hidden></canvas>
+        <div class="preview-placeholder" id="edit-empty">
+          <span style="font-size:32px;">🖼</span>
+          <span>Drop a picture here, paste one, or click to browse</span>
+        </div>
+      </div>
+      <input type="file" id="edit-file" accept="image/png,image/jpeg,image/webp" hidden>
+      <div class="edit-tools" id="edit-tools" hidden>
+        <button class="ghost" id="edit-mark" type="button" aria-pressed="false"
+                title="Draw on the picture to show where the change goes">✎ Mark the spot</button>
+        <button class="ghost" id="edit-clear-marks" type="button" hidden>Clear marks</button>
+        <button class="ghost" id="edit-new" type="button">Another picture</button>
+        <button class="ghost" id="edit-download" type="button">Download</button>
+        <button class="ghost" id="edit-pin" type="button" hidden>Pin to pinboard</button>
+      </div>
+      <div class="edit-versions" id="edit-versions" hidden></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">What to change</div>
+      <label class="field">
+        <textarea id="edit-instruction" rows="4"
+                  placeholder="e.g. make her jacket red leather · remove the people in the background · turn it into a watercolour"></textarea>
+      </label>
+
+      <div class="field">
+        <span>Reference pictures <small class="field-note">optional — a face, an outfit, a style to take from</small></span>
+        <div class="edit-refs" id="edit-refs"></div>
+        <input type="file" id="edit-ref-file" accept="image/png,image/jpeg,image/webp" hidden>
+      </div>
+
+      <!-- The editor's files: whatever is installed in ComfyUI's folders and
+           matches, the workflow's own first. Nothing is downloaded from here;
+           About this editor says what exists and where it goes. -->
+      <div class="render-grid3 edit-files">
+        <label class="field"><span>Editor model</span><select id="edit-file-model"></select></label>
+        <label class="field"><span>Text encoder</span><select id="edit-file-te"></select></label>
+        <label class="field"><span>VAE</span><select id="edit-file-vae"></select></label>
+      </div>
+
+      <label class="render-check" title="Skip the LLM: the editor reads exactly what you typed">
+        <input type="checkbox" id="edit-as-written"> Send my words as they are
+      </label>
+
+      <div class="render-head" style="margin-top:12px">
+        <span class="title"></span>
+        <!-- Speed: the server's presets, the default first. Fast is a 4-step
+             LoRA when it is installed; hidden when there is only one. -->
+        <select id="edit-preset" title="Speed" hidden></select>
+        <button class="primary" id="edit-run" type="button" disabled>Edit <span class="arrow">→</span></button>
+      </div>
+
+      <div class="field" id="edit-progress" hidden>
+        <span>Editing</span>
+        <div class="render-bar"><i id="edit-bar"></i></div>
+        <img class="render-preview" id="edit-preview" alt="Preview of the edit forming" hidden>
+        <div class="render-progress-line">
+          <span class="field-note" id="edit-status"></span>
+          <button class="ghost" id="edit-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+
+      <div class="field" id="edit-prompt-box" hidden>
+        <span>What the editor was told</span>
+        <div class="render-meta" id="edit-prompt"></div>
+      </div>
+      <p class="field-note" id="edit-note"></p>
+
+      <details class="render-box edit-about" id="edit-about" hidden>
+        <summary>About this editor — the model, the files, the VRAM it needs</summary>
+        <div class="edit-about-body" id="edit-about-body"></div>
+      </details>
+    </section>
+  </div>
+</main>
+
+<main class="tab-panel" id="panel-analysis">
+  <div class="sub-nav">
+    <label class="field" style="min-width:260px">
+      <select id="tagger-select"></select>
+    </label>
+    <span class="badge" id="tagger-badge">—</span>
+  </div>
+
+  <div class="split">
+    <section class="panel">
+      <div class="panel-title">Image</div>
+
+      <div class="image-preview" id="analysis-preview">
+        <div class="preview-placeholder">
+          <span style="font-size:32px;">🖼</span>
+          <span>Preview will appear here</span>
+        </div>
+      </div>
+
+      <!-- Crop, added 26 Aug. The tagger reads everything in frame, so a
+           full-body shot asked about an outfit comes back with the face, the
+           background and the pose as well. Dragging a frame over the picture
+           sends only those bytes to the tagger.
+
+           It lives on this tab rather than on Tab 1's reference card because
+           this is where the picture is already on screen at size — and a
+           reference sent from here carries the cropped bytes with it, so the
+           card gets it for free. -->
+      <div class="crop-bar" id="analysis-crop-bar" hidden>
+        <span class="crop-hint" id="analysis-crop-hint"></span>
+        <button class="ghost" id="analysis-crop-reset" type="button" hidden>Reset crop</button>
+      </div>
+
+      <div class="dropzone" id="analysis-dropzone" tabindex="0" role="button"
+           aria-label="Choose an image to analyse">
+        <div class="dropzone-icon">+</div>
+        <p>Drop an image here or click to browse</p>
+        <p class="dropzone-sub" id="dropzone-limits">PNG, JPG or WEBP</p>
+      </div>
+      <input type="file" id="analysis-file" accept="image/png,image/jpeg,image/webp" hidden>
+
+      <!-- The analysis-mode selector is gone, deliberately. The spec gives this
+           tab five modes, four of which need a captioning vision model; that
+           model was dropped on 21 Aug rather than deferred, so the control was
+           a dropdown whose only enabled entry was the thing that happens
+           anyway, and whose value nothing ever read. Tagging is the whole of
+           this tab. Same call as Tab 4: delete it rather than leave a stub. -->
+      <div class="row">
+        <label class="field">
+          <span>General threshold</span>
+          <input type="number" id="analysis-general" min="0" max="1" step="0.05" value="0.35">
+        </label>
+        <label class="field">
+          <span>Character threshold</span>
+          <input type="number" id="analysis-character" min="0" max="1" step="0.05" value="0.85">
+        </label>
+      </div>
+
+      <button class="primary" id="analysis-run" disabled>
+        Analyse image <span class="arrow">→</span>
+      </button>
+      <p class="field-note">Runs on this machine's CPU. Images are never sent anywhere.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title" id="analysis-output-title">Results</div>
+      <div class="output-actions">
+        <button class="primary" id="analysis-copy-all" disabled>Copy all tags</button>
+        <button class="ghost" id="analysis-copy-general" disabled>Copy general</button>
+        <button class="ghost" id="analysis-to-builder" disabled>Send tags to Prompt Assist</button>
+      </div>
+      <!-- The other way to use a result: as a REFERENCE rather than as a bag
+           of tags. Same picture, different claim — "put these tags in the
+           prompt" against "this is what she looks like, follow it closely" —
+           and the second is what someone means most of the time.
+
+           Role and fidelity are the same registry vocabulary Tab 1's
+           reference cards use, so a reference sent from here arrives already
+           configured rather than needing setting up again on the other side. -->
+      <div class="analysis-asref" id="analysis-asref" hidden>
+        <div class="row">
+          <label class="field"><span>Send as</span>
+            <select id="analysis-ref-role"></select></label>
+          <label class="field"><span>How closely to follow it</span>
+            <select id="analysis-ref-fidelity"></select></label>
+        </div>
+        <p class="field-note" id="analysis-ref-hint"></p>
+        <button class="primary" id="analysis-to-reference">
+          Send as reference to Prompt Assist
+        </button>
+      </div>
+      <!-- What ComfyUI wrote inside the file: the prompt that made it, the
+           checkpoint, the LoRAs and the settings. Shown only when the picture
+           carries them - see /api/analyze/meta. -->
+      <div class="analysis-comfy" id="analysis-comfy" hidden>
+        <div class="panel-title" style="margin:6px 0 8px">Made with</div>
+        <div id="analysis-comfy-body"></div>
+        <div class="output-actions">
+          <button class="ghost" id="analysis-comfy-copy" type="button">Copy the original prompt</button>
+          <button class="ghost" id="analysis-comfy-send" type="button">Send it to Prompt Assist</button>
+        </div>
+      </div>
+
+      <div id="analysis-mount"></div>
+
+      <!-- The picture in words, from the vision model people write prompts
+           with, alongside the tags - either or both (22 Sep 2026). See
+           handleAnalyzeDescribe in server.mjs. -->
+      <div class="analysis-describe" id="analysis-describe" hidden>
+        <div class="panel-title" style="margin:18px 0 8px">Description</div>
+        <p class="field-note" id="analysis-describe-note">
+          The same picture described in plain sentences by a vision model, checked against
+          the tags above. Uses the GPU and waits its turn like a generation.
+        </p>
+        <!-- Its own picker (26 Sep 2026) so models can be compared on one
+             picture without touching "Written by". Vision models only,
+             filled from the same status poll as every other model list. -->
+        <label class="analysis-describe-pick" for="analysis-describe-model">
+          <span class="chat-model-label">Model</span>
+          <select id="analysis-describe-model"></select>
+        </label>
+        <!-- Sampling for Describe only (26 Sep 2026). The defaults are what it
+             always used; small vision models loop at them. -->
+        <div class="analysis-describe-sampling">
+          <label for="analysis-describe-temp">
+            <span class="chat-model-label">Temperature</span>
+            <input type="range" id="analysis-describe-temp" min="0" max="1.5" step="0.05" value="0.2">
+            <output id="analysis-describe-temp-val">0.20</output>
+          </label>
+          <label for="analysis-describe-penalty">
+            <span class="chat-model-label">Repeat penalty</span>
+            <input type="range" id="analysis-describe-penalty" min="0" max="2" step="0.1" value="0">
+            <output id="analysis-describe-penalty-val">0.0</output>
+          </label>
+          <p class="field-note">Repeating itself? Try temperature 0.7 and repeat penalty 1.5, Qwen's own settings for its vision models.</p>
+        </div>
+        <div class="output-actions">
+          <button class="primary" id="analysis-describe-run" type="button">Describe it</button>
+          <button class="ghost" id="analysis-describe-copy" type="button" disabled>Copy description</button>
+          <button class="ghost" id="analysis-describe-send" type="button" disabled>Send description to Prompt Assist</button>
+          <button class="ghost" id="analysis-describe-both" type="button" disabled>Send tags + description</button>
+        </div>
+        <div class="analysis-describe-text" id="analysis-describe-text"></div>
+      </div>
+    </section>
+  </div>
+</main>
+<main class="tab-panel" id="panel-chat">
+  <div class="chat-shell">
+    <!-- History. Narrow, scrollable, no clutter — the spec is explicit that
+         this is a list of conversations and nothing else. -->
+    <aside class="chat-history">
+      <div class="chat-history-head">
+        <button class="chat-new" id="chat-new" type="button">New chat</button>
+        <!-- The rules live one click away. The line under the list says the
+             one thing you must not learn by losing something; this says the
+             rest without spending sidebar on it. -->
+        <button class="chat-info-btn" id="chat-info" type="button"
+                title="How chat works — saving, deletion, privacy">&#9432;</button>
+      </div>
+      <div class="chat-list" id="chat-list"></div>
+      <!-- The retention policy, stated where the conversations are. Nobody
+           should discover the window by losing something to it. -->
+      <p class="chat-policy" id="chat-policy"></p>
+    </aside>
+
+    <section class="panel chat-main">
+      <!-- Which model answers. Populated from /api/status — what the backend
+           has actually pulled, grouped by what is already in VRAM — so it can
+           never offer something that is not there, and a model pulled after
+           this shipped appears without a code change. The note under it says
+           what a switch will cost before the click, not after. -->
+      <div class="chat-topbar">
+        <label class="chat-model-pick" for="chat-model">
+          <span class="chat-model-label">Model</span>
+          <select id="chat-model"></select>
+        </label>
+        <span class="chat-model-note" id="chat-model-note"></span>
+        <button class="ghost" id="btn-llm-notes-2" type="button" title="What everyone has found each model is good at">Model notes</button>
+        <button class="ghost chat-request-btn" id="chat-request-open" type="button">
+          Request a model
+        </button>
+      </div>
+
+      <div class="chat-thread" id="chat-thread"></div>
+
+      <!-- Compose. One textarea that grows with what you type, and no toggles
+           beside it: search is automatic when it exists, and there is nothing
+           else here worth a switch. -->
+      <!-- Pictures waiting to go with the next message (26 Sep 2026). Held in
+           the page and then in the server's memory only; never saved with the
+           conversation - see server/chatpictures.mjs. -->
+      <div class="chat-pictures" id="chat-pictures" hidden></div>
+      <form class="chat-compose" id="chat-compose">
+        <input type="file" id="chat-picture-file" accept="image/*" multiple hidden>
+        <button class="ghost chat-picture-btn" id="chat-picture" type="button"
+                title="Add a picture (or paste one). Kept in memory only, never saved.">Picture</button>
+        <textarea id="chat-input" rows="1" placeholder="Ask anything — Enter to send, Shift+Enter for a new line"></textarea>
+        <!-- A toggle, not an automatic tool call. It stays on until turned
+             off, so a run of questions about something current does not mean
+             pressing it every time. Hidden entirely when search is off in
+             config, rather than offering a button that cannot work. -->
+        <button class="chat-search-toggle" id="chat-search" type="button" aria-pressed="false"
+                title="Search the web before answering">Search</button>
+        <button class="primary" id="chat-send" type="submit">Send</button>
+      </form>
+      <p class="chat-note" id="chat-note"></p>
+    </section>
+  </div>
+</main>
+
+<!-- ═══════════════ Tab 5 — Benchmarks ═══════════════
+     Read-only. The sheets are served by server/benchmarks.mjs from an
+     allowlist, rendered to standalone documents, and shown in an iframe.
+
+     An iframe rather than injected markup because p40-bench-2026-09-03.html
+     carries its own 200-line stylesheet and twelve classes of bar chart;
+     inlining that would restyle the app. The frame is same-origin, so app.js
+     pushes the live theme palette into it on load and on every theme change —
+     which is what makes a sheet written months ago follow all seven themes. -->
+<main class="tab-panel" id="panel-bench">
+  <div class="bench-shell">
+    <aside class="bench-list">
+      <div class="bench-list-head">Sheets</div>
+      <div id="bench-index"></div>
+      <p class="bench-note">Measurements taken on this machine. They stay on it and never ship with the app.</p>
+      <!-- Owner-only: run the fixed benchmark on the chosen models and walk
+           away. The result lands in the list above as a new sheet. See
+           server/benchrun.mjs. -->
+      <div id="bench-run" hidden>
+        <div class="bench-list-head" style="margin-top:14px">Run a benchmark</div>
+        <p class="bench-note">Same short test on each model, three times. It waits its turn in the
+          queue, and people can generate between models. Everything is unloaded at the end.</p>
+        <div id="bench-run-models"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="primary" id="bench-run-start" type="button">Run</button>
+          <button class="ghost" id="bench-run-cancel" type="button" hidden>Cancel</button>
+        </div>
+        <p class="bench-note" id="bench-run-status"></p>
+      </div>
+    </aside>
+    <section class="bench-view">
+      <div class="bench-bar">
+        <span id="bench-title"></span>
+        <a id="bench-open" class="ghost" target="_blank" rel="noreferrer" hidden>Open in a tab</a>
+      </div>
+      <iframe id="bench-frame" title="Benchmark sheet"></iframe>
+      <p class="placeholder-tab" id="bench-empty">No benchmark sheets on this machine yet.</p>
+    </section>
+  </div>
+</main>
+
+<!-- ═══════════════ Tab 7 — Pinboard ═══════════════
+     A picture and the prompt that made it, as a matched pair on disk:
+     `<name>.png` beside `<name>.txt`, which is the caption convention this
+     group already uses for every training dataset. That means the folder can
+     be pointed at sd-scripts as-is, and a pair dropped in over SSH appears
+     here with no upload step.
+
+     "Use this" hands the picture to Tab 1's reference card through the same
+     path Image Analysis has used since it shipped, and drops the saved prompt
+     straight into the brief to be edited there.
+
+     Uploading is JSON with a data URI, not a multipart form — an entry is a
+     pair, and one request means there is no state where the picture arrived
+     and its prompt did not. See server/sharedimages.mjs. -->
+<main class="tab-panel" id="panel-shared">
+  <div class="shared-shell">
+    <section class="shared-add">
+      <!-- h4, not h3, and not for typographic reasons: scripts/check-app.mjs
+           greps the frontend for registry keys to enforce that no model is
+           hardcoded here, and `h3` is both a heading level and a model. The
+           reference block next door uses h4 for the same collision. -->
+      <h4>Pin something up</h4>
+      <label class="field"><span>Name</span>
+        <input type="text" id="shared-name" autocomplete="off"
+               placeholder="what to call it — this becomes the filename">
+        <span class="field-note" id="shared-name-hint"></span>
+      </label>
+      <!-- Drop a picture anywhere on this panel, or pick one. The dropzone
+           class and its hint are the same pair the system-prompt editor uses
+           for .txt files. -->
+      <label class="field"><span>Image</span>
+        <div class="dropzone" id="shared-drop">
+          <input type="file" id="shared-file" accept="image/png,image/jpeg,image/webp">
+          <div class="dropzone-hint" id="shared-drop-hint">Drop the picture to load it</div>
+        </div>
+      </label>
+      <img id="shared-preview" alt="" hidden>
+      <!-- What came out of the file, Civitai-style: pick the picture and the
+           prompt and settings appear, already filled in, to be edited before
+           saving. Hidden for anything that is not a ComfyUI PNG, which is
+           most pictures and is not a failure. -->
+      <div class="shared-comfy" id="shared-add-detected" hidden>
+        <p class="field-label">Read from the file
+          <button type="button" class="ghost" id="shared-add-usepartial" hidden>Use fragments</button>
+          <button type="button" class="ghost" id="shared-add-usenegative" hidden>Copy negative</button>
+        </p>
+        <dl id="shared-add-detected-list"></dl>
+      </div>
+      <!-- Which image model made it. Filled from GET /api/models, image
+           models only — a fourth one appears here the day it lands in the
+           registry, with no edit to this file. Optional: plenty of what goes
+           up will be a reference photo that no model made. -->
+      <label class="field"><span>Made with
+        <span class="field-optional">optional</span></span>
+        <select id="shared-model"></select>
+      </label>
+      <label class="field"><span>The prompt that made it
+        <span class="field-optional">optional</span></span>
+        <textarea id="shared-text" rows="6"
+                  placeholder="The finished prompt — what actually generated the picture."></textarea>
+      </label>
+      <!-- The second prompt, and the one people will reach for more often.
+           A user's argument, 20 Sep 2026: the finished prompt made THIS
+           picture, so reusing it means hand-editing every tag to change the
+           character or the outfit. The brief is the reusable one — swap the
+           subject and generate again. -->
+      <label class="field"><span>The brief you gave PromptForge
+        <span class="field-optional">optional</span></span>
+        <textarea id="shared-brief" rows="4"
+                  placeholder="What you typed in to get it. This is the one somebody else can adapt."></textarea>
+      </label>
+      <div class="row">
+        <button type="button" id="shared-save" class="primary" disabled>Add</button>
+        <button type="button" id="shared-reset" class="ghost">Clear</button>
+      </div>
+      <p class="field-note" id="shared-add-status"></p>
+    </section>
+
+    <section class="shared-view">
+      <div class="shared-bar">
+        <span id="shared-count"></span>
+        <input type="search" id="shared-search" placeholder="Filter by name, prompt or who added it…">
+      </div>
+      <div class="shared-grid" id="shared-grid"></div>
+      <p class="placeholder-tab" id="shared-empty">Nothing pinned yet. Put the first one up.</p>
+
+      <!-- A tile is the picture and nothing else but its name. The .txt beside
+           it is never shown here: it is an implementation detail of how a pair
+           is stored, and a grid of textareas is a filing cabinet rather than a
+           library. The prompt appears when you open one. -->
+      <template id="shared-card">
+        <button type="button" class="shared-tile">
+          <img data-bind="shared_thumb" alt="" loading="lazy">
+          <span class="shared-tile-badge" data-bind="shared_card_model" hidden></span>
+          <span class="shared-tile-meta">
+            <span class="shared-tile-name" data-bind="shared_card_name"></span>
+            <span class="shared-tile-by" data-bind="shared_card_by"></span>
+          </span>
+        </button>
+      </template>
+    </section>
+  </div>
+</main>
+
+<!-- One shared image, opened from the grid: the picture at a size you can
+     actually judge, the prompt that made it, and the three ways to take it
+     into the builder.
+
+     Three buttons rather than one, because the pair is two things and wanting
+     only one of them is the normal case — somebody else's lighting reference
+     with a prompt about a character you are not drawing, or a prompt you want
+     to start from without attaching the picture to a model that would then
+     try to copy it. -->
+<div class="modal-backdrop" id="shared-modal" hidden>
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0" id="shared-modal-title"></div>
+      <button class="ghost" id="shared-modal-close" type="button">Close</button>
+    </div>
+    <div class="shared-detail">
+      <figure class="shared-detail-figure">
+        <img id="shared-detail-img" alt="">
+      </figure>
+      <div class="shared-detail-side">
+        <p class="field-note" id="shared-detail-by"></p>
+
+        <!-- Laid out as Civitai's generation-data panel is: one card per
+             thing, each with its heading and its action on the same row.
+             Every card below the prompt hides itself when the picture has
+             nothing to put in it, which is the normal case for anything that
+             is not a straight ComfyUI PNG — a JPEG, a screenshot, a picture
+             that went through an editor. An empty "Resources" heading reads
+             as a failure rather than as a picture from somewhere else. -->
+        <section class="shared-block">
+          <header>
+            <span class="shared-block-title">Prompt</span>
+            <button type="button" class="ghost" id="shared-detail-copy">Copy</button>
+          </header>
+          <textarea id="shared-detail-text" rows="8" spellcheck="false"></textarea>
+          <!-- Says why the prompt and the model are locked, on somebody
+               else's pin. Without it a read-only box reads as broken rather
+               than as not-yours. -->
+          <p class="field-note" id="shared-detail-locked" hidden></p>
+        </section>
+
+        <!-- What was given to PromptForge, as opposed to what came out of it.
+             Hidden when nobody recorded one, so a pin from before this
+             existed does not show an empty box. -->
+        <section class="shared-block" id="shared-brief-block">
+          <header>
+            <span class="shared-block-title">Brief</span>
+            <button type="button" class="ghost" id="shared-detail-brief-copy">Copy</button>
+          </header>
+          <textarea id="shared-detail-brief" rows="5" spellcheck="false"
+                    placeholder="Nobody recorded the brief for this one."></textarea>
+        </section>
+
+        <!-- Read out of the file, never stored as the entry's own text: this
+             app writes negatives in code, and a negative pasted into a
+             positive prompt is a prompt defect. It is here to be read and
+             copied into a ComfyUI graph. -->
+        <section class="shared-block" id="shared-negative-block" hidden>
+          <header>
+            <span class="shared-block-title">Negative prompt</span>
+            <button type="button" class="ghost" id="shared-negative-copy">Copy</button>
+          </header>
+          <p class="shared-block-text" id="shared-negative-text"></p>
+        </section>
+
+        <section class="shared-block" id="shared-comfy" hidden>
+          <header>
+            <span class="shared-block-title">Generation</span>
+            <button type="button" class="ghost" id="shared-comfy-copy">Copy settings</button>
+          </header>
+          <dl id="shared-comfy-list"></dl>
+        </section>
+
+        <section class="shared-block" id="shared-resources" hidden>
+          <header><span class="shared-block-title">Resources</span></header>
+          <dl id="shared-resources-list"></dl>
+        </section>
+
+        <section class="shared-block">
+          <header><span class="shared-block-title">Made with</span></header>
+          <select id="shared-detail-model"></select>
+        </section>
+        <p class="field-label">Take it into the builder</p>
+        <!-- Which of the two texts lands in the builder's brief box. Defaults
+             to the brief where there is one, because that is the reusable
+             half — see the note on the upload form. -->
+        <div class="seg shared-which" id="shared-take-which">
+          <button type="button" data-which="brief">Brief</button>
+          <button type="button" data-which="prompt">Final prompt</button>
+        </div>
+        <div class="row shared-take">
+          <button type="button" class="primary" id="shared-take-both">Both</button>
+          <button type="button" class="ghost" id="shared-take-image">Image only</button>
+          <button type="button" class="ghost" id="shared-take-prompt">Text only</button>
+        </div>
+        <p class="field-note" id="shared-take-note"></p>
+        <div class="row shared-detail-actions">
+          <button type="button" class="ghost" id="shared-detail-save" hidden>Save prompt</button>
+          <button type="button" class="ghost" id="shared-detail-copy">Copy prompt</button>
+          <button type="button" class="ghost" id="shared-detail-remove">Remove</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ Accounts ═══════════════ -->
+<!--
+  Covers the entire app until there is an approved session. It starts visible
+  and is only removed once /api/auth/me says so, rather than being shown on
+  demand — the app must never flash into view for someone who is not signed
+  in. The server refuses every /api/ route regardless; this is the UI half.
+-->
+<div class="auth-wall" id="auth-wall">
+  <div class="auth-card">
+    <div class="auth-brand">PromptForge<span>/v2</span></div>
+
+    <!-- signed out: sign in or create an account -->
+    <div id="auth-forms">
+      <div class="seg-toggle auth-toggle" id="auth-toggle">
+        <button data-mode="login" class="active" type="button">Sign in</button>
+        <button data-mode="register" type="button">Create account</button>
+      </div>
+
+      <form id="auth-form" autocomplete="on">
+        <label class="field">
+          <span class="field-label">Username</span>
+          <input id="auth-username" name="username" type="text" autocomplete="username"
+                 spellcheck="false" autocapitalize="none" required>
+        </label>
+
+        <label class="field" id="auth-display-field" hidden>
+          <span class="field-label">Display name <em>optional</em></span>
+          <input id="auth-display" name="display_name" type="text" autocomplete="nickname"
+                 maxlength="60">
+        </label>
+
+        <label class="field" id="auth-password-field">
+          <span class="field-label">Password</span>
+          <input id="auth-password" name="password" type="password" required
+                 autocomplete="current-password">
+        </label>
+
+        <label class="field" id="auth-referral-field" hidden>
+          <span class="field-label">How did you hear about us?</span>
+          <textarea id="auth-referral" name="referral" rows="2" maxlength="500"
+                    placeholder="Who sent you the link, and where from?"></textarea>
+          <span class="field-note">The owner sees this when deciding whether to approve you.</span>
+        </label>
+
+        <p class="auth-message" id="auth-message" hidden></p>
+
+        <button class="primary auth-submit" id="auth-submit" type="submit">Sign in</button>
+      </form>
+
+      <p class="auth-footnote" id="auth-footnote"></p>
+    </div>
+
+    <!-- registered, waiting on the owner -->
+    <div id="auth-pending" hidden>
+      <div class="auth-pending-mark">◷</div>
+      <h2>Waiting for approval</h2>
+      <p id="auth-pending-text">
+        Your account has been created. The owner has to approve it before you can
+        get in — you will be able to sign in once they do.
+      </p>
+      <button class="ghost" id="auth-pending-back" type="button">Back to sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ Write a system prompt ═══════════════
+     Deliberately plain: a name, which model it is for, and the text. It is a
+     prompt file, and the thing people need from this surface is room to write
+     one and somewhere to read someone else's. -->
+<div class="modal-backdrop" id="sysprompt-modal" hidden>
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0" id="sysprompt-modal-title">Write a system prompt</div>
+      <button class="ghost" id="sysprompt-close" type="button">Close</button>
+    </div>
+    <label class="field">
+      <span class="field-label">Name</span>
+      <input id="sysprompt-title" type="text" maxlength="80" placeholder="e.g. Anima, my v2">
+    </label>
+    <!-- Which models this prompt is FOR. Plural, because one written well for
+         Illustrious usually runs on Pony and Anima too, and making somebody
+         paste it three times to say so is the wrong shape. Every image and
+         video model in the registry is offered. -->
+    <div class="share-models" id="sysprompt-models">
+      <span class="field-label">Works for these models</span>
+    </div>
+    <label class="field">
+      <span class="field-label">
+        The prompt <output id="sysprompt-count"></output>
+      </span>
+      <!-- Drop a .txt or .md straight in, or pick one, or type. A prompt file
+           usually already exists somewhere as a file — asking someone to open
+           it and paste is a step for no reason. -->
+      <div class="dropzone" id="sysprompt-drop">
+        <textarea id="sysprompt-body" rows="18" spellcheck="false"
+          placeholder="Type it here, or drop a .txt or .md file anywhere in this box."></textarea>
+        <div class="dropzone-hint" id="sysprompt-drop-hint">Drop the file to load it</div>
+      </div>
+      <input type="file" id="sysprompt-file" accept=".txt,.md,text/plain,text/markdown" hidden>
+      <span class="field-note">
+        This replaces the model's shipped prompt for you, and only for you.
+        The house rules go in front of it, so <code>===SEGMENT:</code> still
+        means what it means — but which segments you emit is now yours to get
+        right. Get it wrong and generation reports an unparseable answer, with
+        this prompt named as the one that produced it.
+      </span>
+    </label>
+    <p class="auth-message" id="sysprompt-message" hidden></p>
+    <div class="share-actions">
+      <button class="primary" id="sysprompt-save" type="button">Save</button>
+      <button class="ghost" id="sysprompt-file-pick" type="button">Load a file…</button>
+      <button class="ghost" id="sysprompt-load-shipped" type="button">Start from the base prompt</button>
+    </div>
+
+    <!-- Everyone's, for the models ticked above. Read, copy, delete. -->
+    <div class="accounts-section" style="margin-top:18px">
+      <div class="accounts-heading">Written by the group</div>
+      <div id="sysprompt-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ Your account ═══════════════ -->
+<div class="modal-backdrop" id="password-modal" hidden>
+  <div class="modal-card modal-narrow">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">Your account</div>
+      <button class="ghost" id="password-close" type="button">Close</button>
+    </div>
+
+    <div class="accounts-section">
+      <div class="accounts-heading">Profile</div>
+      <label class="field">
+        <span class="field-label">Display name</span>
+        <input id="acct-display" type="text" maxlength="60" autocomplete="nickname">
+        <span class="field-note" id="acct-username-note"></span>
+      </label>
+    </div>
+
+    <!--
+      Only the preferences that currently change something. storage.mjs
+      defines seven; the other three have no surface behind them yet, and a
+      control that silently does nothing is worse than no control.
+    -->
+    <div class="accounts-section">
+      <div class="accounts-heading">Preferences</div>
+      <label class="field">
+        <span class="field-label">Model to open on</span>
+        <select id="acct-model"></select>
+        <span class="field-note">Opens in the right tab too — pick a video model and you land there.</span>
+      </label>
+      <label class="field">
+        <span class="field-label">Tagger</span>
+        <select id="acct-tagger"></select>
+      </label>
+      <!-- Who reads a reference image you attach on Tab 1. One or the other,
+           never both: they produce the same kind of list from the same
+           picture. The taggers know a fixed vocabulary and cannot see; the
+           model can see and finds the light, framing and surface a tagger
+           does not score. Tab 3's analysis is unaffected and keeps the
+           picker above. -->
+      <label class="field">
+        <span class="field-label">Reference images read by</span>
+        <select id="acct-reference-analysis"></select>
+        <span class="field-note" id="acct-reference-analysis-note"></span>
+      </label>
+      <!-- Interface language. Stored on the account rather than in this
+           browser, so it follows you to a phone. Options come from
+           /api/status, from the same constant the server validates against.
+           The names are written in their own language on purpose: someone
+           looking for German is looking for the word "Deutsch". -->
+      <label class="field">
+        <span class="field-label">Language</span>
+        <select id="acct-language" data-no-i18n></select>
+        <span class="field-note">Applies immediately, and follows your account to any device.</span>
+      </label>
+      <!-- Appearance. Every one of these changes only what THIS account sees:
+           they are stored in this user's preferences and applied by setting an
+           attribute on <html>, so nothing about them reaches another session
+           or the server's own output. -->
+      <label class="field">
+        <span class="field-label">Colour scheme</span>
+        <select id="acct-theme" data-no-i18n></select>
+      </label>
+      <label class="field">
+        <span class="field-label">Typeface</span>
+        <select id="acct-font"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">Text size</span>
+        <select id="acct-textsize"></select>
+        <span class="field-note">Only you see these. They follow your account, not this browser.</span>
+      </label>
+      <!-- Which LLM writes your prompts. Listed from what Ollama actually has
+           installed, so it cannot offer a model that is not there. -->
+      <label class="field">
+        <span class="field-label">Model for prompt assistance</span>
+        <select id="acct-prompt-llm"></select>
+        <span class="field-note" id="acct-prompt-llm-note"></span>
+      </label>
+      <!-- Chat has read this preference since Tab 5 was built; this is the
+           first control for it. Bounds come from /api/status so they match
+           what the server will accept. -->
+      <label class="field">
+        <span class="field-label">
+          Chat temperature <output id="acct-chat-temp-value"></output>
+        </span>
+        <input id="acct-chat-temp" type="range">
+        <span class="field-note">
+          How far chat wanders from the obvious answer. Lower is steadier and
+          repeats itself; higher is more inventive and less reliable. Chat
+          only — it has no effect on prompt writing.
+        </span>
+      </label>
+      <!-- A line of your own in every prompt you generate. It goes into the
+           USER turn beside the brief, never into the model's system prompt —
+           that file is the model's dialect and is the same for everyone. The
+           counter is fed from /api/status so it cannot drift from the limit
+           the server enforces. -->
+      <label class="field">
+        <span class="field-label">
+          Your standing instruction <output id="acct-instruction-count"></output>
+        </span>
+        <textarea id="acct-instruction" rows="3" placeholder="e.g. always frame it wide, and never add jewellery"></textarea>
+        <span class="field-note">
+          Sent with every prompt you generate, on top of the brief. Only yours.
+          It cannot change the model's output format — leave it empty to send
+          nothing at all.
+        </span>
+      </label>
+      <p class="field-note">Applied the next time you open the app.</p>
+    </div>
+
+    <p class="auth-message" id="acct-message" hidden></p>
+    <button class="primary auth-submit" id="acct-save" type="button">Save</button>
+
+    <div class="accounts-section" style="margin-top:22px">
+      <div class="accounts-heading">Password</div>
+    <form id="password-form">
+      <label class="field">
+        <span class="field-label">Current password</span>
+        <input id="pw-current" type="password" autocomplete="current-password" required>
+      </label>
+      <label class="field">
+        <span class="field-label">New password</span>
+        <input id="pw-new" type="password" autocomplete="new-password" required>
+        <span class="field-note">At least 8 characters.</span>
+      </label>
+      <label class="field">
+        <span class="field-label">New password again</span>
+        <input id="pw-confirm" type="password" autocomplete="new-password" required>
+      </label>
+      <p class="auth-message" id="pw-message" hidden></p>
+      <button class="primary auth-submit" id="pw-submit" type="submit">Change password</button>
+    </form>
+    </div>
+
+    <!-- The guided tour, any time. Offered once after the first sign-in;
+         this is where the "no thanks" answer points people. -->
+    <div class="accounts-section" style="margin-top:22px">
+      <div class="accounts-heading">Tour</div>
+      <p class="field-note">A quick walk round the app, one control at a time.</p>
+      <button class="ghost" id="acct-tour" type="button">Take the tour</button>
+    </div>
+
+    <div class="modal-foot">
+      <button class="ghost" id="acct-signout" type="button">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ Tour offer ═══════════════ -->
+<!-- Shown once per account, after sign-in and after the setup wizard if that
+     opened. Either answer is saved (preference `tour`), so it is not asked
+     again; "No thanks" turns the box into a pointer to the account panel. -->
+<div class="modal-backdrop" id="tour-offer" hidden>
+  <div class="modal-card modal-narrow">
+    <div id="tour-offer-ask">
+      <div class="panel-title" style="margin:0 0 8px">Want a quick tour?</div>
+      <p class="field-note">A minute or two: each part of the app lit up in turn, with a line on what it does. Click through at your own pace, or skip out any time.</p>
+      <div class="modal-foot">
+        <button class="ghost" id="tour-offer-no" type="button">No thanks</button>
+        <button class="primary" id="tour-offer-yes" type="button">Show me around</button>
+      </div>
+    </div>
+    <div id="tour-offer-later" hidden>
+      <div class="panel-title" style="margin:0 0 8px">No problem</div>
+      <p class="field-note">If you change your mind, it is in your settings: click your name at the top right, then Take the tour.</p>
+      <div class="modal-foot">
+        <button class="primary" id="tour-offer-ok" type="button">Got it</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ Model notes — shared ═══════════════ -->
+<!-- Everyone reads the same board and everyone may post. Not per-user: the
+     point is that "this one is better at booru tags" reaches the other four.
+     Delete is narrower than post — your own note, or anything if you are the
+     owner — which the server enforces rather than this panel. -->
+<div class="modal-backdrop" id="llm-notes-modal" hidden>
+  <div class="modal">
+    <div class="output-head">
+      <div class="panel-title" style="margin:0">Model notes</div>
+      <button class="ghost" id="llm-notes-close" type="button">Close</button>
+    </div>
+    <p class="field-note">What each installed model turned out to be good at.
+      Everyone sees these, and everyone can add one.</p>
+    <div id="llm-notes-list"></div>
+  </div>
+</div>
+<!-- ═══════════════ Backend config — owner only ═══════════════ -->
+<div class="modal-backdrop" id="backend-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">Setup</div>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="wizard-rerun" type="button" title="The step-by-step setup from the first run">Setup wizard</button>
+        <button class="ghost" id="backend-close" type="button">Close</button>
+      </div>
+    </div>
+    <!-- Shown only on first run: an owner whose install has never been told
+         where its LLM server is. See handleAdminBackend's setup_needed. -->
+    <p class="field-note" id="backend-welcome" hidden>
+      <strong>Welcome — one step left.</strong> Tell PromptForge where your LLM
+      server is. Pick the kind, enter its address, press <em>Test connection</em>,
+      then choose the model everyone gets by default. You can change all of this
+      later from the <strong>Setup</strong> button in the top bar.
+    </p>
+    <!-- Each setup-sec is also one step of the setup wizard, which borrows
+         the element while it is open and puts it back after (initWizard). -->
+    <section class="setup-sec" data-sec="llm">
+    <div class="panel-title" style="margin:14px 0 6px">LLM server</div>
+    <p class="field-note" id="backend-intro">Switch the LLM backend live. Generation follows immediately — no restart needed.</p>
+    <label class="field">
+      <span class="field-label">Backend</span>
+      <select id="backend-select">
+        <option value="ollama">Ollama</option>
+        <option value="llamacpp">llama.cpp / llama-swap</option>
+        <option value="vllm">vLLM</option>
+        <option value="mock">Mock (no real model — for testing)</option>
+      </select>
+    </label>
+    <label class="field">
+      <span class="field-label">Address</span>
+      <input id="backend-url" type="text" placeholder="http://127.0.0.1:11434/v1" autocomplete="off" spellcheck="false">
+    </label>
+    <!-- One-click fills for the common case, so most people never type an
+         address. The first is the "Local" button from PR #3. -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 8px">
+      <button class="ghost" id="backend-localhost" type="button" title="http://127.0.0.1:11434/v1">Ollama on this PC</button>
+      <button class="ghost" id="backend-llamacpp-local" type="button" title="http://127.0.0.1:8080/v1">llama.cpp on this PC</button>
+    </div>
+    <p class="field-note" id="backend-url-hint">
+      Ollama on this machine: <code>http://127.0.0.1:11434/v1</code>.
+      From inside Docker, the host is <code>http://host.docker.internal:11434/v1</code>.
+      llama.cpp usually runs on <code>:8080/v1</code>.
+    </p>
+    <button class="ghost" id="backend-test" type="button">Test connection</button>
+    <label class="field" id="backend-model-field" hidden>
+      <span class="field-label">Default model</span>
+      <select id="backend-model"></select>
+    </label>
+    <p class="auth-message" id="backend-message" hidden></p>
+    <button class="primary auth-submit" id="backend-save" type="button">Save</button>
+    </section>
+
+    <section class="setup-sec" data-sec="taggers">
+    <!-- Image taggers. Paste one folder and it is searched for every tagger's
+         files by name, or download the public WD pair. See server/taggersetup.mjs. -->
+    <div class="panel-title" style="margin:22px 0 6px">Image taggers</div>
+    <p class="field-note">
+      Used by Image Analysis and to read reference pictures. <strong>animetimm</strong>
+      is the default and reads characters best; the WD taggers run alongside it.
+    </p>
+    <div id="tagger-rows"></div>
+    <label class="field">
+      <span class="field-label">Already have them? Paste the folder they are in</span>
+      <input id="tagger-folder" type="text" placeholder="e.g. C:/ComfyUI  or  /home/you/ComfyUI" autocomplete="off" spellcheck="false">
+    </label>
+    <button class="ghost" id="tagger-scan" type="button">Search this folder</button>
+    <p class="field-note" id="tagger-dir-note"></p>
+    <p class="auth-message" id="tagger-message" hidden></p>
+    </section>
+
+    <section class="setup-sec" data-sec="network">
+    <!-- Who can connect. The one setup question that differs between "just
+         this PC", "another PC on my network" and "friends": the app is the
+         same in all three (first account owns it, the rest wait for
+         approval) and only its reach changes. See handleAdminNetwork. -->
+    <div class="panel-title" style="margin:22px 0 6px">Who can connect</div>
+    <label class="field" style="flex-direction:row;align-items:center;gap:10px">
+      <input type="checkbox" id="network-remote">
+      <span>Let other devices connect</span>
+    </label>
+    <p class="field-note" id="network-note">
+      Off: only this PC can open PromptForge. On: other PCs and phones on your
+      network can too, and so can friends once they are on your NetBird or
+      Tailscale. New accounts still wait for your approval either way.
+    </p>
+    <div id="network-addresses"></div>
+    <p class="auth-message" id="network-message" hidden></p>
+    </section>
+
+    <!-- Rendering (4 Oct 2026). Off until chosen, so an install that only
+         wants prompt writing never needs ComfyUI. Paste one folder and the
+         server finds main.py and its Python (server/featuresetup.mjs). -->
+    <section class="setup-sec" data-sec="comfyui">
+    <div class="panel-title" style="margin:22px 0 6px">Render pictures (ComfyUI)</div>
+    <p class="field-note">
+      Optional. A <strong>Render</strong> button under each finished image prompt
+      sends it to ComfyUI and shows the picture, and an <strong>Edit</strong> tab
+      changes pictures with Qwen Image 2.1. Leave it off if you only want
+      prompts — you can switch it on here any time.
+    </p>
+    <p class="field-note">
+      The starter workflows use the rgthree node pack. If ComfyUI is missing it,
+      open one of the workflows from <code>config/comfyui/ui/</code> in ComfyUI and use
+      ComfyUI Manager's <em>Install Missing Custom Nodes</em>. The model files each
+      one needs are listed in the README.
+    </p>
+    <p class="auth-message" id="comfy-status" hidden></p>
+    <div class="setup-choice">
+      <label><input type="radio" name="comfy-have" value="have" checked> I have ComfyUI</label>
+      <label><input type="radio" name="comfy-have" value="need"> I don't have it yet</label>
+    </div>
+    <div id="comfy-have">
+      <label class="field">
+        <span class="field-label">Paste the folder ComfyUI is in</span>
+        <input id="comfy-folder" type="text" placeholder="e.g. C:/ComfyUI  or  /home/you/ComfyUI" autocomplete="off" spellcheck="false">
+      </label>
+      <button class="ghost" id="comfy-connect" type="button">Connect</button>
+      <label class="field" style="margin-top:12px">
+        <span class="field-label">Or, if it is already running somewhere, its address</span>
+        <input id="comfy-url" type="text" placeholder="http://127.0.0.1:8188" autocomplete="off" spellcheck="false">
+      </label>
+      <button class="ghost" id="comfy-connect-url" type="button">Use this address</button>
+    </div>
+    <div id="comfy-need" hidden>
+      <p class="field-note">
+        The easiest way in is the <strong>DaSiWa ComfyUI Installer</strong> (Windows and Linux):
+        one program that installs ComfyUI with its own Python and the right PyTorch for your
+        graphics card. When it has finished, come back here, pick <em>I have ComfyUI</em> and
+        paste the folder it installed to.
+      </p>
+      <a class="ghost setup-link" id="comfy-installer" href="https://github.com/darksidewalker/dasiwa-comfyui-installer" target="_blank" rel="noopener">Get the DaSiWa ComfyUI Installer ↗</a>
+    </div>
+    <button class="ghost" id="comfy-off" type="button" hidden>Turn rendering off</button>
+    <p class="auth-message" id="comfy-message" hidden></p>
+    </section>
+
+    <!-- LoRA training (4 Oct 2026): the LoRA Training tab is TrainFlow
+         itself, proxied, so connecting it is its address and nothing more. -->
+    <section class="setup-sec" data-sec="training">
+    <div class="panel-title" style="margin:22px 0 6px">LoRA training (TrainFlow)</div>
+    <p class="field-note">
+      Optional. Adds the <strong>LoRA Training</strong> tab, which is TrainFlow inside
+      PromptForge. Needs TrainFlow running on this machine and a graphics card that can train.
+    </p>
+    <p class="auth-message" id="training-status" hidden></p>
+    <div class="setup-choice">
+      <label><input type="radio" name="training-have" value="have" checked> I have TrainFlow</label>
+      <label><input type="radio" name="training-have" value="need"> I don't have it yet</label>
+    </div>
+    <div id="training-have">
+      <label class="field">
+        <span class="field-label">TrainFlow's address</span>
+        <input id="training-url" type="text" placeholder="http://127.0.0.1:8900" autocomplete="off" spellcheck="false">
+      </label>
+      <button class="ghost" id="training-connect" type="button">Connect</button>
+    </div>
+    <div id="training-need" hidden>
+      <p class="field-note">
+        Install <strong>DaSiWa TrainFlow</strong> by following its page, and start it. When it is
+        running, come back here, pick <em>I have TrainFlow</em> and press Connect.
+      </p>
+      <a class="ghost setup-link" id="training-project" href="https://github.com/darksidewalker/DaSiWa-TrainFlow" target="_blank" rel="noopener">Get DaSiWa TrainFlow ↗</a>
+    </div>
+    <button class="ghost" id="training-off" type="button" hidden>Disconnect TrainFlow</button>
+    <p class="auth-message" id="training-message" hidden></p>
+    </section>
+
+    <!-- Closing the app (27 Sep 2026): everyone but the owner sees the notice
+         instead of PromptForge until it is switched off. -->
+    <div class="panel-title" style="margin:22px 0 6px">Close PromptForge</div>
+    <label class="field" style="flex-direction:row;align-items:center;gap:10px">
+      <input type="checkbox" id="maintenance-on">
+      <span>Closed: show everyone "Currently training model"</span>
+    </label>
+    <p class="field-note">
+      You still get in while it is closed. Nothing is lost: people just see the
+      notice until you switch it back off.
+    </p>
+    <p class="auth-message" id="maintenance-message" hidden></p>
+  </div>
+</div>
+<!-- ═══════════════ Setup wizard — owner only ═══════════════ -->
+<!-- First run (4 Oct 2026): the Setup panel one step at a time. Pick what you
+     want first, so someone who only wants prompt writing is never walked
+     through downloads. Every step borrows its section from the Setup panel
+     above, so the two can never disagree. -->
+<div class="modal-backdrop" id="wizard-modal" hidden>
+  <div class="modal-card wizard-card">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">Set up PromptForge</div>
+      <div class="wizard-dots" id="wizard-dots"></div>
+    </div>
+
+    <div class="wizard-step" data-step="welcome">
+      <p><strong>Welcome.</strong> A couple of minutes and you're writing prompts.</p>
+      <p class="field-note">
+        Prompt writing is the heart of PromptForge and is always on. Everything
+        else is optional — tick what you want now; the rest can be switched on
+        later from <strong>Setup</strong> in the top bar.
+      </p>
+      <div class="wizard-features">
+        <label class="wizard-feature">
+          <input type="checkbox" checked disabled>
+          <span><strong>Prompt writing</strong><br><span class="field-note">Needs an LLM server, such as Ollama.</span></span>
+        </label>
+        <label class="wizard-feature">
+          <input type="checkbox" id="wizard-want-taggers">
+          <span><strong>Image taggers</strong><br><span class="field-note">Reads pictures into tags for Image Analysis and reference pictures. About 1.6 GB to download.</span></span>
+        </label>
+        <label class="wizard-feature">
+          <input type="checkbox" id="wizard-want-comfyui">
+          <span><strong>Render pictures</strong><br><span class="field-note">Sends finished prompts to ComfyUI and shows the picture.</span></span>
+        </label>
+        <label class="wizard-feature">
+          <input type="checkbox" id="wizard-want-training">
+          <span><strong>LoRA training</strong><br><span class="field-note">Trains LoRAs with TrainFlow, inside PromptForge.</span></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="wizard-step" data-step="section"><div id="wizard-slot"></div></div>
+
+    <div class="wizard-step" data-step="done">
+      <p><strong>All set.</strong></p>
+      <div id="wizard-summary"></div>
+      <p class="auth-message error" id="wizard-restart" hidden></p>
+      <p class="field-note">Change any of this later from <strong>Setup</strong> in the top bar.</p>
+    </div>
+
+    <div class="wizard-foot">
+      <button class="ghost" id="wizard-back" type="button">Back</button>
+      <span style="flex:1"></span>
+      <button class="ghost" id="wizard-skip" type="button">Skip</button>
+      <button class="primary" id="wizard-next" type="button">Next</button>
+    </div>
+  </div>
+</div>
+<!-- ═══════════════ Accounts admin — owner only ═══════════════ -->
+<div class="modal-backdrop" id="accounts-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">Accounts</div>
+      <button class="ghost" id="accounts-close" type="button">Close</button>
+    </div>
+    <div id="accounts-list"></div>
+
+    <!-- Model requests. Owner-only like everything else in here, and gated on
+         /api/admin/requests server-side rather than by this panel being
+         hidden. Approving records the decision and prints the pull command —
+         it does not start a multi-gigabyte download from a modal. -->
+    <div class="panel-title" style="margin-top:22px">Model requests</div>
+    <!-- The pull command after an approval. Its own element, above the list,
+         because the list repaints on every decision and a command that
+         vanished as the row redrew would be worse than none. -->
+    <div id="requests-command"></div>
+    <div id="requests-list"></div>
+
+    <!-- Tag database. Owner-only like everything else in here: the update
+         downloads from a third-party repo and replaces a shared file. -->
+    <div class="panel-title" style="margin-top:22px">Tag database</div>
+    <div id="tagdb-summary" class="field-note">Loading…</div>
+    <div style="margin-top:10px">
+      <button class="ghost" id="btn-tagdb-update" type="button">Update now</button>
+    </div>
+    <div id="tagdb-result" class="field-note" hidden></div>
+  </div>
+</div>
+
+<!-- ═══════════════ Randomizer ═══════════════ -->
+<!-- Tick categories, roll, and the result goes into the brief. No model is
+     involved at any point — scripts/randomizer.py reads the tag database and
+     config/randomizer.json and picks. Image models only.
+
+     Every colour, font and radius below is a theme variable, so this follows
+     whatever palette and typeface the person picked in their settings. -->
+<div class="modal-backdrop" id="randomizer-modal" hidden>
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">Randomizer</div>
+      <button class="ghost" id="randomizer-close" type="button">Close</button>
+    </div>
+    <p class="field-note">Tick a whole box, or open it and tick the pieces
+      inside. Nothing here goes near the model — it picks, you edit, then you
+      generate as normal.</p>
+
+    <!-- How many people. A CHOICE, not a draw — which is why it is a pair of
+         selects above the grid rather than a tick box inside it. Mirrors the
+         two sliders in the source workflow, and 0 means the count is left out
+         of the brief entirely. -->
+    <div class="randomizer-cast">
+      <span class="field-label">Characters</span>
+      <label class="cast-pick"><span>Women</span>
+        <select id="randomizer-women">
+          <option value="0">–</option><option value="1">1</option>
+          <option value="2">2</option><option value="3">3</option><option value="4">4</option>
+        </select>
+      </label>
+      <label class="cast-pick"><span>Men</span>
+        <select id="randomizer-men">
+          <option value="0">–</option><option value="1">1</option>
+          <option value="2">2</option><option value="3">3</option><option value="4">4</option>
+        </select>
+      </label>
+      <span class="field-note" id="randomizer-cast-note">Always used exactly as set — never randomized.</span>
+      <!-- Reveals the per-box steppers. Off by default because most rolls want
+           the whole box, and nineteen − all + controls on screen is a lot of
+           furniture for something you touch occasionally. While it is off the
+           steppers do not apply either, so there is no invisible state
+           quietly shortening a roll. -->
+      <label class="chaos-toggle" title="Show a control on each box for how many of its sub-categories to use">
+        <input type="checkbox" id="randomizer-chaos">
+        <span>Controlled chaos</span>
+      </label>
+    </div>
+
+    <div class="randomizer-tools">
+      <button class="ghost" id="randomizer-collapse" type="button">Collapse all</button>
+      <button class="ghost" id="randomizer-none" type="button">Clear all</button>
+      <span class="field-note" id="randomizer-count"></span>
+    </div>
+
+    <div id="randomizer-categories" class="randomizer-grid"></div>
+
+    <div class="randomizer-result" id="randomizer-preview" hidden>
+      <div class="panel-title" style="margin:0 0 10px">Preview</div>
+      <div id="randomizer-breakdown"></div>
+      <label class="field" style="margin-top:12px">
+        <span class="field-label">Goes into the brief</span>
+        <textarea id="randomizer-result" rows="4"
+                  placeholder="Press Roll to see what comes up."></textarea>
+        <span class="field-note">Edit freely — what you insert is whatever this
+          box says.</span>
+      </label>
+    </div>
+
+    <div class="randomizer-actions">
+      <button class="primary" id="randomizer-roll" type="button">Roll</button>
+      <!-- Picks the categories as well as the terms. The ticked boxes are
+           the POOL it draws from rather than the selection, so ticking a few
+           narrows it; ticking nothing uses everything except NSFW. The
+           Characters row above applies either way. -->
+      <button class="ghost" id="randomizer-surprise" type="button"
+              title="Picks the categories for you. Tick boxes to choose what it draws from; tick nothing and it uses everything except NSFW.">Surprise me</button>
+      <button class="ghost" id="randomizer-insert" type="button" disabled>Add to brief</button>
+      <button class="ghost" id="randomizer-replace" type="button" disabled>Replace brief</button>
+    </div>
+    <div class="field-note" id="randomizer-note" hidden></div>
+  </div>
+</div>
+
+<!-- ═══════════════ Render settings ═══════════════ -->
+<!-- The randomizer's modal pattern, as the owner marked up the mockup on
+     3 Oct 2026. Built from GET /api/render/options; nothing here names a
+     model, a sampler or a size. -->
+<div class="modal-backdrop" id="render-modal" hidden>
+  <div class="modal-card modal-wide render-settings">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0" id="render-modal-title">Render settings</div>
+      <button class="ghost" id="render-modal-close" type="button">Close</button>
+    </div>
+    <p class="field-note">Saved per model and workflow as you change them. A
+      preset fills these in one click; anything here can still be changed.</p>
+    <p class="field-note warn" id="render-workflow-note" hidden></p>
+    <div class="render-grid3">
+      <label class="field"><span>Workflow</span><select id="render-workflow"></select></label>
+      <label class="field"><span>Preset</span><select id="render-modal-preset"></select></label>
+      <div class="render-owner-slot"><button class="ghost" id="btn-render-manage" type="button" hidden>Manage models…</button></div>
+    </div>
+    <div class="render-grid3">
+      <label class="field"><span>Model</span><select id="render-model-file"></select></label>
+      <label class="field" id="render-te-field"><span>Text encoder</span><select id="render-text-encoder"></select></label>
+      <label class="field" id="render-vae-field"><span>VAE</span><select id="render-vae"></select></label>
+    </div>
+    <div class="field-note" id="render-file-note"></div>
+
+    <div class="field" id="render-loras-field">
+      <span>LoRAs</span>
+      <div id="render-loras"></div>
+      <div class="render-lora-tools">
+        <button class="ghost" id="btn-render-add-lora" type="button">+ Add LoRA</button>
+        <label class="render-check"><input type="checkbox" id="render-lora-all"> Show LoRAs for every model</label>
+      </div>
+    </div>
+    <div class="render-grid4">
+      <label class="field"><span>Aspect</span><select id="render-aspect"></select></label>
+      <label class="field"><span>Resolution</span><select id="render-tier"></select></label>
+      <label class="field"><span>Seed</span><input type="number" id="render-seed" min="0" step="1"></label>
+      <label class="field"><span>Seed mode</span>
+        <select id="render-seed-mode">
+          <option value="random">Random</option>
+          <option value="fixed">Fixed</option>
+          <option value="increment">+1 each run</option>
+        </select></label>
+    </div>
+    <div class="render-sizeline" id="render-sizeline"></div>
+    <div class="render-grid4">
+      <label class="field"><span>Steps</span><input type="number" id="render-steps" min="1" step="1"></label>
+      <label class="field"><span>CFG</span><input type="number" id="render-cfg" min="0" max="30" step="0.5"></label>
+      <label class="field"><span>Sampler</span><select id="render-sampler"></select></label>
+      <label class="field"><span>Scheduler</span><select id="render-scheduler"></select></label>
+    </div>
+    <div class="field-note" id="render-caps"></div>
+    <!-- Filled automatically with a good negative — the one the model wrote,
+         else the model file's, else the model's basic one — and then yours to
+         change. What is in the box is what is sent. Hidden for a model that
+         takes no negative. -->
+    <label class="field" id="render-negative-field">
+      <span>Negative</span>
+      <textarea id="render-negative" rows="3"></textarea>
+      <span class="render-lora-tools">
+        <span class="field-note" id="render-negative-note"></span>
+        <button class="ghost" id="render-negative-auto" type="button" hidden>Back to auto</button>
+      </span>
+    </label>
+    <details class="render-box"><summary>What gets sent</summary>
+      <div class="render-sent" id="render-sent"></div>
+    </details>
+    <!-- Your own workflow (stage 3). Kept to an upload: PromptForge finds
+         the nodes itself, as it does for the starters. -->
+    <details class="render-box" id="render-upload-box"><summary>Your own workflows</summary>
+      <div class="render-upload">
+        <!-- A template, so a workflow starts from one that works and stays
+             small (owner's ask, 5 Oct 2026). -->
+        <p class="field-note"><strong>Start from ours:</strong> download the workflow this
+          model renders with, open it in ComfyUI, change only what you need — a
+          different sampler, a LoRA, an upscale — and upload it back. Keep it simple:
+          extra branches and custom nodes are what makes an upload fail to map.</p>
+        <div class="render-lora-tools">
+          <button class="ghost" id="btn-render-template" type="button">Download our workflow for this model</button>
+        </div>
+        <p class="field-note">In ComfyUI, use <strong>Workflow → Export (API)</strong> and
+          upload that file. It needs one KSampler, a text node on its positive
+          and negative, an Empty Latent for the size, and a Save Image. The
+          normal save of the same workflow is optional: it lets the PNG reopen
+          in ComfyUI. Workflows are private to you; the owner approves each
+          one before it can run.</p>
+        <div class="render-grid3">
+          <label class="field"><span>Name</span><input type="text" id="render-upload-name" maxlength="80" placeholder="My workflow"></label>
+          <label class="field"><span>Export (API) file</span><input type="file" id="render-upload-api" accept=".json,application/json"></label>
+          <label class="field"><span>Normal save (optional)</span><input type="file" id="render-upload-ui" accept=".json,application/json"></label>
+        </div>
+        <div class="render-lora-tools">
+          <button class="ghost" id="btn-render-upload" type="button">Upload for this model</button>
+          <button class="ghost" id="btn-render-delete-workflow" type="button" hidden>Delete the selected workflow</button>
+          <span class="field-note" id="render-upload-note"></span>
+        </div>
+      </div>
+    </details>
+    <div class="modal-foot render-foot">
+      <input type="text" id="render-preset-name" maxlength="80" placeholder="Name for your preset">
+      <button class="ghost" id="render-save-preset" type="button">Save as my preset</button>
+      <button class="ghost" id="render-delete-preset" type="button" hidden>Delete my preset</button>
+      <button class="ghost" id="render-reset" type="button">Reset to preset</button>
+      <button class="primary" id="render-done" type="button">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ Render models — owner only ═══════════════ -->
+<!-- Which model files each model offers, with their own presets, and what
+     each LoRA is for. Agreed 3 Oct 2026: only files added here appear in the
+     Model dropdown; LoRAs go by their own file metadata unless corrected
+     here; no Civitai lookups. Enforced server-side (/api/admin/render). -->
+<div class="modal-backdrop" id="render-models-modal" hidden>
+  <div class="modal-card modal-wide render-settings">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">Render models</div>
+      <button class="ghost" id="render-models-close" type="button">Close</button>
+    </div>
+    <p class="field-note">Only files listed here appear in a model's Model
+      dropdown. A file's settings load when someone picks it; blank fields
+      fall back to the model's preset. The prefix goes in front of every
+      prompt rendered with that file; the negative replaces the model's basic
+      one.</p>
+    <div id="render-pending-wrap" hidden>
+      <div class="panel-title" style="margin:6px 0 6px">Workflows waiting for you</div>
+      <p class="field-note">Uploaded by people you let render. A workflow is a
+        program ComfyUI runs on this box: check the node types are ones you
+        know before approving. Refuse deletes it.</p>
+      <div id="render-pending-body"></div>
+    </div>
+    <div id="render-models-body"></div>
+    <div class="panel-title" style="margin:18px 0 6px">LoRAs</div>
+    <p class="field-note">Matched to models by what each file says it was
+      trained on. Tick models to override that; trigger words join the prompt
+      whenever the LoRA is switched on.</p>
+    <div id="render-loras-body"></div>
+    <div class="field-note" id="render-models-note"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ Model usage — owner only ═══════════════ -->
+<!-- One count per inference, which answers the only question anyone opens
+     this for: can I delete that 17GB model. Installed models with no runs are
+     listed too — those are the rows worth looking at, and they are the reason
+     this reads the backend's catalogue as well as the counters. -->
+<div class="modal-backdrop" id="usage-modal" hidden>
+  <div class="modal-card modal-narrow">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">Model usage</div>
+      <button class="ghost" id="usage-close" type="button">Close</button>
+    </div>
+    <p class="field-note">Every time a model is asked for something, it counts
+      one — prompt writing, second passes, chat and reference analysis. A model
+      sitting on <strong>0 runs</strong> is one nobody has picked since counting
+      started. Only the models this box is serving are listed; counts under any
+      other name are behind the button at the bottom.</p>
+    <div id="usage-list"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ How chat works ═══════════════ -->
+<!-- Everything worth knowing before you rely on this thing: where the
+     conversations live, what deletes them, who can read them. The retention
+     number is filled from the server rather than written here, so this cannot
+     drift from config the way a hardcoded "14 days" would. -->
+<div class="modal-backdrop" id="chat-info-modal" hidden>
+  <div class="modal-card modal-narrow">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">How chat works</div>
+      <button class="ghost" id="chat-info-close" type="button">Close</button>
+    </div>
+
+    <dl class="rules">
+      <dt>Where it lives</dt>
+      <dd>On this machine, under your account. Conversations never leave the
+        box, and no one else can open yours — not even the owner.</dd>
+
+      <dt>What deletes them</dt>
+      <dd id="chat-info-retention">Nothing automatic.</dd>
+
+      <dt>Keeping one</dt>
+      <dd>Click the padlock on a conversation. A locked one is never
+        auto-deleted, however old it gets. You can still delete it yourself —
+        it will ask first.</dd>
+
+      <dt>There is no undo</dt>
+      <dd>Deleting is permanent and there is no backup. The same goes for
+        removing an account: it takes that person's conversations and saved
+        prompts with it.</dd>
+
+      <dt>It shares the GPU</dt>
+      <dd>Chat and prompt generation use the same model and the same queue, so
+        a long generation can hold your answer up for a moment. The active
+        users panel on the right shows who has it.</dd>
+
+      <dt>The model reads the whole conversation</dt>
+      <dd>Every turn sends the full history back, which is what makes it a
+        conversation. Start a new chat when you change subject and the answers
+        get sharper.</dd>
+
+      <dt>Web search is a button</dt>
+      <dd id="chat-info-search">Press <strong>Search</strong> beside the message
+        box and that message is searched for before it is answered, with the
+        results handed to the model and cited inline as numbered links you can
+        click. It stays on until you turn it off. Without it, answers come from
+        training data alone — for anything recent or version-specific, assume
+        it is guessing and check.</dd>
+
+      <dt>Where the queries go</dt>
+      <dd id="chat-info-search-where">Your search terms leave the machine when
+        you use it. Everything else about a conversation stays here.</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ═══════════════ Request a model ═══════════════ -->
+<!-- Anyone can ask; only the owner decides, and the decision is enforced on
+     /api/admin/requests rather than by hiding the panel. The list of your own
+     requests is part of the form on purpose: a suggestion box that never says
+     what happened to anything is a suggestion box nobody uses twice. -->
+<div class="modal-backdrop" id="model-request-modal" hidden>
+  <div class="modal-card modal-narrow">
+    <div class="modal-head">
+      <div class="panel-title" style="margin:0">Request a model</div>
+      <button class="ghost" id="model-request-close" type="button">Close</button>
+    </div>
+
+    <form id="model-request-form">
+      <label class="field">
+        <span class="field-label">Model tag</span>
+        <input id="req-tag" type="text" maxlength="120" autocomplete="off"
+               placeholder="family:size" required>
+        <span class="field-note" id="req-tag-note">
+          The tag the backend would pull, if you know it. No spaces.
+        </span>
+      </label>
+      <label class="field">
+        <span class="field-label">Link <span class="field-optional">optional</span></span>
+        <input id="req-url" type="url" maxlength="500" autocomplete="off"
+               placeholder="https://">
+        <span class="field-note">Where you found it — the model page, so the
+          owner can check the size and the licence.</span>
+      </label>
+      <label class="field">
+        <span class="field-label">Why <span class="field-optional">optional</span></span>
+        <textarea id="req-reason" rows="3" maxlength="1000"
+                  placeholder="What it does that the ones here don't."></textarea>
+      </label>
+      <p class="auth-message" id="req-message" hidden></p>
+      <button class="primary auth-submit" id="req-submit" type="submit">Send to the owner</button>
+    </form>
+
+    <div class="accounts-section" style="margin-top:22px">
+      <div class="accounts-heading">Your requests</div>
+      <div id="req-mine"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ Active users ═══════════════ -->
+<!-- A handle on the right edge, and the panel it opens. Both live outside the
+     tab panels because presence is a property of the box, not of a tab: the
+     same list is true whether you are writing a prompt or analysing an image.
+
+     The topbar keeps its compact presence chip. That answers "is anyone else
+     here" at a glance without a click; this answers "who, and how recently".
+     Deliberately two surfaces for one fact — the chip has room for names and
+     nothing else, and it hides itself when you are alone. -->
+<button class="people-tab" id="people-tab" type="button"
+        aria-controls="people-panel" aria-expanded="false"
+        title="Who else is signed in">
+  <span class="people-tab-count" id="people-tab-count">0</span>
+  <span class="people-tab-label">People</span>
+</button>
+
+<aside class="people-panel" id="people-panel" hidden aria-label="Active users">
+  <div class="people-head">
+    <div class="panel-title" style="margin:0">Active now</div>
+    <button class="ghost" id="people-close" type="button">Close</button>
+  </div>
+  <div class="people-list" id="people-list"></div>
+  <p class="people-note" id="people-note"></p>
+
+  <!-- What the box is doing, under who is on it. Both are facts about a
+       shared GPU rather than about you, which is why they live here and not
+       in a tab: five people and one card, and "why is my generate slow"
+       usually has an answer somebody else can see. -->
+  <div class="people-machine" id="people-machine" hidden>
+    <div class="gpu-head">
+      <div class="people-sub">On the GPU</div>
+      <!-- Owner only, and hidden entirely when nothing is loaded. Enforced on
+           /api/admin/models/unload server-side like the rest of the admin
+           surface; hiding it here is courtesy. keep_alive is 15m because
+           ComfyUI shares this card, so "give me the GPU back now" otherwise
+           means waiting a quarter of an hour. -->
+      <button class="gpu-offload-all" id="gpu-offload-all" type="button" hidden
+              title="Drop every loaded model out of VRAM now">Offload all</button>
+    </div>
+    <div id="gpu-resident"></div>
+
+    <!-- How long a model stays in VRAM after a request. Owner only: it is a
+         decision about a shared card, not a personal preference - "never
+         unload" on a box that also runs ComfyUI takes the GPU away from
+         everyone else. Options come from /api/status so the labels and the
+         validator cannot drift apart, and the box beside them takes anything
+         a person is likely to type: 5, 5m, 90s, 2h, 0, -1. -->
+    <div class="gpu-keepalive" id="gpu-keepalive" hidden>
+      <label class="gpu-keepalive-label" for="gpu-keepalive-select">Unload after</label>
+      <select id="gpu-keepalive-select"></select>
+      <input type="text" id="gpu-keepalive-custom" placeholder="or type: 90s, 20m, 2h"
+             autocomplete="off" maxlength="12">
+      <p class="gpu-keepalive-note" id="gpu-keepalive-note"></p>
+    </div>
+
+    <!-- The waiting line, and the owner's controls for it. Everyone sees the
+         line — "why is my generate slow" usually has an answer somebody else
+         can see — but only the owner gets the buttons, and the server enforces
+         that on /api/admin/queue/move rather than trusting this. -->
+    <div id="queue-block" hidden>
+      <div class="people-sub">Waiting</div>
+      <div id="queue-list"></div>
+      <p class="field-note" id="queue-note" hidden></p>
+    </div>
+  </div>
+</aside>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

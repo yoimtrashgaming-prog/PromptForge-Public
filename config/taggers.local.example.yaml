@@ -1,0 +1,36 @@
+# Per-machine tagger overrides — copy to taggers.local.yaml to use.
+#
+# Only needed when the tagger files live somewhere OTHER than the project's
+# own taggers/ folder, which is where config/taggers.yaml looks by default.
+# The usual reason is that ComfyUI already downloaded them and copying ~4GB a
+# second time is waste. docs/taggers-setup.md has the full procedure.
+#
+# **The keys must match config/taggers.yaml exactly: `animetimm_convnextv2`,
+# `wd14_eva02` and `wd14_moat`.** An override under a key nothing reads is
+# silently ignored, and the symptom is Image Analysis quietly unavailable with
+# a config file that looks correct. `npm run doctor` catches it.
+#
+# Only the keys that differ are needed. `taggers.wd14_eva02.model` replaces
+# that one path and leaves the thresholds, the device and the other taggers
+# alone. Forward slashes work on Windows too.
+
+taggers:
+  # Where the ComfyUI WD14 Tagger node keeps them. Replace the start of the
+  # path with wherever your ComfyUI is installed.
+  wd14_eva02:
+    model: "C:/path/to/ComfyUI/custom_nodes/comfyui-wd14-tagger/models/wd-eva02-large-tagger-v3.onnx"
+    labels: "C:/path/to/ComfyUI/custom_nodes/comfyui-wd14-tagger/models/wd-eva02-large-tagger-v3.csv"
+
+  wd14_moat:
+    model: "C:/path/to/ComfyUI/custom_nodes/comfyui-wd14-tagger/models/wd-v1-4-moat-tagger-v2.onnx"
+    labels: "C:/path/to/ComfyUI/custom_nodes/comfyui-wd14-tagger/models/wd-v1-4-moat-tagger-v2.csv"
+
+# animetimm is never in ComfyUI in the form this app loads - ComfyUI holds the
+# PyTorch original, which scripts/export-animetimm-onnx.py converts. If you
+# exported it somewhere other than taggers/, point at it the same way:
+#
+#  animetimm_convnextv2:
+#    model: "/some/where/animetimm-convnextv2-huge-dbv4.onnx"
+#    labels: "/some/where/animetimm-convnextv2-huge-dbv4.csv"
+#
+# The .onnx.data file must sit beside the .onnx with exactly that name.

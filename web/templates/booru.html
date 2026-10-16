@@ -1,0 +1,137 @@
+<!-- Booru tag builder: Illustrious, Pony, SDXL.
+     Every control below is populated from the registry entry. Nothing here
+     names a model, and nothing here is conditional on one. -->
+<section class="builder" data-template="booru">
+  <label class="field">
+    <span>Brief</span>
+    <textarea data-bind="brief" rows="5"
+      placeholder="Describe what you want, in tags or plain English."></textarea>
+  </label>
+
+  <div class="row">
+    <label class="field"><span>Quality preset</span>
+      <select data-bind="quality_preset"></select></label>
+    <label class="field" data-show="source_tags"><span>Source</span>
+      <select data-bind="source_tag"></select></label>
+    <label class="field"><span>Aspect</span>
+      <select data-bind="aspect_ratio"></select></label>
+    <!-- Details + Creativity. Rendered by renderSliders() in app.js from
+         defaults.detail_levels and the model's creativity_presets, because
+         both the notch count and the notch labels are config. -->
+    <div class="sliders" data-bind="slider_block"></div>
+  </div>
+
+  <!-- Reference images, tagged on this machine and turned into instructions.
+       The picture itself never leaves the box and never reaches the LLM —
+       only what is written under it does, which is the same contract H3's
+       references have carried since they were built.
+
+       Each reference says three things a tag dump cannot: what the picture is
+       FOR, how closely to follow it, and anything to take from it in
+       particular. The same photograph is a character sheet, an outfit swatch
+       or a lighting study depending on which of those you meant, and its tags
+       read identically in all three cases. Vocabulary in config/models.yaml
+       under defaults.image_reference_roles and defaults.reference_fidelity.
+
+       Present in the three image templates and nowhere else. Its presence is
+       the switch, exactly as reference_upload's is in video-h3.html; app.js
+       returns early when the block is absent and names no model to decide it. -->
+  <div class="imgref" data-bind="image_reference">
+    <h4>Reference images <span class="field-optional">optional</span></h4>
+    <div data-bind="imgref_list"></div>
+    <template data-bind="imgref_row">
+      <div class="imgref-card">
+        <img data-bind="imgref_preview" alt="">
+        <div class="imgref-body">
+          <div class="row">
+            <label class="field"><span>This picture is for</span>
+              <select data-bind="imgref_role"></select></label>
+            <label class="field"><span>How closely to follow it</span>
+              <select data-bind="imgref_fidelity"></select></label>
+          </div>
+          <p class="field-note" data-bind="imgref_role_hint"></p>
+          <label class="field" data-bind="imgref_character_field" hidden>
+            <span>Character <span class="field-optional">searched in the tag catalog</span></span>
+            <input type="text" data-bind="imgref_character" autocomplete="off" placeholder="Start typing a name…">
+            <ul class="autocomplete" data-bind="imgref_character_suggestions" hidden></ul>
+          </label>
+          <label class="field" data-bind="imgref_applies_field" hidden>
+            <span>Applies to</span>
+            <select data-bind="imgref_applies"></select>
+          </label>
+          <label class="field">
+            <span>What to take from it <span class="field-optional">optional, and it outranks everything else</span></span>
+            <input type="text" data-bind="imgref_note" autocomplete="off">
+          </label>
+          <p class="trait-head">
+            <span data-bind="imgref_title"></span>
+            <button type="button" class="ghost" data-bind="imgref_analyze">Analyze</button>
+            <button type="button" class="ghost" data-bind="imgref_add_all">Pick all</button>
+            <button type="button" class="ghost" data-bind="imgref_remove">Remove</button>
+          </p>
+          <div class="pills" data-bind="imgref_chips"></div>
+        </div>
+      </div>
+    </template>
+    <!-- The same two selectors the cards carry, here so they exist before there is
+         a card. Reported 27 Aug 2026: you could not choose what a picture was for
+         until after uploading it, which is backwards - the role is what decides
+         whether the tagger's output is worth reading at all. These set what the
+         NEXT upload arrives as; each card still owns its own pair afterwards. -->
+    <div class="row imgref-defaults">
+      <label class="field"><span>This picture is for</span>
+        <select data-bind="imgref_default_role"></select></label>
+      <label class="field"><span>How closely to follow it</span>
+        <select data-bind="imgref_default_fidelity"></select></label>
+      <label class="field"><span>What you work from</span>
+        <div class="seg" data-bind="imgref_mode">
+          <button type="button" data-mode="analysis">Analysis</button>
+          <button type="button" data-mode="tags">Tags</button>
+        </div></label>
+    </div>
+    <input type="file" data-bind="imgref_upload" multiple>
+    <p class="field-note" data-bind="imgref_status"></p>
+  </div>
+
+  <div class="tagbuilder">
+    <input type="text" data-bind="tag_search" placeholder="Search tags..." autocomplete="off">
+    <ul class="autocomplete" data-bind="tag_suggestions" hidden></ul>
+    <p class="pills-head" data-bind="pills_head" hidden>
+      <span data-bind="pills_count"></span>
+      <button type="button" class="ghost" data-bind="clear_tags">Clear all</button>
+    </p>
+    <div class="pills" data-bind="tag_pills"></div>
+
+    <!-- Appears when a character tag is picked. The model does not reliably
+         know what a character looks like — measured, it put black hair on a
+         redhead — so the traits come from danbooru and get clicked into the
+         pills above rather than being guessed at generation time. -->
+    <div class="traits" data-bind="trait_block" hidden>
+      <p class="trait-head">
+        <span data-bind="trait_title"></span>
+        <button type="button" class="ghost" data-bind="trait_add_all">Add all</button>
+      </p>
+      <div class="pills" data-bind="trait_chips"></div>
+    </div>
+    <label class="field weight">
+      <span>Weight <output data-bind="weight_value"></output></span>
+      <input type="range" data-bind="weight">
+    </label>
+  </div>
+
+  <!-- Anything that must survive into the positive prompt exactly as typed:
+       a LoRA trigger word, an artist tag, a phrase that works. The brief is
+       rewritten by the LLM; this is not. -->
+  <label class="field">
+    <span>Custom positive <span class="field-optional">kept verbatim</span></span>
+    <textarea data-bind="positive" rows="2"
+      placeholder="Trigger words, artist tags, anything that must appear as written."></textarea>
+  </label>
+
+  <label class="field" data-show="has_negative">
+    <span>Negative prompt</span>
+    <textarea data-bind="negative" rows="2"></textarea>
+  </label>
+
+  <button type="button" data-bind="generate"></button>
+</section>

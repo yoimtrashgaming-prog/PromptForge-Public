@@ -1,0 +1,3 @@
+interface:
+  display_name: "Anima Two-Pass Prompting"
+  short_description: "Build Anima prompts in two faithful passes"

@@ -1,0 +1,42 @@
+# Characters danbooru does not know — the group's own list.
+#
+# Added 19 Sep 2026. The character lookup gets a character's look from
+# danbooru, and some characters people here prompt are not on danbooru at all:
+# Powder the VTuber has no tag, so the model had nothing to go on but memory.
+# Anything listed here reaches the model the same way danbooru canon does — as
+# facts about how they look — whenever a brief names them.
+#
+# Read on every generation: add or edit an entry and the next prompt uses it,
+# no restart. Put entries only this box should have in
+# custom-characters.local.yaml instead.
+#
+# ── An entry ────────────────────────────────────────────────────────────────
+#
+#   - name: "Powder"                  # how briefs name them
+#     label: "VTuber"                 # tells her apart from Arcane's Powder (optional)
+#     aliases: ["pow"]                # other ways they get written (optional)
+#     trigger: "pwdr"                 # a LoRA trigger word, if one exists (optional)
+#     traits: ["white hair", "red eyes", "cat ears"]
+#
+# - traits: how they LOOK — hair, eyes, ears, skin, build, marks. Not what they
+#   wear or hold: the brief decides that, the same rule the danbooru lookup
+#   follows. Write them as danbooru tags ("long hair", not "her hair is long");
+#   they are turned into underscores for the tag models and left as words for
+#   the prose ones.
+# - A one-word name that is also an ordinary word ("powder" is) only matches
+#   when a brief writes it as a name: capitalised, or on its own between
+#   commas ("1girl, powder, ..."). A name danbooru resolves — "Powder from
+#   Arcane" — always means the danbooru character, never this list.
+# - label: for a name somebody else already has, the way danbooru writes
+#   powder_(arcane). The model reads her as "Powder (VTuber)", and a brief
+#   that writes "Powder (VTuber)" or "powder vtuber" always means this entry,
+#   even alongside Arcane's.
+# - trigger: without one, the model is told the character has no tag and to
+#   describe them by their traits.
+
+characters:
+  # Powder, the VTuber — waiting on her look. Fill in the traits and remove
+  # the # from these lines to switch her on.
+  # - name: "Powder"
+  #   label: "VTuber"
+  #   traits: []

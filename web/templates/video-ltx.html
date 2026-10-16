@@ -1,0 +1,84 @@
+<!-- LTX 2.3: one continuous paragraph. No labels, no bullets, no shot
+     numbers. The forbidden-word check flags anything that nudges LTX toward
+     static or discontinuous framing.
+
+     Director mode is a close port of WhatDreamsCost's LTX Director node —
+     the MAIN track of it. His group already uses that node, so a builder
+     that behaves like it is one they can already drive. See the header of
+     web/director-timeline.js for what was copied, what could not be, and
+     why.
+
+     Only what changes the prompt is mirrored. The node's AUDIO track, Motion
+     Guide track, IC-LoRA Input, Retake Mode, playback and Guide Strength are
+     its own features, and a control this app cannot honour is worse than one
+     it does not offer. -->
+<section class="builder" data-template="video-ltx">
+  <label class="field">
+    <span data-bind="brief_label">Brief</span>
+    <textarea data-bind="brief" rows="7"></textarea>
+  </label>
+
+  <div class="row">
+    <label class="field" data-show="modes"><span>Mode</span><select data-bind="mode"></select></label>
+    <label class="field"><span>Quality</span><select data-bind="quality_mode"></select></label>
+    <label class="field checkbox">
+      <input type="checkbox" data-bind="audio" checked><span>Audio</span>
+    </label>
+    <!-- Details + Creativity. Rendered by renderSliders() in app.js from
+         defaults.detail_levels and the model's creativity_presets, because
+         both the notch count and the notch labels are config. -->
+    <div class="sliders" data-bind="slider_block"></div>
+  </div>
+
+  <div class="director" data-bind="director_panel" hidden>
+    <!-- The node's own widget row, in his order and under his names. -->
+    <div class="row director-head">
+      <label class="field"><span>duration_seconds</span>
+        <input type="number" data-bind="director_duration" min="1" step="0.5"></label>
+      <label class="field"><span>frame_rate</span>
+        <select data-bind="director_frame_rate"></select></label>
+      <button type="button" class="ghost" data-bind="director_add">+ Add Image</button>
+      <button type="button" class="ghost danger" data-bind="director_delete">Delete</button>
+    </div>
+
+    <!-- The MAIN track. Canvas, like his: the blocks carry pictures and get
+         dragged and resized, which is not a thing to build out of divs. -->
+    <div class="dt-track">
+      <div class="dt-label">MAIN</div>
+      <div class="dt-canvas-host" data-bind="director_canvas"></div>
+    </div>
+
+    <div class="dt-readout">
+      <span data-bind="director_readout">Start: - | End: - | Length: -</span>
+      <span class="dt-hint" data-bind="director_note"></span>
+    </div>
+
+    <!-- His two textareas, in his order: the selected segment, then the
+         global prompt underneath. The global one is bound to the same Brief
+         field at the top of this builder rather than being a second input —
+         one brief, shown where the node shows it. -->
+    <label class="field dt-prompt">
+      <span data-bind="director_seg_label">SEGMENT PROMPT</span>
+      <textarea data-bind="director_brief" rows="3"
+        placeholder="Enter prompt for selected segment..."></textarea>
+    </label>
+
+    <!-- Replacing or clearing the selected segment's picture. Dropping onto
+         the block is the main path; this is the one for people who would
+         rather browse, and the only way to take a picture off again. -->
+    <div class="row" data-bind="director_keyframe_field" hidden>
+      <label class="field">
+        <span>Keyframe</span>
+        <input type="file" data-bind="director_keyframe"
+          accept="image/png,image/jpeg,image/webp">
+      </label>
+      <img class="frame-thumb" data-bind="director_keyframe_thumb" alt="" hidden title="See the picture">
+      <button type="button" class="ghost" data-bind="director_keyframe_clear">Remove picture</button>
+      <span class="field-note" data-bind="director_keyframe_note"></span>
+    </div>
+  </div>
+
+  <p class="warning" data-bind="forbidden_words" hidden></p>
+
+  <button type="button" data-bind="generate"></button>
+</section>

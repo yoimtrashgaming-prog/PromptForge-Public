@@ -1,0 +1,41 @@
+<!-- Wan 2.2: Subject → Motion → Camera → Scene, 80–120 words.
+     The counter renders green in-band and amber out. One continuous action,
+     one camera move. -->
+<section class="builder" data-template="video-wan">
+  <label class="field">
+    <span>Brief</span>
+    <textarea data-bind="brief" rows="6"
+      placeholder="One continuous action, one camera move."></textarea>
+  </label>
+
+  <div class="row">
+    <label class="field" data-show="i2v_modes"><span>I2V reference</span>
+      <select data-bind="i2v_mode"></select></label>
+    <!-- Details + Creativity. Rendered by renderSliders() in app.js from
+         defaults.detail_levels and the model's creativity_presets, because
+         both the notch count and the notch labels are config. -->
+    <div class="sliders" data-bind="slider_block"></div>
+  </div>
+
+  <div class="row">
+    <label class="field" data-show="supports_i2v"><span>First frame</span>
+      <input type="file" data-bind="i2v_image" accept="image/png,image/jpeg,image/webp">
+      <img class="frame-thumb" data-bind="frame_thumb" alt="" hidden title="See the picture">
+      <button type="button" class="ghost" data-bind="i2v_clear" hidden>Remove</button>
+      <span class="field-note" data-bind="i2v_note"></span></label>
+    <label class="field" data-bind="i2v_last_field" hidden><span>Last frame</span>
+      <input type="file" data-bind="i2v_last_image" accept="image/png,image/jpeg,image/webp">
+      <img class="frame-thumb" data-bind="frame_thumb" alt="" hidden title="See the picture">
+      <button type="button" class="ghost" data-bind="i2v_last_clear" hidden>Remove</button>
+      <span class="field-note" data-bind="i2v_last_note"></span></label>
+  </div>
+
+  <ol class="layers" data-bind="layer_hints"></ol>
+
+  <label class="field" data-show="has_negative">
+    <span>Negative prompt</span>
+    <textarea data-bind="negative" rows="2"></textarea>
+  </label>
+
+  <button type="button" data-bind="generate"></button>
+</section>

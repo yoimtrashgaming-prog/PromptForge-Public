@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # PromptForge application + LLM backend metrics, on the metrics-only port
+  # (PROMPTFORGE_METRICS_PORT), which compose never publishes to the host.
+  - job_name: 'promptforge'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['promptforge:9464']
+        labels:
+          instance: 'promptforge'

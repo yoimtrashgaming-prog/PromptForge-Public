@@ -1,0 +1,2283 @@
+{
+  "_comment": [
+    "Hand-picked additions to the generated randomizer categories, merged by",
+    "scripts/import-chaos-randomizer.mjs on top of config/randomizer.json.",
+    "",
+    "Separate from the generated file on purpose: that one is overwritten every",
+    "time the workflow is re-imported, and these would go with it.",
+    "",
+    "── Do NOT gate these on the tag database ──",
+    "",
+    "An earlier version dropped every term that was not a Danbooru tag with 800+",
+    "posts. That removed \"hotel room\", \"living room\", \"shower\", \"peace sign\" and",
+    "\"looking away\" — all things an image model renders perfectly well when they",
+    "are described. Owner's rule, 5 Sep 2026: a term does not have to be a booru",
+    "tag to work.",
+    "",
+    "It was the wrong gate twice over. The brief goes to an LLM, not to a",
+    "checkpoint, so the model reads these as English before anything is prompted;",
+    "and the owner's own lists are full of phrases no booru has ever tagged, so",
+    "the gate held additions to a stricter standard than the content it joined.",
+    "",
+    "The database is still worth consulting — it is how you learn that a tag",
+    "exists and how common it is — but as information, never as a filter.",
+    "",
+    "── Every term must be something you could draw ──",
+    "",
+    "Read a term as the image model will: can you guess what it is, and could you",
+    "draw it? Owner, 5 Sep 2026. Four kinds of term fail that and must not be",
+    "written:",
+    "",
+    "  filler         \"no emphasis\" renders nothing at all.",
+    "  comparatives   \"almost-right features\", \"too-perfect smile\" — wrong or too",
+    "                 perfect compared to WHAT? A picture has no referent.",
+    "  behaviour      \"playful expression\", \"slow deliberate posture\" — a manner,",
+    "                 not a shape. Say the shape: \"upturned mouth line\".",
+    "  jargon         \"chromatophore\", \"elytra\", \"phylactery\", \"prolegs\". Correct,",
+    "                 and no checkpoint was captioned with them. Say \"wing cases\".",
+    "",
+    "A whole entry fails the same test when its subject only exists in relation to",
+    "something else. Doppelganger was dropped for that: it is a copy OF someone,",
+    "and one figure alone has no original to differ from.",
+    "",
+    "── List length is not a quality signal ──",
+    "",
+    "Do not rank categories by option count and expand the short ones. A catgirl",
+    "is cat ears and a tail; that list is DONE at four terms. An eldritch horror",
+    "needs thirty because the subject does not resolve into a fixed set of",
+    "features. Kemonomimi being the shortest lists here is the content being",
+    "right, not a gap — owner, 5 Sep 2026, correcting exactly that suggestion.",
+    "",
+    "A list is short enough to be worth looking at only when someone reads its",
+    "output and finds it repetitive. Count alone tells you nothing.",
+    "",
+    "Duplicates against the owner's own lists are dropped at merge time, so a",
+    "term appearing in both is safe and does not double its odds.",
+    "",
+    "NEVER put the word \"camera\" in a term. It draws one. Viewer-relative",
+    "wording only — from above, from behind, pov. The importer enforces this."
+  ],
+  "additions": {
+    "eyes_color": [
+      "aqua eyes",
+      "orange eyes",
+      "grey eyes",
+      "black eyes",
+      "pink eyes",
+      "white eyes",
+      "yellow eyes",
+      "heterochromia",
+      "glowing eyes",
+      "multicolored eyes",
+      "gradient eyes",
+      "ringed eyes",
+      "sparkling eyes",
+      "slit pupils",
+      "star-shaped pupils",
+      "heart-shaped pupils",
+      "empty eyes"
+    ],
+    "hair_hair_styles": [
+      "twintails",
+      "ponytail",
+      "braid",
+      "twin braids",
+      "single braid",
+      "side ponytail",
+      "high ponytail",
+      "low ponytail",
+      "short ponytail",
+      "hair bun",
+      "double bun",
+      "single hair bun",
+      "bob cut",
+      "hair intakes",
+      "hair over one eye",
+      "drill hair",
+      "wavy hair",
+      "curly hair",
+      "straight hair",
+      "messy hair",
+      "spiked hair",
+      "ahoge",
+      "sidelocks",
+      "low twintails",
+      "short twintails",
+      "side braid",
+      "crown braid",
+      "hime cut",
+      "undercut",
+      "dreadlocks",
+      "afro",
+      "hair rings",
+      "hair flaps",
+      "asymmetrical hair",
+      "half updo",
+      "folded ponytail",
+      "hair pulled back",
+      "french braid"
+    ],
+    "pose_viewer_pose": [
+      "on back",
+      "on stomach",
+      "on side",
+      "all fours",
+      "wariza",
+      "seiza",
+      "arms behind head",
+      "hand on own chin",
+      "looking back",
+      "looking up",
+      "looking down",
+      "outstretched arms",
+      "spread arms",
+      "leaning on object",
+      "against wall",
+      "arched back",
+      "tiptoes",
+      "kicking",
+      "punching",
+      "waving",
+      "pointing",
+      "thumbs up",
+      "heart hands",
+      "carrying",
+      "legs up",
+      "knees up",
+      "crossed ankles",
+      "own hands together",
+      "stretching",
+      "head tilt",
+      "hugging own legs",
+      "sitting on floor",
+      "saluting",
+      "peace sign",
+      "cowering",
+      "hands clasped"
+    ],
+    "pose_viewer_viewer_angle": [
+      "from behind",
+      "from side",
+      "from above",
+      "from below",
+      "looking at viewer",
+      "looking to the side",
+      "facing viewer",
+      "facing away",
+      "pov",
+      "dutch angle",
+      "wide shot",
+      "cowboy shot",
+      "upper body",
+      "full body",
+      "portrait",
+      "close-up",
+      "profile",
+      "straight-on",
+      "solo focus",
+      "looking away",
+      "legs not in frame",
+      "feet not in frame",
+      "head not in frame",
+      "arms not in frame",
+      "cut off at the waist",
+      "cut off at the knees",
+      "cut off at the chest",
+      "chest focus",
+      "face focus",
+      "hands in frame",
+      "back focus",
+      "shoulders and up",
+      "waist up",
+      "knees up",
+      "head and shoulders",
+      "subject fills the frame",
+      "subject small in the frame"
+    ],
+    "environment_background_nsfw": [
+      "bedroom",
+      "bedroom",
+      "hotel room",
+      "motel room",
+      "living room",
+      "living room couch",
+      "couch",
+      "sofa",
+      "bed",
+      "on bed",
+      "futon",
+      "bedsheets",
+      "pillows",
+      "bathroom",
+      "bathtub",
+      "shower",
+      "hot tub",
+      "sauna",
+      "bathhouse",
+      "car interior",
+      "back seat",
+      "dorm room",
+      "apartment",
+      "messy room",
+      "tatami room",
+      "window seat",
+      "fireplace",
+      "dim room",
+      "candlelit room",
+      "parked car at night",
+      "car hood under the stars",
+      "porch swing",
+      "hammock between trees",
+      "treehouse",
+      "tent lit from inside",
+      "back of a pickup truck",
+      "kitchen at three in the morning",
+      "hayloft in a barn",
+      "dusty attic",
+      "basement den",
+      "window nook",
+      "blanket fort",
+      "reading corner",
+      "floor in front of the fireplace",
+      "sharing a bathtub",
+      "narrow hallway",
+      "pressed against a bedroom door",
+      "quiet hotel corridor",
+      "balcony overlooking the city",
+      "outdoor onsen at night",
+      "snowed-in cabin",
+      "moonlit kitchen",
+      "shared blanket on a couch",
+      "bed of wildflowers",
+      "sunken lounge around a firepit",
+      "ryokan room with a sunken hearth",
+      "glamping tent with a bed",
+      "tent under the stars",
+      "lantern-lit tent",
+      "sleeping bags side by side",
+      "stargazing from a sleeping bag"
+    ],
+    "environment_background_sfw": [
+      "simple background",
+      "white background",
+      "gradient background",
+      "blurry background",
+      "outdoors",
+      "indoors",
+      "forest",
+      "beach",
+      "ocean",
+      "mountain",
+      "city",
+      "cityscape",
+      "street",
+      "alley",
+      "rooftop",
+      "classroom",
+      "kitchen",
+      "cafe",
+      "library",
+      "train interior",
+      "train station",
+      "shrine",
+      "temple",
+      "castle",
+      "ruins",
+      "garden",
+      "park",
+      "field",
+      "desert",
+      "snow",
+      "starry sky",
+      "sunset",
+      "cloudy sky",
+      "underwater",
+      "space",
+      "bamboo forest",
+      "cherry blossoms",
+      "waterfall",
+      "bridge",
+      "hallway",
+      "balcony",
+      "kitchen",
+      "kitchen counter",
+      "office desk",
+      "locker room",
+      "changing room",
+      "shared bath",
+      "laundry room",
+      "hallway",
+      "night sky",
+      "market",
+      "greenhouse",
+      "back seat of a car",
+      "fire escape at night",
+      "empty train carriage at night",
+      "ferris wheel cabin",
+      "back row of an empty cinema",
+      "late-night diner booth",
+      "stairwell landing",
+      "stalled elevator",
+      "doorway in the rain",
+      "sharing one umbrella",
+      "laundromat at night",
+      "pier at dusk",
+      "lakeside dock",
+      "riverbank at golden hour",
+      "greenhouse at night",
+      "empty art gallery",
+      "library stacks",
+      "observatory dome",
+      "sauna bench",
+      "futon on the floor",
+      "beach bonfire at night",
+      "tide pools at dusk",
+      "swing set after dark",
+      "empty parking garage",
+      "record shop after closing",
+      "rooftop water tower",
+      "lodge with a central firepit",
+      "stone hearth room",
+      "great hall with a fire pit",
+      "cabin with a firepit",
+      "yurt interior",
+      "log cabin loft",
+      "campsite at night",
+      "canvas bell tent",
+      "campfire circle",
+      "backyard firepit with string lights",
+      "firepit ringed with stones",
+      "fire pit under pine trees",
+      "forest clearing camp",
+      "lakeside campsite",
+      "mountain campsite at dawn",
+      "camper van interior",
+      "dying campfire embers",
+      "treeline camp at dusk"
+    ],
+    "body_skin": [
+      "fair skin",
+      "pale skin",
+      "olive skin",
+      "tan skin",
+      "dark skin",
+      "deep brown skin",
+      "sun-kissed skin",
+      "porcelain skin",
+      "freckled skin",
+      "smooth skin",
+      "textured skin",
+      "visible pores",
+      "glowing skin",
+      "dewy skin",
+      "matte skin",
+      "flushed cheeks",
+      "goosebumps",
+      "sweat-sheened skin",
+      "wet skin",
+      "tan lines",
+      "scattered moles",
+      "faint scars",
+      "soft body hair",
+      "weathered skin"
+    ],
+    "eyes_sclera": [
+      "white sclera",
+      "bloodshot sclera",
+      "black sclera",
+      "red sclera",
+      "glowing sclera",
+      "yellow sclera",
+      "veined sclera",
+      "clear bright sclera",
+      "tired sclera",
+      "void-black sclera",
+      "faintly blue sclera"
+    ],
+    "face_makeup": [
+      "red lipstick",
+      "dark lipstick",
+      "nude lipstick",
+      "glossy lips",
+      "matte lips",
+      "smudged lipstick",
+      "lip tint",
+      "blush across the cheeks",
+      "heavy blush",
+      "contoured cheekbones",
+      "highlighter on the cheekbones",
+      "bronzed skin",
+      "winged eyeliner",
+      "smoky eye",
+      "glitter eyeshadow",
+      "pastel eyeshadow",
+      "bold graphic liner",
+      "tear-duct highlight",
+      "false lashes",
+      "mascara only",
+      "bare face",
+      "no makeup",
+      "freckle makeup",
+      "drawn-on beauty mark",
+      "gothic makeup",
+      "stage makeup"
+    ]
+  },
+  "new_categories": [
+    {
+      "box": "Weapons",
+      "children": [
+        {
+          "label": "Melee",
+          "terms": [
+            "katana",
+            "longsword",
+            "rapier",
+            "dual daggers",
+            "battle axe",
+            "claymore",
+            "scimitar",
+            "trident",
+            "halberd",
+            "war hammer",
+            "bo staff",
+            "quarterstaff",
+            "spear",
+            "shield",
+            "buckler",
+            "tower shield",
+            "kite shield",
+            "chains",
+            "whip",
+            "flail",
+            "morning star",
+            "gauntlets",
+            "brass knuckles",
+            "spiked gauntlets",
+            "nunchaku",
+            "tonfas",
+            "sai",
+            "baseball bat",
+            "crowbar",
+            "switchblade",
+            "balisong",
+            "machete",
+            "chainsaw",
+            "sledgehammer",
+            "pipe wrench",
+            "umbrella sword",
+            "cane sword",
+            "tactical knife",
+            "combat knife",
+            "bowie knife",
+            "tomahawk",
+            "hatchet",
+            "scythe",
+            "war fan",
+            "bladed fans",
+            "hook swords",
+            "mace",
+            "electric baton",
+            "stun baton",
+            "riot shield",
+            "ballistic shield",
+            "wrist blade",
+            "hidden blade",
+            "grappling hook",
+            "broadsword",
+            "greatsword",
+            "falchion",
+            "cutlass",
+            "dagger",
+            "stiletto",
+            "karambit",
+            "glaive",
+            "naginata",
+            "pike",
+            "lance",
+            "club",
+            "kanabo",
+            "kusarigama",
+            "meteor hammer",
+            "cestus",
+            "knuckle dusters",
+            "tanto",
+            "wakizashi",
+            "estoc",
+            "poleaxe"
+          ]
+        },
+        {
+          "label": "Ranged",
+          "terms": [
+            "javelin",
+            "bow",
+            "crossbow",
+            "longbow",
+            "compound bow",
+            "recurve bow",
+            "hunting bow",
+            "hand crossbow",
+            "repeating crossbow",
+            "kunai",
+            "throwing knives",
+            "shuriken",
+            "throwing star",
+            "throwing axe",
+            "throwing spear",
+            "chakram",
+            "boomerang",
+            "blowgun",
+            "slingshot",
+            "sling",
+            "bolas",
+            "net",
+            "dart",
+            "harpoon",
+            "caltrops",
+            "smoke bomb",
+            "molotov cocktail",
+            "dynamite",
+            "flash grenade",
+            "quiver of arrows",
+            "bandolier of knives"
+          ]
+        },
+        {
+          "label": "Firearms",
+          "terms": [
+            "pistol",
+            "dual pistols",
+            "revolver",
+            "desert eagle",
+            "shotgun",
+            "sawed-off shotgun",
+            "combat shotgun",
+            "break-action shotgun",
+            "sniper rifle",
+            "assault rifle",
+            "SMG",
+            "machine pistol",
+            "AK-47",
+            "carbine",
+            "lever-action rifle",
+            "bolt-action rifle",
+            "hunting rifle",
+            "anti-materiel rifle",
+            "belt-fed machine gun",
+            "minigun",
+            "silenced pistol",
+            "golden gun",
+            "derringer",
+            "flintlock pistol",
+            "musket",
+            "blunderbuss",
+            "hand cannon",
+            "RPG",
+            "grenade launcher",
+            "rocket launcher",
+            "flamethrower",
+            "frag grenade",
+            "pipe bomb",
+            "C4",
+            "holstered pistol",
+            "shoulder holster",
+            "bandolier",
+            "guitar case weapon",
+            "briefcase weapon"
+          ]
+        },
+        {
+          "label": "Fantasy",
+          "terms": [
+            "magical staff",
+            "mage staff",
+            "druid staff",
+            "wand",
+            "scepter",
+            "orb",
+            "crystal ball",
+            "magic tome",
+            "spellbook",
+            "grimoire",
+            "enchanted ring",
+            "amulet",
+            "talisman",
+            "sealing scroll",
+            "summoning circle",
+            "familiar",
+            "arcane focus",
+            "lantern",
+            "soul lantern",
+            "torch",
+            "floating wisp",
+            "runed greatsword",
+            "enchanted blade",
+            "flaming sword",
+            "frost axe",
+            "holy relic",
+            "cursed dagger",
+            "spirit blade",
+            "elven bow",
+            "dwarven axe",
+            "obsidian blade",
+            "crystal spear",
+            "void blade",
+            "blessed shield",
+            "warhorn",
+            "rune-carved shield",
+            "phylactery"
+          ]
+        },
+        {
+          "label": "Future / Energy",
+          "terms": [
+            "railgun",
+            "plasma rifle",
+            "plasma pistol",
+            "pulse rifle",
+            "particle beam",
+            "disintegrator",
+            "gauss rifle",
+            "laser cannon",
+            "laser pistol",
+            "phaser",
+            "photon blaster",
+            "ion cannon",
+            "energy sword",
+            "lightsaber",
+            "beam katana",
+            "cyber blade",
+            "monomolecular blade",
+            "vibroblade",
+            "nanoblade",
+            "arm cannon",
+            "gravity hammer",
+            "power fist",
+            "tesla coil gauntlet",
+            "shock lance",
+            "sonic emitter",
+            "EMP grenade",
+            "grav gun",
+            "energy shield",
+            "holographic shield",
+            "hardlight shield",
+            "deflector field",
+            "drone",
+            "combat drone",
+            "hover turret",
+            "exosuit gauntlet",
+            "neural whip"
+          ]
+        }
+      ]
+    },
+    {
+      "box": "Clothing female",
+      "children": [
+        {
+          "label": "Swimwear / Beach",
+          "terms": [
+            "bikini",
+            "string bikini",
+            "micro bikini",
+            "one-piece swimsuit",
+            "high-leg swimsuit",
+            "tankini",
+            "halter swimsuit",
+            "sarong",
+            "beach wrap",
+            "rash guard",
+            "swim shorts",
+            "sheer cover-up",
+            "sun hat",
+            "oversized sunglasses",
+            "flip-flops",
+            "wet swimsuit",
+            "tan lines",
+            "towel wrap",
+            "life vest",
+            "snorkel gear",
+            "surf wetsuit",
+            "crochet bikini",
+            "bandeau top",
+            "sports bikini"
+          ]
+        },
+        {
+          "label": "Wedding / Bridal",
+          "terms": [
+            "wedding dress",
+            "ballgown wedding dress",
+            "mermaid gown",
+            "lace veil",
+            "cathedral veil",
+            "birdcage veil",
+            "bridal lingerie",
+            "garter",
+            "elbow gloves",
+            "pearl choker",
+            "tiara",
+            "flower crown",
+            "bouquet",
+            "train",
+            "bolero jacket",
+            "bridesmaid dress",
+            "white sundress",
+            "church gown",
+            "satin heels",
+            "corseted bodice"
+          ]
+        },
+        {
+          "label": "Military / Tactical",
+          "terms": [
+            "camouflage fatigues",
+            "flak jacket",
+            "plate carrier",
+            "combat boots",
+            "dog tags",
+            "beret",
+            "peaked cap",
+            "webbing",
+            "tactical gloves",
+            "cargo trousers",
+            "field jacket",
+            "dress uniform",
+            "pilot suit",
+            "flight jacket",
+            "helmet with netting",
+            "knee pads",
+            "shemagh scarf",
+            "holstered sidearm",
+            "rolled sleeves",
+            "desert fatigues",
+            "naval whites",
+            "officer coat"
+          ]
+        },
+        {
+          "label": "Western / Cowboy",
+          "terms": [
+            "cowboy hat",
+            "stetson",
+            "chaps",
+            "leather chaps",
+            "denim vest",
+            "fringed jacket",
+            "bolo tie",
+            "spurs",
+            "riding boots",
+            "duster coat",
+            "bandana",
+            "plaid shirt",
+            "high-waisted jeans",
+            "gun belt",
+            "saloon dress",
+            "lace corset",
+            "ranch shirt",
+            "leather gloves",
+            "poncho",
+            "prairie dress"
+          ]
+        },
+        {
+          "label": "Nautical / Pirate",
+          "terms": [
+            "pirate coat",
+            "tricorne hat",
+            "eyepatch",
+            "sash",
+            "corset and breeches",
+            "buccaneer boots",
+            "sailor uniform",
+            "sailor collar",
+            "peacoat",
+            "naval officer coat",
+            "captain hat",
+            "striped shirt",
+            "rope belt",
+            "tattered skirt",
+            "bandana headwrap",
+            "gold hoop earrings",
+            "shoulder cape",
+            "buckled boots"
+          ]
+        },
+        {
+          "label": "Dance / Stage",
+          "terms": [
+            "ballet tutu",
+            "leotard",
+            "pointe shoes",
+            "wrap skirt",
+            "legwarmers",
+            "flamenco dress",
+            "tango dress",
+            "sequined outfit",
+            "idol costume",
+            "stage corset",
+            "feathered headdress",
+            "fishnet tights",
+            "tap shoes",
+            "ribbon lacing",
+            "performance gloves",
+            "cabaret outfit",
+            "showgirl feathers",
+            "jazz shoes",
+            "character skirt",
+            "rehearsal wear"
+          ]
+        },
+        {
+          "label": "Racing / Biker",
+          "terms": [
+            "leather jacket",
+            "studded jacket",
+            "one-piece leathers",
+            "racing suit",
+            "motorcycle helmet",
+            "riding gloves",
+            "knee sliders",
+            "biker boots",
+            "crop top and leathers",
+            "racing stripes",
+            "pit crew shirt",
+            "fingerless gloves",
+            "goggles",
+            "chain belt",
+            "armoured jacket",
+            "motocross gear"
+          ]
+        },
+        {
+          "label": "Post-apocalyptic",
+          "terms": [
+            "scavenged rags",
+            "patched coat",
+            "gas mask",
+            "respirator",
+            "welding goggles",
+            "wrapped bandages",
+            "scrap armour",
+            "leather harness",
+            "duster",
+            "fingerless gloves",
+            "improvised pauldron",
+            "dust cloak",
+            "canteen and pouches",
+            "tattered scarf",
+            "goggles on forehead",
+            "stitched leathers",
+            "bandolier",
+            "rusted plating",
+            "tarpaulin poncho"
+          ]
+        },
+        {
+          "label": "Medical / Service",
+          "terms": [
+            "scrubs",
+            "lab coat",
+            "nurse uniform",
+            "surgical mask",
+            "stethoscope",
+            "chef whites",
+            "apron",
+            "barista apron",
+            "waitress uniform",
+            "flight attendant uniform",
+            "hotel uniform",
+            "name badge",
+            "hair net",
+            "clogs",
+            "clipboard",
+            "delivery uniform",
+            "receptionist blouse",
+            "hazmat suit"
+          ]
+        },
+        {
+          "label": "Religious / Ceremonial",
+          "terms": [
+            "nun habit",
+            "wimple",
+            "miko outfit",
+            "shrine maiden robes",
+            "monk robes",
+            "temple robes",
+            "ceremonial gown",
+            "prayer beads",
+            "rosary",
+            "censer",
+            "vestments",
+            "veil and mantle",
+            "ritual sash",
+            "embroidered stole",
+            "acolyte robes",
+            "candle bearer robes"
+          ]
+        },
+        {
+          "label": "Streetwear / Y2K",
+          "terms": [
+            "oversized hoodie",
+            "cropped hoodie",
+            "cargo pants",
+            "low-rise jeans",
+            "baggy jeans",
+            "bucket hat",
+            "platform sneakers",
+            "chunky sneakers",
+            "crop top",
+            "mesh top",
+            "arm warmers",
+            "chain belt",
+            "tiny sunglasses",
+            "butterfly clips",
+            "puffer jacket",
+            "windbreaker",
+            "track jacket",
+            "tube top",
+            "baby tee",
+            "cargo skirt"
+          ]
+        },
+        {
+          "label": "Historical / Ancient",
+          "terms": [
+            "toga",
+            "chiton",
+            "peplos",
+            "stola",
+            "Egyptian collar",
+            "linen sheath dress",
+            "Roman armour",
+            "medieval kirtle",
+            "chemise",
+            "houppelande",
+            "hennin",
+            "wimple",
+            "chainmail",
+            "Viking apron dress",
+            "tartan arisaid",
+            "Heian junihitoe",
+            "Tang dynasty robes",
+            "laurel wreath",
+            "sandals with straps",
+            "samurai armour",
+            "o-yoroi",
+            "do-maru",
+            "kabuto helmet",
+            "menpo mask",
+            "sode shoulder guards",
+            "haidate",
+            "lacquered plates",
+            "onna-musha armour",
+            "naginata sash"
+          ]
+        },
+        {
+          "label": "Superhero / Spandex",
+          "terms": [
+            "bodysuit",
+            "armoured bodysuit",
+            "cape",
+            "flowing cape",
+            "domino mask",
+            "full-face mask",
+            "emblem on chest",
+            "gauntlets",
+            "thigh-high boots",
+            "utility belt",
+            "shoulder pauldrons",
+            "skin-tight suit",
+            "segmented armour",
+            "hooded costume",
+            "visor",
+            "arm bracers",
+            "battle skirt",
+            "cowl"
+          ]
+        },
+        {
+          "label": "Fetish / Bondage",
+          "terms": [
+            "leather harness",
+            "body harness",
+            "latex catsuit",
+            "latex dress",
+            "collar",
+            "collar and leash",
+            "leather straps",
+            "buckled cuffs",
+            "corset lacing",
+            "fishnet bodystocking",
+            "opera gloves",
+            "ballet heels",
+            "garter harness",
+            "chain lingerie",
+            "strappy bodysuit",
+            "blindfold",
+            "choker with ring",
+            "thigh straps"
+          ]
+        }
+      ]
+    },
+    {
+      "box": "Clothing male",
+      "children": [
+        {
+          "label": "Modern / Casual",
+          "terms": [
+            "t-shirt",
+            "graphic tee",
+            "henley",
+            "flannel shirt",
+            "oxford shirt",
+            "polo shirt",
+            "crewneck sweater",
+            "hoodie",
+            "denim jacket",
+            "bomber jacket",
+            "chinos",
+            "jeans",
+            "cargo shorts",
+            "corduroy trousers",
+            "sneakers",
+            "boots",
+            "beanie",
+            "baseball cap",
+            "layered shirt",
+            "rolled sleeves",
+            "open shirt over tee",
+            "windbreaker"
+          ]
+        },
+        {
+          "label": "Formal / Suit",
+          "terms": [
+            "three-piece suit",
+            "tuxedo",
+            "dinner jacket",
+            "tailcoat",
+            "morning coat",
+            "waistcoat",
+            "dress shirt",
+            "bow tie",
+            "silk tie",
+            "pocket square",
+            "cufflinks",
+            "oxford shoes",
+            "suspenders",
+            "cummerbund",
+            "white tie",
+            "double-breasted suit",
+            "tie clip",
+            "dress gloves"
+          ]
+        },
+        {
+          "label": "Office / Business",
+          "terms": [
+            "dress shirt and tie",
+            "loosened tie",
+            "rolled sleeves",
+            "blazer",
+            "slacks",
+            "sweater vest",
+            "lanyard",
+            "briefcase",
+            "messenger bag",
+            "pressed trousers",
+            "id badge",
+            "shirt with no jacket",
+            "wire-frame glasses",
+            "leather belt",
+            "wristwatch",
+            "suit without tie"
+          ]
+        },
+        {
+          "label": "School / Uniform",
+          "terms": [
+            "gakuran",
+            "blazer uniform",
+            "school tie",
+            "striped tie",
+            "uniform trousers",
+            "cardigan",
+            "sweater vest",
+            "loafers",
+            "gym uniform",
+            "track jacket",
+            "prefect badge",
+            "satchel",
+            "rolled-up sleeves",
+            "untucked shirt",
+            "school jacket over shoulders"
+          ]
+        },
+        {
+          "label": "Streetwear / Y2K",
+          "terms": [
+            "oversized hoodie",
+            "layered tee",
+            "cargo pants",
+            "baggy jeans",
+            "bucket hat",
+            "snapback",
+            "chain necklace",
+            "high-top sneakers",
+            "puffer vest",
+            "puffer jacket",
+            "track pants",
+            "windbreaker",
+            "beanie",
+            "graphic hoodie",
+            "oversized flannel",
+            "crossbody bag"
+          ]
+        },
+        {
+          "label": "Athletic / Sporty",
+          "terms": [
+            "tracksuit",
+            "basketball jersey",
+            "football kit",
+            "running shorts",
+            "compression shirt",
+            "tank top",
+            "sweatband",
+            "boxing shorts",
+            "wrapped hands",
+            "cycling jersey",
+            "rugby shirt",
+            "gym shorts",
+            "sleeveless hoodie",
+            "training vest",
+            "soccer kit",
+            "sweat-soaked shirt"
+          ]
+        },
+        {
+          "label": "Techwear",
+          "terms": [
+            "technical shell",
+            "tactical harness",
+            "strap-laden trousers",
+            "respirator mask",
+            "magnetic buckles",
+            "matte black layers",
+            "asymmetric zip jacket",
+            "utility vest",
+            "cargo straps",
+            "high collar",
+            "articulated knee panels",
+            "modular pouches",
+            "hooded shell",
+            "tabi boots"
+          ]
+        },
+        {
+          "label": "Military / Tactical",
+          "terms": [
+            "camouflage fatigues",
+            "flak jacket",
+            "plate carrier",
+            "combat boots",
+            "dog tags",
+            "beret",
+            "peaked cap",
+            "webbing",
+            "tactical gloves",
+            "field jacket",
+            "dress uniform",
+            "trench coat",
+            "greatcoat",
+            "flight suit",
+            "bomber jacket",
+            "helmet with netting",
+            "shemagh scarf",
+            "holstered sidearm",
+            "officer coat",
+            "desert fatigues"
+          ]
+        },
+        {
+          "label": "Fantasy / Armor",
+          "terms": [
+            "plate armour",
+            "chainmail",
+            "scale mail",
+            "leather jerkin",
+            "hooded cloak",
+            "ranger cloak",
+            "pauldrons",
+            "greaves",
+            "vambraces",
+            "tabard",
+            "surcoat",
+            "wizard robes",
+            "mage cloak",
+            "travelling coat",
+            "knight helm",
+            "fur mantle",
+            "baldric",
+            "battle-worn armour",
+            "monk wraps",
+            "barbarian furs"
+          ]
+        },
+        {
+          "label": "Sci-Fi / Cyberpunk",
+          "terms": [
+            "armoured longcoat",
+            "neon-trimmed jacket",
+            "cybernetic arm",
+            "optic visor",
+            "exosuit",
+            "utility vest",
+            "holographic patches",
+            "synth-leather jacket",
+            "circuit-lined coat",
+            "techno-goggles",
+            "chrome plating",
+            "hardsuit",
+            "data jack",
+            "glowing seams",
+            "pilot rig"
+          ]
+        },
+        {
+          "label": "Space / Mecha",
+          "terms": [
+            "pilot suit",
+            "flight harness",
+            "space suit",
+            "helmet under arm",
+            "sealed EVA suit",
+            "mecha pilot plugsuit",
+            "magnetic boots",
+            "oxygen rig",
+            "uniform with rank pins",
+            "cockpit jacket",
+            "thruster pack",
+            "visored helmet",
+            "pressure gloves"
+          ]
+        },
+        {
+          "label": "Gothic / Alt",
+          "terms": [
+            "black trench coat",
+            "buckled boots",
+            "studded belt",
+            "leather choker",
+            "ripped black jeans",
+            "mesh sleeves",
+            "silver rings",
+            "eyeliner",
+            "band shirt",
+            "long dark coat",
+            "high collar shirt",
+            "velvet frock coat",
+            "pointed boots",
+            "chain accents",
+            "fingerless gloves"
+          ]
+        },
+        {
+          "label": "Victorian / Elegant",
+          "terms": [
+            "frock coat",
+            "tailcoat",
+            "cravat",
+            "waistcoat",
+            "pocket watch",
+            "top hat",
+            "walking cane",
+            "high collar shirt",
+            "riding coat",
+            "gloves",
+            "opera cape",
+            "ascot",
+            "breeches",
+            "buckled shoes",
+            "monocle"
+          ]
+        },
+        {
+          "label": "Steampunk",
+          "terms": [
+            "brass goggles",
+            "leather waistcoat",
+            "pinstripe trousers",
+            "gear-studded coat",
+            "mechanical arm",
+            "pocket watch chain",
+            "aviator cap",
+            "riveted bracers",
+            "tool harness",
+            "tailcoat with brass buttons",
+            "high boots",
+            "airship captain coat"
+          ]
+        },
+        {
+          "label": "Traditional / Cultural",
+          "terms": [
+            "hakama",
+            "montsuki",
+            "yukata",
+            "haori",
+            "kimono",
+            "sherwani",
+            "kurta",
+            "kilt",
+            "sporran",
+            "thobe",
+            "hanbok",
+            "changshan",
+            "dashiki",
+            "poncho",
+            "turban",
+            "djellaba",
+            "tunic and sash"
+          ]
+        },
+        {
+          "label": "Winter / Cold Weather",
+          "terms": [
+            "parka",
+            "peacoat",
+            "wool overcoat",
+            "padded jacket",
+            "scarf",
+            "beanie",
+            "fur-lined hood",
+            "thermal layers",
+            "gloves",
+            "earmuffs",
+            "snow boots",
+            "shearling jacket",
+            "turtleneck",
+            "flannel-lined shirt",
+            "ski jacket"
+          ]
+        },
+        {
+          "label": "Loungewear / Sleepwear",
+          "terms": [
+            "pyjama set",
+            "flannel pyjamas",
+            "robe",
+            "open robe",
+            "boxers",
+            "sweatpants",
+            "undershirt",
+            "bare chest with towel",
+            "loose t-shirt",
+            "slippers",
+            "oversized tee",
+            "sleep shorts",
+            "unbuttoned shirt"
+          ]
+        },
+        {
+          "label": "Festival / Rave",
+          "terms": [
+            "mesh tank",
+            "harness over bare chest",
+            "glow accessories",
+            "utility shorts",
+            "bandana mask",
+            "LED visor",
+            "open vest",
+            "body paint",
+            "fanny pack",
+            "platform boots",
+            "festival wristbands",
+            "sleeveless hoodie"
+          ]
+        },
+        {
+          "label": "Cosplay",
+          "terms": [
+            "armoured hero costume",
+            "shonen protagonist outfit",
+            "detective coat",
+            "pirate captain coat",
+            "samurai armour",
+            "ninja garb",
+            "wizard robes",
+            "space marine armour",
+            "vampire cloak",
+            "steampunk aviator",
+            "cyber ninja suit",
+            "western gunslinger",
+            "knight cosplay",
+            "anime school uniform"
+          ]
+        },
+        {
+          "label": "Swimwear / Beach",
+          "terms": [
+            "swim trunks",
+            "board shorts",
+            "speedo",
+            "rash guard",
+            "open shirt over trunks",
+            "wet t-shirt",
+            "towel around neck",
+            "flip-flops",
+            "sunglasses",
+            "surf wetsuit",
+            "sun hat",
+            "tan lines",
+            "life vest",
+            "snorkel gear"
+          ]
+        },
+        {
+          "label": "Wedding / Formal event",
+          "terms": [
+            "groom tuxedo",
+            "morning suit",
+            "boutonniere",
+            "white dinner jacket",
+            "black tie",
+            "best man suit",
+            "waistcoat and tie",
+            "patent shoes",
+            "pocket square",
+            "cufflinks",
+            "tailored three-piece"
+          ]
+        },
+        {
+          "label": "Western / Cowboy",
+          "terms": [
+            "cowboy hat",
+            "stetson",
+            "duster coat",
+            "chaps",
+            "denim vest",
+            "plaid shirt",
+            "bolo tie",
+            "spurs",
+            "riding boots",
+            "gun belt",
+            "bandana",
+            "leather gloves",
+            "sheepskin coat",
+            "rancher shirt"
+          ]
+        },
+        {
+          "label": "Nautical / Pirate",
+          "terms": [
+            "pirate coat",
+            "tricorne hat",
+            "eyepatch",
+            "sash",
+            "buccaneer boots",
+            "sailor uniform",
+            "peacoat",
+            "naval officer coat",
+            "captain hat",
+            "striped shirt",
+            "rope belt",
+            "shoulder cape",
+            "buckled boots",
+            "open ruffled shirt"
+          ]
+        },
+        {
+          "label": "Dance / Stage",
+          "terms": [
+            "dance tights",
+            "fitted vest",
+            "open shirt",
+            "tango suit",
+            "flamenco shirt",
+            "stage jacket",
+            "sequined blazer",
+            "tap shoes",
+            "ballet slippers",
+            "performance harness",
+            "idol stage outfit",
+            "ribbon tie"
+          ]
+        },
+        {
+          "label": "Racing / Biker",
+          "terms": [
+            "leather jacket",
+            "one-piece leathers",
+            "racing suit",
+            "motorcycle helmet",
+            "riding gloves",
+            "biker boots",
+            "knee sliders",
+            "pit crew shirt",
+            "racing stripes",
+            "armoured jacket",
+            "motocross gear",
+            "goggles",
+            "fingerless gloves"
+          ]
+        },
+        {
+          "label": "Post-apocalyptic",
+          "terms": [
+            "patched coat",
+            "gas mask",
+            "respirator",
+            "welding goggles",
+            "scrap armour",
+            "wrapped bandages",
+            "duster",
+            "leather harness",
+            "improvised pauldron",
+            "dust cloak",
+            "canteen and pouches",
+            "tattered scarf",
+            "stitched leathers",
+            "bandolier",
+            "rusted plating"
+          ]
+        },
+        {
+          "label": "Medical / Service",
+          "terms": [
+            "scrubs",
+            "lab coat",
+            "surgical mask",
+            "stethoscope",
+            "chef whites",
+            "apron",
+            "barista apron",
+            "waiter uniform",
+            "bartender vest",
+            "flight crew uniform",
+            "name badge",
+            "clogs",
+            "delivery uniform",
+            "hazmat suit",
+            "mechanic overalls"
+          ]
+        },
+        {
+          "label": "Religious / Ceremonial",
+          "terms": [
+            "monk robes",
+            "priest cassock",
+            "clerical collar",
+            "vestments",
+            "prayer beads",
+            "rosary",
+            "temple robes",
+            "ceremonial armour",
+            "acolyte robes",
+            "embroidered stole",
+            "pilgrim cloak",
+            "ritual sash"
+          ]
+        },
+        {
+          "label": "Historical / Ancient",
+          "terms": [
+            "toga",
+            "Roman armour",
+            "centurion helm",
+            "medieval tunic",
+            "doublet",
+            "hose",
+            "frock coat",
+            "cravat",
+            "Viking furs",
+            "chainmail hauberk",
+            "samurai armour",
+            "hanfu",
+            "laurel wreath",
+            "sandals with straps",
+            "leather lorica",
+            "o-yoroi",
+            "do-maru",
+            "kabuto helmet",
+            "menpo mask",
+            "sode shoulder guards",
+            "haidate",
+            "kote sleeves",
+            "lacquered plates",
+            "ashigaru armour",
+            "sashimono banner"
+          ]
+        },
+        {
+          "label": "Superhero / Spandex",
+          "terms": [
+            "bodysuit",
+            "armoured bodysuit",
+            "cape",
+            "domino mask",
+            "full-face mask",
+            "emblem on chest",
+            "gauntlets",
+            "utility belt",
+            "shoulder pauldrons",
+            "skin-tight suit",
+            "segmented armour",
+            "hooded costume",
+            "visor",
+            "arm bracers",
+            "cowl"
+          ]
+        },
+        {
+          "label": "Fetish / Bondage",
+          "terms": [
+            "leather harness",
+            "chest harness",
+            "latex bodysuit",
+            "collar",
+            "leather straps",
+            "buckled cuffs",
+            "studded belt",
+            "armbands",
+            "leather gloves",
+            "muzzle mask",
+            "strapped trousers",
+            "blindfold"
+          ]
+        }
+      ]
+    },
+    {
+      "box": "Scene",
+      "children": [
+        {
+          "label": "Props",
+          "terms": [
+            "coffee cup",
+            "takeaway cup",
+            "open book",
+            "closed book",
+            "phone",
+            "headphones",
+            "earbuds",
+            "umbrella",
+            "parasol",
+            "bouquet of flowers",
+            "single flower",
+            "shopping bags",
+            "guitar",
+            "acoustic guitar",
+            "violin",
+            "sketchbook",
+            "paintbrush",
+            "lantern",
+            "paper lantern",
+            "cat in arms",
+            "small dog",
+            "ice cream cone",
+            "popsicle",
+            "cigarette",
+            "wine glass",
+            "beer mug",
+            "teacup",
+            "bento box",
+            "picnic basket",
+            "backpack",
+            "tote bag",
+            "suitcase",
+            "letter",
+            "envelope",
+            "map",
+            "compass",
+            "pocket watch",
+            "camera-shy pose",
+            "balloon",
+            "plush toy",
+            "handheld fan",
+            "folding fan",
+            "notebook and pen",
+            "tablet",
+            "game controller",
+            "vinyl record",
+            "skateboard",
+            "basketball",
+            "fishing rod",
+            "watering can"
+          ]
+        },
+        {
+          "label": "Vehicles",
+          "terms": [
+            "motorcycle",
+            "sports motorcycle",
+            "scooter",
+            "bicycle",
+            "sports car",
+            "vintage car",
+            "convertible",
+            "pickup truck",
+            "van",
+            "taxi",
+            "bus interior",
+            "train carriage",
+            "tram",
+            "horse",
+            "riding a horse",
+            "carriage",
+            "rowboat",
+            "sailboat",
+            "yacht",
+            "jet ski",
+            "helicopter",
+            "small aircraft",
+            "fighter jet",
+            "spaceship cockpit",
+            "shuttle",
+            "hoverbike",
+            "mech cockpit",
+            "skateboard",
+            "rollerblades",
+            "snowmobile",
+            "sled",
+            "hot air balloon"
+          ]
+        }
+      ]
+    },
+    {
+      "box": "Accessories",
+      "children": [
+        {
+          "label": "Jewellery",
+          "terms": [
+            "hoop earrings",
+            "stud earrings",
+            "dangling earrings",
+            "chandelier earrings",
+            "layered necklaces",
+            "pendant necklace",
+            "locket",
+            "choker with charm",
+            "pearl strand",
+            "signet ring",
+            "stacked rings",
+            "bracelet stack",
+            "bangles",
+            "cuff bracelet",
+            "anklet",
+            "toe ring",
+            "nose ring",
+            "nose stud",
+            "septum piercing",
+            "industrial bar",
+            "helix piercing",
+            "navel piercing",
+            "belly chain",
+            "body chain",
+            "brooch",
+            "tiara",
+            "circlet",
+            "hair pin",
+            "waist chain",
+            "arm cuff",
+            "ear cuff",
+            "no jewellery"
+          ]
+        },
+        {
+          "label": "Eyewear",
+          "terms": [
+            "round glasses",
+            "wire-frame glasses",
+            "thick-rimmed glasses",
+            "cat-eye glasses",
+            "half-rim glasses",
+            "rimless glasses",
+            "sunglasses",
+            "aviator sunglasses",
+            "oversized sunglasses",
+            "tiny sunglasses",
+            "sports visor",
+            "safety goggles",
+            "swimming goggles",
+            "ski goggles",
+            "monocle",
+            "pince-nez",
+            "eyepatch",
+            "blindfold",
+            "reading glasses on nose",
+            "glasses pushed up",
+            "no eyewear"
+          ]
+        },
+        {
+          "label": "Body art",
+          "terms": [
+            "sleeve tattoo",
+            "half sleeve",
+            "back piece tattoo",
+            "chest tattoo",
+            "small wrist tattoo",
+            "ankle tattoo",
+            "floral tattoo",
+            "traditional tattoo",
+            "blackwork tattoo",
+            "fine-line tattoo",
+            "script tattoo",
+            "tribal markings",
+            "henna patterns",
+            "war paint",
+            "face paint",
+            "body paint",
+            "glowing markings",
+            "runic markings",
+            "scar across the face",
+            "scar on the eyebrow",
+            "stitched scar",
+            "beauty mark",
+            "mole under the eye",
+            "freckles across the nose",
+            "heavy freckles",
+            "birthmark",
+            "no markings"
+          ]
+        }
+      ]
+    },
+    {
+      "box": "Mammals",
+      "children": [
+        {
+          "label": "Tiger",
+          "terms": null,
+          "template": "tiger ears, tiger tail, {bold black stripes|striped markings}, {fangs|no fangs:2}, {slit pupils|round pupils:2}"
+        },
+        {
+          "label": "Lion",
+          "terms": null,
+          "template": "lion ears, lion tail with tuft, {thick mane|no mane:2}, {broad muzzle|soft muzzle}, {fangs|no fangs}"
+        },
+        {
+          "label": "Panda",
+          "terms": null,
+          "template": "panda ears, {short panda tail|no tail:2}, black and white fur, {black eye patches|dark eye rings}, {round face|soft features}"
+        },
+        {
+          "label": "Red panda",
+          "terms": null,
+          "template": "red panda ears, {ringed bushy tail|long striped tail}, {ringed tail markings|banded markings}, {pale face markings|masked face}"
+        },
+        {
+          "label": "Ferret",
+          "terms": null,
+          "template": "ferret ears, {long slender tail|bushy tail}, {masked face markings|plain face}, {slender body|low-slung body}"
+        },
+        {
+          "label": "Hyena",
+          "terms": null,
+          "template": "hyena ears, {short tufted tail|bushy tail}, {spotted markings|striped markings}, {dark mane along the neck|no mane:2}, {toothy grin|no grin:2}"
+        },
+        {
+          "label": "Lynx",
+          "terms": null,
+          "template": "lynx ears, {tufted ear tips|long ear tufts}, {short bobbed tail|stub tail}, {spotted markings|faint spotting}, {cheek ruff|no ruff:2}"
+        },
+        {
+          "label": "Panther",
+          "terms": null,
+          "template": "panther ears, long tail, {faint rosette markings|solid sleek coat}, {bright eyeshine|no eyeshine:2}, {fangs|no fangs:2}"
+        },
+        {
+          "label": "Kangaroo",
+          "terms": null,
+          "template": "kangaroo ears, {thick tapered tail|heavy tail}, {pouch|no pouch:2}, {thick muscular hind legs|slender hind legs:2}, {long narrow feet|no emphasis on feet:2}"
+        },
+        {
+          "label": "Sloth",
+          "terms": null,
+          "template": "sloth ears, {no tail:3|short tail}, {shaggy fur|mossy shaggy fur}, {long curved claws|blunt claws}, {half-lidded eyes|soft closed-mouth smile}"
+        },
+        {
+          "label": "Hedgehog",
+          "terms": null,
+          "template": "hedgehog ears, {no tail:3|tiny tail}, {quills along the back|spiny hair}, {small round nose|button nose}, {soft belly fur|no belly emphasis:2}"
+        },
+        {
+          "label": "Alpaca",
+          "terms": null,
+          "template": "alpaca ears, {short tail|fluffy tail}, {woolly fleece|thick curled fleece}, {fringe over the eyes|tufted forelock}"
+        },
+        {
+          "label": "Boar",
+          "terms": null,
+          "template": "boar ears, {short tufted tail|curled tail}, {coarse bristled fur|thick bristles}, {small tusks|large tusks|no tusks:2}, {snout|no snout emphasis:2}"
+        },
+        {
+          "label": "Moose",
+          "terms": null,
+          "template": "moose ears, {short tail|no tail:2}, {broad flat antlers|palmate antlers|no antlers:2}, {shaggy fur|long coarse fur}, {dewlap|no dewlap:2}"
+        },
+        {
+          "label": "Zebra",
+          "terms": null,
+          "template": "zebra ears, {tufted tail|striped tail}, black and white striped skin, {upright mane|short bristly mane}"
+        },
+        {
+          "label": "Wolf",
+          "template": "wolf ears, {wolf tail|bushy tail}, {fangs:2|no fangs}, {claws|clawed hands|no claws:2}, {slit pupils|normal pupils:2}, {coarse fur|thick pelt|no extra fur:3}, {elongated jaw|no elongation:4}"
+        },
+        {
+          "label": "Fox",
+          "template": "{fox ears|large fox ears}, {fox tail:3|multiple fox tails|nine tails|two tails}, {fangs|no fangs:2}, {slit pupils|normal pupils}, {faint foxfire|no foxfire:4}, {shrine markings|no markings:4}"
+        }
+      ]
+    },
+    {
+      "box": "Birds, reptiles & amphibians",
+      "children": [
+        {
+          "label": "Raven",
+          "terms": null,
+          "template": "raven wings, {glossy black feathers|iridescent black feathers}, {feathered tail|fanned tail}, {black talons|dark claws}, {sharp beak-like nose|no beak:3}"
+        },
+        {
+          "label": "Eagle",
+          "terms": null,
+          "template": "eagle, eagle wings, {brown and white feathers|golden-brown feathers}, {fanned tail feathers|broad tail}, {hooked talons|sharp talons}, {hooked beak|no beak:2}"
+        },
+        {
+          "label": "Falcon",
+          "terms": null,
+          "template": "falcon wings, {slate-grey feathers|barred feathers}, {narrow pointed wings|narrow swept-back wings}, {dark eye stripe|no markings:2}, {talons|no talons:2}"
+        },
+        {
+          "label": "Swan",
+          "terms": null,
+          "template": "swan wings, {pure white feathers|black feathers}, {long curved neck|arched neck}, {webbed feet|no webbing:2}, {orange bill accents|no accents:2}"
+        },
+        {
+          "label": "Parrot",
+          "terms": null,
+          "template": "parrot wings, {vivid green feathers|red and blue feathers|yellow and blue feathers}, {long tail feathers|fanned tail}, {crest feathers|no crest:2}"
+        },
+        {
+          "label": "Penguin",
+          "terms": null,
+          "template": "penguin flippers, {black and white plumage|tuxedo markings}, {short stubby tail|no tail:2}, {webbed feet|orange feet}, {crest feathers|no crest:3}"
+        },
+        {
+          "label": "Flamingo",
+          "terms": null,
+          "template": "flamingo wings, {pink feathers|coral pink plumage}, {one leg raised|both legs down:2}, {curved neck|S-curved neck}, {black wingtips|no wingtips:2}"
+        },
+        {
+          "label": "Gecko",
+          "terms": null,
+          "template": "gecko tail, {mottled green skin|sandy scaled skin|blue spotted skin}, {sticky toe pads|clawed fingers}, {lidless eyes|slit pupils}, {small horns|no horns:3}"
+        },
+        {
+          "label": "Crocodile",
+          "terms": null,
+          "template": "crocodile tail, {ridged scaled back|armoured scales}, {olive-green scales|dark scales}, {sharp teeth|toothy grin}, {slit pupils|vertical pupils}"
+        },
+        {
+          "label": "Cobra",
+          "terms": null,
+          "template": "cobra tail, {hooded neck frill|flared hood}, {smooth dark scales|banded scales}, {forked tongue|no tongue:2}, {slit pupils|round pupils}"
+        },
+        {
+          "label": "Salamander",
+          "terms": null,
+          "template": "salamander tail, {glossy black skin with yellow spots|orange mottled skin}, {damp glistening skin|smooth skin}, {small clawed hands|webbed fingers}"
+        },
+        {
+          "label": "Tortoise",
+          "terms": null,
+          "template": "tortoise, {domed shell|patterned shell}, {short thick tail|no tail:2}, {scaled leathery skin|wrinkled skin}, {low heavy stance|hunched shoulders}"
+        },
+        {
+          "label": "Snake",
+          "template": "{snake eyes|slit pupils|slitted eyes}, {serpentine lower body|long coiled tail|snake tail|coiled tail}, {scales|iridescent scales|patterned scales|matte scales|smooth scales}, {forked tongue|long tongue|no tongue:2}, {fangs|venomous fangs|no fangs:2}, {green|black|red|white|golden|patterned}, {hooded neck frill|cobra hood|no hood:3}"
+        }
+      ]
+    },
+    {
+      "box": "Aquatic",
+      "children": [
+        {
+          "label": "Dolphin",
+          "terms": null,
+          "template": "dolphin tail fluke, {smooth grey skin|pale belly}, {dorsal fin|small dorsal fin}, {side fins|flippers}, {upturned mouth line|straight mouth line:2}"
+        },
+        {
+          "label": "Orca",
+          "terms": null,
+          "template": "orca tail fluke, black and white markings, {tall dorsal fin|curved dorsal fin}, {white eye patch|no patch:2}, {smooth skin|glossy skin}"
+        },
+        {
+          "label": "Manta ray",
+          "terms": null,
+          "template": "manta ray, {broad wing-like fins|manta wings}, {long whip tail|slender tail}, {dark blue back|spotted back}, {pale underside|white belly}"
+        },
+        {
+          "label": "Eel",
+          "terms": null,
+          "template": "eel tail, {long sinuous body|ribbon-like body}, {slick dark skin|mottled skin}, {small sharp teeth|no teeth:2}, {faint bioluminescence|no glow:2}"
+        },
+        {
+          "label": "Anglerfish",
+          "terms": null,
+          "template": "anglerfish, {bioluminescent lure on a stalk|glowing lure}, {needle teeth|jagged teeth}, {dark abyssal skin|black scaled skin}, {milky eyes|no eyes:2}"
+        },
+        {
+          "label": "Pufferfish",
+          "terms": null,
+          "template": "pufferfish, {spiny skin|inflatable spines|no spines:2}, {round cheeks|puffed cheeks}, {mottled tan skin|spotted skin}, {small fins|fan fins}"
+        },
+        {
+          "label": "Koi",
+          "terms": null,
+          "template": "koi tail fins, {white scales with red patches|black and orange scales|golden scales}, {trailing fins|flowing fins}, {whisker barbels|no barbels:2}"
+        },
+        {
+          "label": "Squid",
+          "terms": null,
+          "template": "squid, {tentacles|writhing tentacles}, {two long feeding arms|no long arms:2}, {translucent mantle|pale mantle}, {shifting patches of colour on the skin|shifting skin colour}"
+        },
+        {
+          "label": "Lobster",
+          "terms": null,
+          "template": "lobster, {large claws|pincer claws}, {segmented armoured shell|red carapace}, {antennae|long feelers}, {jointed tail|fanned tail}"
+        },
+        {
+          "label": "Narwhal",
+          "terms": null,
+          "template": "narwhal, {spiral tusk|long ivory tusk}, {mottled grey skin|speckled skin}, {tail fluke|broad fluke}, {no dorsal fin:2|small ridge}"
+        },
+        {
+          "label": "Seal",
+          "terms": null,
+          "template": "seal, {sleek grey fur|spotted pelt}, {flippers|front flippers}, {whiskers|long whiskers}, {large dark eyes|round eyes}"
+        }
+      ]
+    },
+    {
+      "box": "Insects & arachnids",
+      "children": [
+        {
+          "label": "Butterfly",
+          "terms": null,
+          "template": "{butterfly wings|large patterned wings|monarch wings}, {antennae|feathered antennae}, {scaled wing dust|iridescent scales}, {slender body|no emphasis:2}"
+        },
+        {
+          "label": "Firefly",
+          "terms": null,
+          "template": "firefly, {glowing abdomen|bioluminescent glow}, {translucent wings|folded wing cases}, {antennae|short antennae}, {soft yellow-green light|warm glow}"
+        },
+        {
+          "label": "Cicada",
+          "terms": null,
+          "template": "cicada, {veined transparent wings|folded wings}, {segmented body|ridged thorax}, {large compound eyes|wide-set eyes}, {short antennae|no antennae:2}"
+        },
+        {
+          "label": "Ladybug",
+          "terms": null,
+          "template": "ladybug, {red wing cases with black spots|orange wing cases}, {small black antennae|short antennae}, {folded underwings|hidden wings}, {round shell back|domed back}"
+        },
+        {
+          "label": "Centipede",
+          "terms": null,
+          "template": "centipede, {many jointed legs|countless legs}, {segmented armoured body|banded segments}, {long antennae|twitching antennae}, {curved venom fangs|no fangs:2}"
+        },
+        {
+          "label": "Hornet",
+          "terms": null,
+          "template": "hornet, {yellow and black striped abdomen|banded abdomen}, {translucent wings|fast-beating wings}, {stinger|no stinger:2}, {angular antennae|antennae}"
+        },
+        {
+          "label": "Caterpillar",
+          "terms": null,
+          "template": "caterpillar, {segmented soft body|banded segments}, {tufts of bristles|smooth skin}, {many small legs|rows of stubby legs}, {tiny simple eyes|dark eyespots}"
+        },
+        {
+          "label": "Spider",
+          "template": "{spider eyes|multiple eyes|six eyes|eight eyes|extra eyes}, {spider lower body|eight spider legs|extra legs|two human legs}, {spinnerets|web|spider silk|silk thread}, {fangs|fanged mouthparts|small fangs|no fangs:2}, {black|red and black|brown|white|purple}, {chitin plating|smooth chitin|bug exoskeleton|hairy bristled legs|thick furred legs}"
+        }
+      ]
+    },
+    {
+      "box": "Plants & fungi",
+      "children": [
+        {
+          "label": "Vine",
+          "terms": null,
+          "template": "{climbing vines|creeping tendrils}, {green leafy growth|coiling stems}, {small flowers|no flowers:2}, {roots at the feet|no roots:2}"
+        },
+        {
+          "label": "Ivy",
+          "terms": null,
+          "template": "{trailing ivy|clinging ivy leaves}, {dark green foliage|variegated leaves}, {tendrils in the hair|leafy crown}, {no flowers:3|tiny blossoms}"
+        },
+        {
+          "label": "Fern",
+          "terms": null,
+          "template": "fern, {unfurling fronds|feathered fronds}, {deep green foliage|spore-dusted underside}, {tightly curled new fronds|fully unfurled fronds}, {damp shaded look|soft shade}"
+        },
+        {
+          "label": "Bamboo",
+          "terms": null,
+          "template": "{jointed bamboo stalks|segmented green stalks}, {narrow leaves|slender foliage}, {smooth nodes|ringed nodes}, {upright posture|leaning stalks:2}"
+        },
+        {
+          "label": "Lotus",
+          "terms": null,
+          "template": "{lotus blossom|layered pink petals|white petals}, {broad flat leaves|floating pads}, {golden centre|seed pod}, {water droplets|no water:2}"
+        },
+        {
+          "label": "Rose",
+          "terms": null,
+          "template": "{rose blossoms|deep red petals|white petals}, {thorned stems|no thorns:2}, {dark green leaves|glossy leaves}, {scattered petals|no petals falling:2}"
+        },
+        {
+          "label": "Sunflower",
+          "terms": null,
+          "template": "{sunflower crown|golden ray petals}, {dark seeded centre|broad disc}, {tall thick stalk|no stalk:2}, {broad rough leaves|heart-shaped leaves}"
+        },
+        {
+          "label": "Mandrake",
+          "terms": null,
+          "template": "mandrake, {root-like limbs|knotted root body}, {leafy crown of foliage|sprouting greens}, {soil clinging to the roots|no soil:2}, {screaming expression|blank face|no expression:2}"
+        },
+        {
+          "label": "Alraune",
+          "terms": null,
+          "template": "alraune, {giant flower around the body|petal skirt}, {vine limbs|thorned vines}, {pollen in the air|no pollen:2}, {nectar sheen|no sheen:2}"
+        },
+        {
+          "label": "Treant",
+          "terms": null,
+          "template": "treant, {bark-covered skin|wooden limbs}, {branching antlers of wood|leafy canopy hair}, {moss growing on the shoulders|lichen patches}, {hollow glowing eyes|dark knothole eyes}"
+        }
+      ]
+    },
+    {
+      "box": "Mythical",
+      "children": [
+        {
+          "label": "Vampire",
+          "terms": null,
+          "template": "vampire, {fangs|long fangs}, {pale skin|bloodless pallor}, {sunken eyes|sharp hooded eyes}, {widows peak|no widows peak:2}, {blood on the lips|no blood:2}, {high collar|no collar:2}"
+        },
+        {
+          "label": "Oni",
+          "terms": null,
+          "template": "oni, {single horn|two horns|broken horn}, {red skin:3|crimson skin|deep red skin|blue skin:3|pale blue skin|indigo skin|green skin|olive green skin|black skin|charcoal skin|white skin|ashen skin|yellow skin|ochre skin|purple skin|grey skin}, {tusked fangs|no tusks:2}, {wild hair|thick mane of hair}, {bare muscular chest|no bare chest:2}"
+        },
+        {
+          "label": "Tengu",
+          "terms": null,
+          "template": "tengu, {black feathered wings|crow wings}, {long nose|beaked mask|no mask:2}, {red face|no colouring:2}, {feathered fan|no fan:2}, {high geta|no geta:2}"
+        },
+        {
+          "label": "Yuki-onna",
+          "terms": null,
+          "template": "yuki-onna, {pale blue-white skin|snow-pale skin}, {frost in the hair|icy white hair}, {breath fogging the air|no breath:2}, {frost patterns on the skin|no patterns:2}"
+        },
+        {
+          "label": "Gorgon",
+          "terms": null,
+          "template": "gorgon, {snakes for hair|writhing serpents}, {green snakes:2|black snakes|brown banded snakes|emerald snakes|copper snakes|viper-patterned snakes|white snakes}, {scaled patches on the skin|smooth skin:2}, {green scales:2|olive scales|bronze scales|grey scales|iridescent scales|black scales}, {slit pupils|narrow reptilian pupils}, {serpent tail|legs:2}, {stone-grey skin|pale olive skin|ashen skin|sallow skin|no greying:2}"
+        },
+        {
+          "label": "Djinn",
+          "terms": null,
+          "template": "djinn, {smoke instead of legs|wisps of smoke}, {blue smoke:2|violet smoke|green smoke|black smoke|golden smoke|red smoke|grey smoke}, {glowing markings|arcane tattoos}, {gold cuffs|silver cuffs|brass cuffs|heavy bangles}, {burning eyes|glowing eyes|no glow:2}, {swirling ember trail|no embers:2}"
+        },
+        {
+          "label": "Satyr",
+          "terms": null,
+          "template": "satyr, {curled ram horns|short horns}, {goat legs|furred legs}, {cloven hooves|no hooves:2}, {shaggy lower body fur|coarse fur}, {pointed ears|rounded ears}"
+        },
+        {
+          "label": "Griffin",
+          "terms": null,
+          "template": "griffin, {eagle wings|broad feathered wings}, {feathered upper body|feathered arms}, {taloned hands|clawed hands}, {lion tail|tufted tail}, {beak-like features|no beak:3}"
+        },
+        {
+          "label": "Chimera",
+          "terms": null,
+          "template": "chimera, {lion head|lion mane|shaggy dark mane|no mane:1}, {goat horns|curved ram horns}, {serpent tail|snake-headed tail}, {feathered wing and leathery wing|mismatched wings|no wings:2}, {differently coloured eyes|heterochromia}"
+        },
+        {
+          "label": "Golem",
+          "terms": null,
+          "template": "golem, {stone body:2|granite body|sandstone body|marble body|obsidian body|basalt body|clay body|terracotta body|iron body|bronze body|copper body|wooden body|ice body|crystal body|jade body}, {glowing blue runes|glowing amber runes|glowing red runes|green glowing runes|etched sigils|no runes:2}, {seams and cracks|fissured surface|chipped edges}, {blank featureless face|blunt carved features}, {moss in the crevices|dust in the seams|no growth:2}"
+        },
+        {
+          "label": "Nymph",
+          "terms": null,
+          "template": "nymph, {faintly glowing skin|soft inner glow|no glow:2}, {green undertone to the skin|pale luminous skin}, {hair drifting as if underwater|hair moving without wind|no hair movement:2}, {water beading on the skin|dry skin:2}, {leaves suspended in the air around her|drifting petals|no floating leaves:2}, {bare feet|no shoes}"
+        },
+        {
+          "label": "Imp",
+          "template": "imp, {tiny|small|diminutive}, {small curved horns|tiny horns}, {small bat wings|little leathery wings}, {barbed tail|arrow-tipped tail}, {red skin|purple skin}, {wide toothy grin|sharp grin}"
+        },
+        {
+          "label": "Slime Girl",
+          "template": "slimegirl, {translucent skin|transparent body|semi-transparent body|see-through torso|gooey|gelatinous|jelly-like flesh|viscous body|soft yielding body|glassy body|cloudy translucent skin|liquid-filled body}, {blue slime|green slime|pink slime|purple slime|red slime|clear slime|rainbow slime|yellow slime|orange slime|black slime|white slime|milky slime|amber slime|teal slime|iridescent slime|lavender slime}, {melting|dripping|stretchy|wobbly|no effect}, {shiny|glossy|wet|reflective}, {solid form|semi-solid|liquid form}, {visible core|no core:2}"
+        },
+        {
+          "label": "Demon",
+          "template": "{demon horns|curved horns|small horns|long horns|oni horns}, {demon tail|pointed tail|spade tail}, {demon wings|bat wings|no wings:2}, {fangs|sharp teeth|no fangs}, {pointed ears|elf ears}, {red skin:3|crimson skin|dark red skin|pale skin|grey skin|ashen skin|black skin|charcoal skin|blue skin|purple skin|dark skin|normal skin:6}"
+        },
+        {
+          "label": "Dragon",
+          "template": "{dragon horns|curved horns|long horns|short horns}, dragon tail, {dragon wings|large wings|small wings|no wings:2}, {{red|crimson|green|emerald|black|onyx|blue|sapphire|gold|silver|bronze|copper|white|pearl|purple|amethyst|jade|obsidian|rainbow|iridescent|opalescent|rust-red|molten orange|ice-blue} scales|no scales:3}, {slit pupils:2|normal pupils}, {fangs:2|sharp teeth|no fangs}, {claws|no claws:2}"
+        }
+      ]
+    },
+    {
+      "box": "Undead & horror",
+      "children": [
+        {
+          "label": "Skeleton",
+          "terms": null,
+          "template": "skeleton, {visible bone|skeletal limbs}, {hollow eye sockets|glowing eye sockets}, {exposed ribcage|no exposure:2}, {tattered wrappings|no wrappings:2}"
+        },
+        {
+          "label": "Lich",
+          "terms": null,
+          "template": "lich, {withered skin over bone|desiccated features}, {glowing eye sockets|empty eye sockets}, {ornate robes|tattered finery}, {floating arcane sigils|no sigils:2}, {bone crown|iron circlet|no crown:2}"
+        },
+        {
+          "label": "Wraith",
+          "terms": null,
+          "template": "wraith, {translucent body|smoke-like form}, {no legs:2|trailing tatters}, {hollow glowing eyes|empty sockets}, {drifting shroud|billowing cloth}"
+        },
+        {
+          "label": "Ghoul",
+          "terms": null,
+          "template": "ghoul, {grey mottled skin|ashen skin}, {elongated claws|blackened nails}, {sunken eyes|hollow cheeks}, {jagged teeth|no teeth emphasis:2}"
+        },
+        {
+          "label": "Uncanny",
+          "terms": null,
+          "template": "{uneven features|asymmetric face}, {blank unreadable expression|fixed wide smile}, {seam at the jaw|faint seam at the hairline|no seam:2}, {waxy skin|featureless smooth skin}, {unblinking eyes|wide-open eyes}"
+        },
+        {
+          "label": "Banshee",
+          "terms": null,
+          "template": "banshee, {screaming mouth|open wailing mouth}, {wild pale hair|tangled hair}, {tattered grey shroud|funeral rags}, {tear-streaked face|hollow eyes}"
+        }
+      ]
+    }
+  ]
+}

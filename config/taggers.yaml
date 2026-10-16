@@ -1,0 +1,231 @@
+# Image taggers for Tab 3.
+#
+# WD v3 is an ONNX model and runs on the CPU. It never touches the GPU, so it
+# stays available while the 27B is resident — which is the whole reason it is
+# the tagger that works on this box. See archive/docs/status.md.
+#
+# `model` and `labels` point into the project's own `taggers/` folder
+# (gitignored), which is the same on every install. How to fill it - download
+# links, the animetimm conversion, and reusing files ComfyUI already has - is
+# docs/taggers-setup.md. Weights kept somewhere else (inside ComfyUI, say) are
+# pointed at from config/taggers.local.yaml, never here: these were absolute
+# paths into the owner's Windows ComfyUI until 22 Sep 2026, which were wrong
+# on every other machine.
+#
+# A missing file must degrade, not crash: the app starts and the tab reports
+# the tagger as unavailable, the same way a missing tag database does.
+# `npm run doctor` names any tagger whose files are missing.
+
+default_tagger: "animetimm_convnextv2"
+
+# ─────────────── REFERENCE IMAGES: RUN MORE THAN ONE ───────────────
+#
+# Which taggers a Tab 1 REFERENCE image is read by. Tab 3 is unaffected and
+# still uses whichever single tagger the person picked.
+#
+# Empty or absent means the old behaviour: the default tagger, alone.
+#
+# ── Why more than one ──
+#
+# A reference image is not a general tagging job. Each role can only use a
+# narrow class of tag — a Pose reference uses `action`, `gaze` and `count`
+# and nothing else — so a tagger with excellent aggregate recall can still
+# return nothing a given role can act on. Measured 7 Sep 2026 on an anime
+# screenshot with obvious god rays through trees, counting only tags each
+# role can actually use:
+#
+#                        animetimm   EVA02   MOAT   union
+#   lighting                     1       2      3       3
+#   outfit                       9      13      8      15
+#   pose                         3       2      3       3
+#   style                        0       0      0       0
+#
+# The union adds `light_rays` and `day` to lighting, and six garments to
+# outfit, over the default alone. `light_rays` is the god rays — the thing
+# the picture is obviously ABOUT, and the thing a Lighting reference exists
+# to carry.
+#
+# Note the default tagger is the weakest of the three at lighting and the
+# slowest by 4x. It was made default for its character head, which is still
+# the right call — it is the only one of the three that identified Frieren —
+# and this list is how both facts can be true at once.
+#
+# ── What it costs ──
+#
+# Measured warm on the P40 (28 cores): animetimm 2.7s, EVA02 1.5s, MOAT
+# 0.56s. The pair is 4.2s warm. Parallel was timed and is NOT faster -
+# onnxruntime already saturates the cores for one inference - so they run
+# serial. No VRAM, no contention with prompt generation.
+#
+# ── What this replaces ──
+#
+# A 27B LLM was wired into this path on 7 Sep and removed the same day. It
+# found the same god rays as `backlighting`, but cost 19-56s warm and 137s
+# cold of GPU time, competing with prompt generation for the card. Its only
+# justification was that the prompt model's vision was already resident, and
+# that stopped being true on 1 Sep when prompt generation moved to llama.cpp.
+# MOAT gets the same layer in 1.6s on a CPU that is otherwise idle.
+#
+# ToriiGate was tried and rejected the same day. Asked to tag this image it
+# identified Frieren as "Leafa from Sword Art Online", reported her eyes as
+# green in one field and yellow in the next, and returned mostly invented
+# vocabulary — `elven_hair`, `light_beams`, `stone_pavement`, `character_focus`
+# — which the danbooru check would reject anyway. It is a captioner, and this
+# is not a captioning job.
+# FIRST ENTRY IS THE PRIMARY. It is trusted and a second opinion may add to
+# it but never overrule it - see server/tagmerge.mjs.
+#
+# Measured on one screenshot, all three at 0.05, by where each tag came from:
+#
+#   all three agree     38 tags   the reliable core
+#   animetimm alone      1 tag    `floating_earring` at 7%
+#   EVA02 alone         19 tags   dappled_sunlight, anime_coloring, cobblestone,
+#                                 arch, high_collar, belt_buckle, cowboy_shot
+#   MOAT alone          11 tags   grey_eyes and blue_eyes - both WRONG, all
+#                                 three agree green_eyes at 90% - plus
+#                                 copyright, logo, and redundancies
+#
+# animetimm is primary not because it finds the most but because it is right:
+# the reliable core, plus a character head the others lack. It is the only one
+# of the three that identified the character. EVA02 is the broad second.
+#
+# MOAT is configured below and deliberately NOT listed. Its unique
+# contribution on that image was two wrong eye colours and a watermark, for
+# 0.56s. Add it back here if a picture ever shows it earning the pass.
+reference_taggers:
+  - "animetimm_convnextv2"
+  - "wd14_eva02"
+
+# The confidence floor for reference images, well below the per-tagger
+# thresholds Tab 3 uses. Unset falls back to each tagger's own.
+#
+# Low on purpose, and this is the owner's call: take everything in the image
+# and let the role filter remove what is not needed. That is only safe
+# BECAUSE of the filter — a Pose reference keeps `action`, `gaze` and `count`
+# and discards every other class untouched, so a junk scenery tag at 6%
+# confidence never reaches the model and costs nothing. Only noise inside the
+# role's own classes can hurt, and there is little of it this low.
+#
+# Measured 7 Sep 2026 on a forest screenshot, union of the three taggers,
+# counting only what each role can use. What each floor buys:
+#
+#   0.38  pose: 1girl, solo, looking_at_viewer
+#         lighting: sunlight, day, light_rays
+#   0.10  pose: + standing              <- true, and under the old floor
+#         lighting: + sunbeam
+#   0.05  pose: + looking_ahead, arms_at_sides    <- arms_at_sides is true
+#         lighting: + dappled_sunlight   <- what the picture actually IS
+#   0.02  pose: + looking_up, looking_afar        <- noise, and contradictory
+#         lighting: + shadow
+#
+# 0.05 is the floor where everything gained is still true about the picture
+# and 0.02 is where it stops being. `dappled_sunlight` at 7% is the tag that
+# decides it — light through leaves is the whole subject of that image, and
+# no tagger scores it above 0.10.
+#
+# Style gains nothing at any floor down to 0.02. No tagger on this box sees
+# rendering or technique, so a Visual style reference stays thin and says so
+# rather than being padded.
+reference_threshold: 0.05
+
+uploads:
+  # The spec said 20. That was a guess, not a measurement, and upscaled PNGs
+  # from this crowd routinely pass it. Raised to 64.
+  #
+  # What actually costs anything here is decoded pixels, not file bytes: the
+  # whole upload is buffered, then jimp expands it to width x height x 4 bytes
+  # of RGBA before anything is resized. A well-compressed 64MB PNG can be very
+  # large in both dimensions, so this number is the practical ceiling on
+  # memory per concurrent analysis. On a 16GB box with the 27B resident, 64 is
+  # comfortable and a few hundred would not be.
+  #
+  # Raising it buys nothing in quality — every tagger resizes to 448x448.
+  max_image_mb: 64
+  allowed_image_types: ["image/png", "image/jpeg", "image/webp"]
+
+  # H3 visual references only — Tab 3 analyses stills and never sees these.
+  #
+  # Video is described by sampling frames with ffmpeg and tagging those, so
+  # the cost here is decode time rather than resident memory: only one 448x448
+  # frame is in the tagger at a time, however long the clip is. 512 is a
+  # practical ceiling on how long the upload takes over the tailnet, not a
+  # memory limit.
+  max_video_mb: 512
+  allowed_video_types: ["video/mp4", "video/webm", "video/quicktime"]
+
+  # Audio is not described — nothing on this box listens to it. The limit
+  # exists so an upload cannot be unbounded, and the metadata read is a
+  # single ffprobe call.
+  max_audio_mb: 64
+  allowed_audio_types: ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/flac"]
+
+taggers:
+  # Added 26 Aug 2026 and made the default: it beats WD on the same image.
+  # Measured side by side with archive/scripts/compare-taggers.mjs on one picture
+  # containing two known characters — WD found one of them, this found both.
+  # 12,476 classes against WD's ~10,800, and 3,247 of those are characters.
+  #
+  # The cost is speed: 692M parameters at 512x512 against WD at 448, measured
+  # at 6.1s a picture here against WD's 2.8s. Still CPU-only, so it still
+  # never competes with a resident 27B for the card. Both WD entries stay
+  # below as the fast option.
+  #
+  # Unlike the WD paths this one is PROJECT-RELATIVE, because the weights are
+  # not something another tool already put on the box —
+  # scripts/export-animetimm-onnx.py produced them from the timm checkpoint,
+  # and they are copied into taggers/ on each machine. Same relative path on
+  # Windows and on the P40, so this entry needs no local override.
+  #
+  # The .onnx is only 0.3MB; the weights sit beside it in the .onnx.data file,
+  # which onnxruntime resolves relative to the graph. BOTH files are required,
+  # and moving one without the other fails at load.
+  animetimm_convnextv2:
+    name: "animetimm ConvNeXtV2-Huge dbv4"
+    kind: "onnx"
+    device: "cpu"
+    model: "taggers/animetimm-convnextv2-huge-dbv4.onnx"
+    labels: "taggers/animetimm-convnextv2-huge-dbv4.csv"
+    # The model card's own per-category thresholds, not WD's. Its character
+    # head is far stronger, so 0.51 replaces the 0.85 WD needs to keep
+    # lookalikes out.
+    general_threshold: 0.38
+    character_threshold: 0.51
+
+  wd14_eva02:
+    name: "WD v3 EVA02-Large"
+    kind: "onnx"
+    device: "cpu"
+    model: "taggers/wd-eva02-large-tagger-v3.onnx"
+    labels: "taggers/wd-eva02-large-tagger-v3.csv"
+    # Thresholds match the ComfyUI node's defaults, which is what these
+    # weights are tuned against. Characters need a much higher bar than
+    # general tags or you get every lookalike in the franchise.
+    general_threshold: 0.35
+    character_threshold: 0.85
+
+  wd14_moat:
+    name: "WD v1.4 MOAT"
+    kind: "onnx"
+    device: "cpu"
+    model: "taggers/wd-v1-4-moat-tagger-v2.onnx"
+    labels: "taggers/wd-v1-4-moat-tagger-v2.csv"
+    general_threshold: 0.35
+    character_threshold: 0.85
+
+# ToriiGate is deliberately absent, and as of 21 Aug 2026 that is a decision
+# rather than a deferral.
+#
+# The reason recorded here used to be VRAM: "a 16GB card with a 14.4GB model
+# resident — there is no room". That stopped being true when qwen3:8b became
+# the deployment default and left ~10GB free, so the honest position was that
+# a vision model would now fit and simply had not been chosen. The owner's
+# call was to drop it: WD does the tagging this project needs, and anything
+# a caption would add can be asked of the chat model instead.
+#
+# What went with it: the four captioning analysis modes in Tab 3, and
+# llm.vision_model in server.yaml. Tagging is the whole of Tab 3 now.
+#
+# If it is ever revisited, kind: "gguf" does not exist in server/taggers.mjs —
+# only ONNX does — so this is a build, not a config line. Reasoning and what
+# it would cost are in the context doc under "Caption modes, dropped rather
+# than deferred".

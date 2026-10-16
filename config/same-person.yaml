@@ -1,0 +1,1050 @@
+# Tags danbooru keeps separate that name ONE character.
+#
+# Its own file, not a block in server.yaml, for two reasons. It is data
+# rather than tuning — a list that grows one franchise at a time and wants
+# to be picked up and put down — and server.yaml is the file two machines
+# keep editing at once, which has already cost one block of somebody's work.
+#
+# Read by server/traits.mjs, which merges anything here with whatever
+# config/server.yaml also declares. A machine-local config/same-person.local.yaml
+# wins over this file, the same as every other config in this project.
+#
+# WHY IT EXISTS. A character who is never drawn alone gets described by
+# whoever stands next to them, so the trait lookup subtracts the co-star's
+# own traits. That is right for a companion and catastrophic for a second
+# name: subtract Scaramouche from Wanderer and you delete his face. Nothing
+# in the data can tell the two apart — co-tag share was measured and does
+# not separate them, Oz sits with Fischl in 97% of his posts while Rex Lapis
+# sits with Zhongli in 72% — so they are declared here instead.
+#
+# HOW TO ADD ONE. Find the character's page on danbooru and read the first
+# line. "An alternate version of X", "X's playable incarnation", "the real
+# human form of X" means the same character: add it. "X's pet", "X's
+# familiar", "the younger brother of X" means a companion: leave it out.
+# Listing a pair wrongly only costs a subtraction, so err toward listing.
+#
+# Matched on the name before the opening parenthesis, so one line covers every
+# costume of every name in the group.
+
+# `<name>_<suffix>` is the same character as `<name>`. The list below says
+# the same thing one pair at a time; this says it as a rule, for franchises
+# that name their alternate forms regularly.
+#
+# Kancolle is why it exists. Every shipgirl's remodel is `<ship>_kai`,
+# `_kai_ni` or `_kai_san`, and a remodel is the same girl in an upgraded
+# outfit — danbooru puts it plainly: "the second remodel of Shigure",
+# "Musashi's kai form". Measured 16 Sep 2026 that is 104 groups over 212
+# tags among ships with 150+ posts, which as a list would be 104 lines all
+# restating one rule. The foreign-language remodels (Верный/dva, Roma due,
+# Littorio nuovo, Gangut andra) are the same convention in another language.
+#
+# A whitelist, never a general "starts with" test: a name that merely begins
+# with another name is usually somebody else. `kumano_maru` is an amphibious
+# assault ship, `kumano` a heavy cruiser, and `maru` is deliberately absent.
+same_person_suffixes:
+  ["kai", "kai_ni", "kai_san", "kai_ni_go", "ni", "mk_ii",
+   "dva", "due", "nuovo", "andra", "agb",
+   "alter"]
+
+# The same rule at the other end of the name, for franchises that put the form
+# first. Every Pokemon Mega evolution is `mega_<species>`, and danbooru applies
+# both tags to every post — measured 16 Sep 2026 all 20 had ZERO posts without
+# the species tag, so all 20 were having their own species subtracted from them.
+# Mega Lucario came back as `mega_pokemon, pokemon_focus`, his blue fur, spikes
+# and aura gone; Primal Groudon as `orange_eyes`.
+#
+# Regional variants are deliberately NOT here. `alolan_vulpix` has 210 solo
+# posts and never reaches this path at all, and it is white where Vulpix is red
+# — for those, subtracting the base is the right answer rather than the wrong
+# one. Only forms that keep the base design belong in this list.
+#
+# `female` and `male` are the selectable-gender player avatar, which every game
+# that has one tags the same way. Measured 16 Sep 2026, all 25 pairs with a
+# neutral base tag were exactly that: Kancolle's admiral, Arknights' Doctor and
+# Endministrator, Blue Archive's Sensei, Wuthering Waves' Rover, Azur Lane's
+# Commander, Umamusume's Trainer, Touken Ranbu's saniwa, Girls' Frontline's
+# Commander. Fire Emblem deleted the neutral tag for its avatars, so Byleth,
+# Corrin, Robin, Alear and Shez exist only as the two gendered tags — the
+# matcher strips the marker from BOTH names, which is what lets `female_byleth`
+# and `male_byleth` find each other.
+same_person_prefixes: ["mega", "primal", "gigantamax", "female", "male"]
+
+# Tags danbooru keeps separate that name ONE character. Nothing in the data
+# can find these — co-tag share was measured and does not separate them, as
+# Oz sits with Fischl in 97% of his posts while Rex Lapis sits with Zhongli
+# in 72% — so they are declared. Without the list, subtraction strips a
+# character's own face: Wanderer is 15,103 posts of Scaramouche.
+#
+# Matched on the name before `_(`, so one line covers every costume of every
+# name in the group. Listing a pair wrongly only means subtracting less, so
+# err toward listing. Evidence for each of these is danbooru's own wiki:
+# Wanderer is "Scaramouche's playable incarnation", Peruere "the younger
+# identity of Arlecchino", Cloud Retainer "playable under her human form,
+# Xianyun", and Rex Lapis's page says not to tag Zhongli with it "if only his
+# human form is present".
+#
+# Only the franchises this group uses are curated. An uncurated one behaves
+# as it did before — see the note in server/traits.mjs.
+# A character-table row that describes somebody else as well, where the live
+# sample does not. Not the same fault as the list below: nothing is being
+# subtracted from itself, the table simply averaged two characters together.
+# Ainz Ooal Gown's noob-wiki row is "1girl, demon girl, demon horns, yellow
+# eyes, red eyes, hair between eyes, black hair, long hair, large breasts,
+# black wings, skeleton" — Albedo, drawn beside him so often the list took her
+# for him. His live sample is his alone and right, so without this the merge
+# appended her wings, horns and breasts under his skeleton.
+#
+# Each character names whose look to remove from THEIR table row: the other
+# character's live traits and table row both come out, except anything this
+# character's own live sample carries. Only the table row is touched.
+table_contaminants:
+  ainz_ooal_gown: ["albedo_(overlord)"]
+  # 18 Sep 2026, found by reading the canon sent for 129 characters. Pikachu's
+  # row was Ash's black hair and red cap; Sam's was Firefly's grey hair and
+  # ribbons — Sam is the mech, so what Firefly looks like is not his.
+  pikachu: ["ash_ketchum"]
+  "sam_(honkai:_star_rail)": ["firefly_(honkai:_star_rail)"]
+
+# A row that is not one other character but everybody the character is drawn
+# with, so there is nobody to name above. Sensei's row is "1girl, long black
+# hair, very long hair, large breasts, halo" — the students — for a player
+# avatar who is usually a faceless man; the Umamusume Trainer's is horse ears
+# and a horse tail on a human. These never read the table: what their own
+# posts say is all they get, and the prompt says not to invent the rest.
+table_skip:
+  - "sensei_(blue_archive)"
+  - "doodle_sensei_(blue_archive)"
+  - "trainer_(umamusume)"
+
+# Hand corrections, for what no rule above can reach: tags taken off one
+# character whatever the lookup finds, in the prompt and the traits panel
+# alike. Last resort — every entry is a character the automatic path gets
+# wrong in a way we could see and could not fix. Added 18 Sep 2026:
+#   - Doodle Sensei is never drawn alone; his own posts are group shots with
+#     students, so their halo, blue eyes and long hair came back as his.
+#   - The Umamusume Trainer is a human drawn among horse girls.
+#   - 2B's canon is the blindfold; `no_blindfold` is how some posts show her.
+#   - Numby (Star Rail) is Topaz's Warp Trotter, a small golden pig; every
+#     trait that came back was Topaz's. Clockie is the Dreamjolt Troupe's
+#     clock-headed mascot and came back as a grey-haired girl. Neither has a
+#     true trait in either source, so both are emptied and get the
+#     do-not-invent line. The subtraction could not do it: it only removes a
+#     companion's RANKED traits, and the leftovers were still hers.
+trait_remove:
+  "doodle_sensei_(blue_archive)": ["halo", "blue_eyes", "long_hair", "very_long_hair", "large_breasts"]
+  "trainer_(umamusume)": ["horse_girl", "horse_ears", "horse_tail", "animal_ears", "tail"]
+  "2b_(nier:automata)": ["no_blindfold"]
+  "numby_(honkai:_star_rail)": ["purple_eyes", "blonde_hair", "hair_ornament", "large_breasts",
+    "medium_breasts", "hair_between_eyes", "two-tone_hair", "streaked_hair", "red_hair", "long_hair",
+    "short_hair", "blue_eyes"]
+  "clockie_(honkai:_star_rail)": ["purple_eyes", "hair_between_eyes", "hair_over_one_eye", "grey_hair",
+    "long_hair", "ponytail", "yellow_eyes", "short_hair", "black_hair"]
+  # Gojou Wakana (Dress-Up Darling) is a boy with short black hair. Marin is
+  # subtracted from his mixed sample, but only her ranked traits, so her
+  # chest, gradient hair and nails were left behind as his. 19 Sep 2026.
+  "gojou_wakana": ["large_breasts", "medium_breasts", "multicolored_hair", "gradient_hair",
+    "nail_polish", "long_fingernails", "blonde_hair", "long_hair"]
+  # GATE, 19 Sep 2026. Lelei is a human mage and Itami a human soldier, but
+  # both carried Tuka's elf ears out of the group shots the three share. Yao's
+  # 37 posts are mostly the JSDF convoy, and two gun models came back as hers.
+  "lelei_la_lalena": ["elf", "pointy_ears", "long_pointy_ears"]
+  "itami_youji": ["elf", "pointy_ears", "long_pointy_ears", "howa_type_64"]
+  "yao_haa_dushi": ["fn_mag", "browning_m2"]
+  # Arcane's alternate-timeline Powder is drawn with Ekko nearly every time, and
+  # came back as him: dreadlocks, dark skin, male. Her own blue hair, blue eyes
+  # and short hair stay. 19 Sep 2026.
+  "powder_(alternate_timeline)_(arcane)": ["dreadlocks", "dark-skinned_male", "dark_skin", "earrings",
+    "male_focus", "1boy"]
+  # Blue Archive, 19 Sep 2026. Peroro is Hifumi's mascot bird and is drawn in
+  # her arms; her hair, eyes and halo came back as his. Mari is a cat girl and
+  # her track costume's posts are tagged `fox_ears` often enough to rank.
+  "peroro_(blue_archive)": ["halo", "yellow_halo", "long_hair", "twintails", "low_twintails",
+    "yellow_eyes", "hair_between_eyes"]
+  "mari_(track)_(blue_archive)": ["fox_ears"]
+
+same_person:
+  # Genshin Impact
+  - ["scaramouche_(genshin_impact)", "wanderer_(genshin_impact)", "kuronushi_(genshin_impact)"]
+  - ["zhongli_(genshin_impact)", "rex_lapis_(genshin_impact)"]
+  - ["venti_(genshin_impact)", "barbatos_(genshin_impact)"]
+  - ["xianyun_(genshin_impact)", "cloud_retainer_(genshin_impact)"]
+  - ["arlecchino_(genshin_impact)", "peruere_(genshin_impact)"]
+  - ["durin_(genshin_impact)", "mini_durin_(genshin_impact)"]
+  - ["gorou_(genshin_impact)", "hina_(genshin_impact)"]
+
+  # Arknights names every alter `<operator> the <title>`, so these were read
+  # off the tag database rather than looked up one at a time. Ch'en has two.
+  - ["angelina_(arknights)", "angelina_the_mellow_wish_(arknights)", "gilberta_(arknights)"]
+  - ["blaze_(arknights)", "blaze_the_igniting_spark_(arknights)"]
+  - ["ch'en_(arknights)", "ch'en_the_holungday_(arknights)", "ch'en_the_dawnstreak_(arknights)"]
+  - ["executor_(arknights)", "executor_the_ex_foedere_(arknights)"]
+  - ["exusiai_(arknights)", "exusiai_the_new_covenant_(arknights)"]
+  - ["eyjafjalla_(arknights)", "eyjafjalla_the_hvit_aska_(arknights)", "ardelia_(arknights)"]
+  - ["gavial_(arknights)", "gavial_the_invincible_(arknights)"]
+  - ["hibiscus_(arknights)", "hibiscus_the_purifier_(arknights)"]
+  - ["hoshiguma_(arknights)", "hoshiguma_the_breacher_(arknights)"]
+  - ["jessica_(arknights)", "jessica_the_liberated_(arknights)"]
+  - ["kal'tsit_(arknights)", "kal'tsit_esperanta_(arknights)"]
+  - ["kroos_(arknights)", "kroos_the_keen_glint_(arknights)"]
+  - ["lappland_(arknights)", "lappland_the_decadenza_(arknights)"]
+  - ["lava_(arknights)", "lava_the_purgatory_(arknights)"]
+  - ["leizi_(arknights)", "leizi_the_thunderbringer_(arknights)"]
+  - ["nearl_(arknights)", "nearl_the_radiant_knight_(arknights)"]
+  - ["pramanix_(arknights)", "pramanix_the_prerita_(arknights)"]
+  - ["reed_(arknights)", "reed_the_flame_shadow_(arknights)"]
+  - ["silence_(arknights)", "silence_the_paradigmatic_(arknights)"]
+  - ["skadi_(arknights)", "skadi_the_corrupting_heart_(arknights)"]
+  - ["specter_(arknights)", "specter_the_unchained_(arknights)"]
+  - ["swire_(arknights)", "swire_the_elegant_wit_(arknights)"]
+  - ["talulah_(arknights)", "talulah_the_fighter_(arknights)"]
+  - ["texas_(arknights)", "texas_the_omertosa_(arknights)"]
+  - ["thorns_(arknights)", "thorns_the_lodestar_(arknights)"]
+
+  # Arknights again, where the alternate shares no part of the name and only
+  # the wiki says so: "an alternate version of W", "…of Siege", "…of
+  # Phantom", "an alternate form of Yato". The Endfield counterparts
+  # (Gilberta, Laevatain, Ardelia) are listed for the same reason the Terror
+  # forms are — whatever the lore calls them, they are drawn as the same
+  # face, so subtracting one from the other removes a real appearance.
+  - ["endministrator_(arknights)", "female_endministrator_(arknights)", "male_endministrator_(arknights)"]
+  - ["w_(arknights)", "wis'adel_(arknights)"]
+  - ["yato_(arknights)", "kirin_r_yato_(arknights)"]
+  - ["siege_(arknights)", "vina_victoria_(arknights)"]
+  - ["phantom_(arknights)", "tragodia_(arknights)"]
+  - ["surtr_(arknights)", "laevatain_(arknights)"]
+
+  # Blue Archive — the Terror forms. Nothing else: the swimsuit costumes are
+  # already covered by the name part, and the pairs the wiki scan suggested
+  # (Hinata/Hina, Tsurugi/Ui) were a substring artefact of the scan and are
+  # genuinely different girls.
+  - ["hoshino_(blue_archive)", "hoshino_terror_(blue_archive)"]
+  - ["shiroko_(blue_archive)", "shiroko_terror_(blue_archive)"]
+  #
+  # Re-swept 16 Sep 2026 over all 515 characters with 100+ posts, which found
+  # three the first pass did not, each measured both ways. Faust is "the
+  # masked (by a paper bag) alter-ego of Hifumi": ungrouped she was a paper
+  # bag and a rifle, grouped she gets Hifumi's twintails and halo back. Smol
+  # Mari is "a small, more cat-like version of Mari" — a fan creation, but
+  # drawn as her, and grouped she keeps the orange hair and ears. Problem
+  # Solver Sensei is "the Sensei … as seen in a spin-off webcomic"; grouped
+  # he gains his necktie and black hair.
+  - ["hifumi_(blue_archive)", "faust_(blue_archive)"]
+  # Ohara Mari (Love Live!) shares this line on purpose. Groups are indexed by
+  # the name before `_(`, and `mari_(genjitsu_no_yohane)` reduces to `mari` just
+  # as Blue Archive's Mari does; a second group would take the name over and
+  # silently undo Smol Mari. The two Maris are never drawn together, so one
+  # line costs nothing.
+  - ["mari_(blue_archive)", "smol_mari_(blue_archive)_(horuhara)", "ohara_mari", "mari_(genjitsu_no_yohane)"]
+  - ["sensei_(blue_archive)", "problem_solver_sensei_(blue_archive)"]
+  #
+  # Left OUT. Doodle Sensei is "a child's drawing caricature" of the Sensei and
+  # came back as whichever student stood next to him either way — halo, long
+  # hair, large breasts — so no grouping helps it. The artists' female sensei
+  # (`female_sensei_(blue_archive)_(xipa)` and co.) are already matched to the
+  # Sensei by the `female` prefix rule. Kei's orange robot, Bun Bun, Skullman,
+  # Pan-chan and Avant-Garde are robots, pets and mascots.
+
+  # Umamusume — one, and it is the Trainer rather than a horse girl.
+  - ["trainer_(umamusume)", "female_trainer_(umamusume)"]
+
+  # Touhou names its alternate forms outright rather than in parentheses, so
+  # the name part cannot see them: "the Hakutaku form of Kamishirasawa
+  # Keine", "the true form of Ibaraki Kasen", "a black-clad version of Lily
+  # White", "Yukkuri version of Shameimaru Aya". Everything Touhou does put
+  # in parentheses — `konpaku_youmu_(ghost)`, `kaenbyou_rin_(cat)` — needs no
+  # entry.
+  - ["kamishirasawa_keine", "ex-keine"]
+  - ["ibaraki_kasen", "ibaraki_douji_(touhou)"]
+  - ["lily_white", "lily_black"]
+  - ["shameimaru_aya", "kimeemaru"]
+
+  # Fate. The franchise is built on one heroic spirit wearing several names,
+  # so it has more of these than the other five put together. Most follow
+  # `<name>_alter`, which the tag database gives up without a single request;
+  # Saber and Artoria share nothing and come from the wiki, which gives her
+  # true name as Artoria Pendragon.
+  # Artoria is the big one. Her danbooru page says it outright — "this tag is
+  # an umbrella tag that collects all versions of Artoria Pendragon under one
+  # tag" — and then lists them, which is where this group comes from rather
+  # than from anyone's memory. The `artoria_pendragon_(...)` ascensions need
+  # no entry; the name part already covers them.
+  #
+  # The same page names three look-alikes that are NOT her, and they are
+  # deliberately absent below: Nero Claudius, Mordred and Okita Souji. Her
+  # male counterparts, Arthur Pendragon and Saver, danbooru lists apart from
+  # both sets, so they keep their own group too.
+  - ["artoria_pendragon_(fate)", "saber_(fate)", "saber_alter", "saber_lily", "saber_lion",
+     "master_artoria", "artoria_caster_(fate)", "lord_logres_(fate)",
+     "mysterious_heroine_x_(fate)", "mysterious_heroine_x_alter_(fate)",
+     "mysterious_heroine_xx_(fate)", "mysterious_heroine_xx_alter_(fate)",
+     "lion_king_(lancer)_(fate)"]
+  - ["jeanne_d'arc_(fate)", "jeanne_d'arc_alter_(fate)", "jeanne_d'arc_alter_santa_lily_(fate)",
+     "metatron_jeanne_(fate)"]
+  - ["bb_(fate)", "bb_dubai_(fate)", "bb_cosmo_(fate)"]
+  - ["scathach_(fate)", "scathach-skadi_(fate)"]
+  - ["okita_souji_(fate)", "okita_souji_alter_(fate)", "okita_j._souji_(fate)"]
+  - ["cu_chulainn_(fate)", "cu_chulainn_alter_(fate)"]
+  - ["marie_antoinette_(fate)", "marie_antoinette_alter_(fate)"]
+  - ["arjuna_(fate)", "arjuna_alter_(fate)"]
+  - ["atalanta_(fate)", "atalanta_alter_(fate)"]
+  - ["nitocris_(fate)", "nitocris_alter_(fate)"]
+  - ["medea_(fate)", "medea_lily_(fate)"]
+  - ["altera_(fate)", "altera_the_santa_(fate)"]
+  - ["kingprotea_(fate)", "kingprotea_alter_(fate)"]
+  - ["arthur_pendragon_(fate)", "arthur_pendragon_alter_(fate)"]
+  - ["ereshkigal_(fate)", "ereshkigal_alter_(fate)", "space_ereshkigal_(fate)"]
+
+  # The rest of Fate's second identities, where the two names share nothing
+  # and only the wiki connects them: "the fully monstrous Avenger-class form
+  # of Medusa", "a younger version of Gilgamesh", "an aged down version of
+  # Nero Claudius", "a male aspect of Oda Nobunaga", "Avenger-class variant
+  # of Ishtar", "a swimsuit version of Merlin … goes by the name Lady Avalon
+  # as an alias".
+  - ["medusa_(fate)", "gorgon_(fate)"]
+  - ["gilgamesh_(fate)", "child_gilgamesh_(fate)"]
+  - ["nero_claudius_(fate)", "queen_draco_(fate)"]
+  - ["oda_nobunaga_(fate)", "oda_kippoushi_(fate)"]
+  - ["ishtar_(fate)", "space_ishtar_(fate)"]
+  - ["tiamat_(fate)", "larva_tiamat_(fate)"]
+  - ["merlin_(fate/prototype)", "lady_avalon_(fate)"]
+  - ["nemo_(fate)", "captain_nemo_(fate)"]
+  - ["ushiwakamaru_(fate)", "taira_no_kagekiyo_(fate)"]
+  - ["assassin_(fate/zero)", "female_assassin_(fate/zero)"]
+
+  # Deliberately NOT listed, though the scan proposed them. Pollux is
+  # Castor's twin sister, not Castor. Rengoku is Okita Alter's personified
+  # sword. Nitocris in a swimsuit dresses up AS Medjed, who is someone else.
+  # Hans Christian Andersen (adult) is an aged-up Hans, and the wiki sentence
+  # that named Kiara was describing who he was released alongside.
+
+  # Honkai: Star Rail. Nothing structural here — not one of its 148 tags
+  # extends another's name — so every line below came from the wiki. Past
+  # lives and true names are the pattern: Dan Feng is "Imbibitor Lunae's
+  # previous incarnation", Yingxing "a past form of Blade", Kakavasha "the
+  # original identity of Aventurine", Fugue "the five-star rarity version of
+  # Tingyun", The Herta "the real human form" of the puppet who carries the
+  # plain tag. The Trailblazer is one protagonist with a selectable gender.
+  - ["trailblazer_(honkai:_star_rail)", "stelle_(honkai:_star_rail)", "caelus_(honkai:_star_rail)"]
+  - ["blade_(honkai:_star_rail)", "yingxing_(honkai:_star_rail)", "mortenax_blade_(honkai:_star_rail)"]
+  - ["herta_(honkai:_star_rail)", "the_herta_(honkai:_star_rail)"]
+  - ["dan_heng_(honkai:_star_rail)", "dan_feng_(honkai:_star_rail)"]
+  - ["aventurine_(honkai:_star_rail)", "kakavasha_(honkai:_star_rail)"]
+  - ["sparkle_(honkai:_star_rail)", "sparxie_(honkai:_star_rail)"]
+  - ["march_7th_(honkai:_star_rail)", "evernight_(honkai:_star_rail)"]
+  - ["tingyun_(honkai:_star_rail)", "fugue_(honkai:_star_rail)"]
+  # Not one character, but drawn as one face, which is the thing that matters
+  # here: the wiki calls these "a trio of characters, all having red hair,
+  # blue eyes, and cross-shaped pupils", and Numby is a specific Trotter.
+  # Subtracting either from the other takes the shared design with it.
+  - ["tribbie_(honkai:_star_rail)", "trianne_(honkai:_star_rail)", "trinnon_(honkai:_star_rail)"]
+  - ["trotter_(honkai:_star_rail)", "numby_(honkai:_star_rail)"]
+  #
+  # Left OUT on purpose, though the scan called them the same: Sam is a mech
+  # ("Strategic Assault Mech"), not Firefly wearing one, so stripping her
+  # grey hair off it is right. Little Ica is Hyacine's pegasus memosprite,
+  # Evey is Evernight's, and Clockie is a Penacony mascot — all companions
+  # that look nothing like who they follow.
+
+  # Fire Emblem. The avatars — Byleth, Corrin, Robin, Alear, Shez, Kiran — need
+  # nothing here: their gendered tags are covered by `female`/`male` in
+  # same_person_prefixes, and Robin-as-Grima is `female_robin_(grima)`, which
+  # the same rule reduces to Robin. What is left are Three Houses' secret
+  # identities, which share no part of a name: "their true identity is
+  # Edelgard von Hresvelg", "his true identity is Jeritza von Hrym", and The
+  # Immaculate One is "the true form of Archbishop Rhea, who is also known as
+  # Seiros".
+  - ["edelgard_von_hresvelg", "flame_emperor"]
+  - ["jeritza_von_hrym", "death_knight_(fire_emblem)"]
+  - ["rhea_(fire_emblem)", "seiros_(fire_emblem)", "the_immaculate_one"]
+  #
+  # Left OUT on purpose. `grima_(dragon)` is the fell dragon itself, not
+  # Robin's true form. `female_byleth_(sothis_regalia)` is Byleth wearing
+  # Sothis's costume, not Sothis. Lucina impersonates Marth; they are two people.
+
+  # Honkai Impact 3rd. The Herrscher forms need nothing — they are tagged
+  # `kiana_kaslana_(herrscher_of_the_void)` and the name part covers them. What
+  # is left shares no name: the Herrscher of Sentience has "an appearance
+  # similar to Fu Hua … originally conceived as a Herrscher persona", Zhuge
+  # Kongming is "a bubble world version of Theresa Apocalypse", Delta "a bubble
+  # world version of Rozaliya", Yae Kasumi "a clone of Yae Sakura", the
+  # Herrscher of Corruption "based her form off Elysia's", and the Dreamseeker
+  # takes Leylah's likeness.
+  - ["fu_hua", "herrscher_of_sentience"]
+  - ["theresa_apocalypse", "zhuge_kongming_(honkai_impact)"]
+  - ["elysia_(honkai_impact)", "herrscher_of_corruption"]
+  - ["rozaliya_olenyeva", "delta_(honkai_impact)"]
+  - ["yae_sakura", "yae_kasumi"]
+  - ["leylah_(honkai_impact)", "female_dreamseeker_(honkai_impact)"]
+  #
+  # Left OUT, and measured rather than assumed. `seele_(alter_ego)` is Seele's
+  # dark persona, but she is recoloured — red eyes, red inner hair, a black
+  # dress — and subtracting Seele is what gets her right: ungrouped she keeps
+  # `black_dress`, grouped she loses it. `kurokami_fubuki` below is the same
+  # case. Durandal is revealed as the original Kiana but is drawn nothing like
+  # her, and her name part collides with Umamusume's Durandal.
+
+  # Wuthering Waves. Rover needs nothing — `female_rover` and `male_rover` are
+  # the avatar prefix rule. Fleurdelys is "the original and complete form of
+  # Cartethyia". Leviathan is left out: it is the Threnodian that made
+  # Fleurdelys its vessel, a sea creature, not the same being.
+  - ["cartethyia_(wuthering_waves)", "fleurdelys_(wuthering_waves)"]
+
+  # Re:Zero. Natsumi Schwarz is "Natsuki Subaru while crossdressing". Satella
+  # "greatly resembles Emilia" but is somebody else, and is never drawn with
+  # her often enough to reach this path anyway.
+  - ["natsuki_subaru", "natsumi_schwarz"]
+
+  # Hololive. Nearly everything the sweep proposed was a mascot or a fanbase —
+  # Pekomon, Takodachi, Yukimin, the Jailbirds — and those are companions. The
+  # real cases are the chibi versions ("a chibi version of Watson Amelia"),
+  # Marine in her bear costume, and Fubuzilla, "Fubuki's form as a chibi
+  # kaiju". Fubuzilla was measured both ways: ungrouped it came back as
+  # `pentagram, green_eyes, side_braid` with every trace of Fubuki gone,
+  # grouped as `fox_girl, fox_tail, aqua_eyes, white_hair`.
+  - ["shirakami_fubuki", "fubuzilla_(shirakami_fubuki)"]
+  - ["watson_amelia", "smol_ame"]
+  - ["gawr_gura", "smol_gura"]
+  - ["nanashi_mumei", "smol_mumei"]
+  - ["houshou_marine", "houshou_kumarine"]
+  # The rest of the smols, re-swept across every branch 18 Sep 2026. Drawn in
+  # group chibi shots, so each sample is the whole generation and ungrouped the
+  # subtraction took their own hair and left a neighbour's: smol Calli came back
+  # with Gura's blue hair and shark tail, Kronii with Baelz's mouse ears and red
+  # hair, Baelz with Fauna's green hair. Grouped, each gets her own colour back —
+  # Ina purple with tentacle hair, Calli pink, Kronii blue, Fauna green with her
+  # antlers, IRyS purple. Kiara measured the same both ways and is listed for
+  # the same reason as the rest. Olivia, Ollie's "human counterpart", is NOT
+  # grouped: grouped she picks up `zombie`, the one thing she is not.
+  - ["ninomae_ina'nis", "smol_ina"]
+  - ["mori_calliope", "smol_calli"]
+  - ["hakos_baelz", "smol_baelz"]
+  - ["irys_(hololive)", "smol_irys"]
+  - ["takanashi_kiara", "smol_kiara"]
+  - ["ouro_kronii", "smol_kronii"]
+  - ["ceres_fauna", "smol_fauna"]
+  #
+  # Left OUT: `kurokami_fubuki` is "a colour-flipped version" of Fubuki — black
+  # hair, red eyes — so subtracting Fubuki is correct, as with Seele above.
+
+  # Outside those four, but surfaced by the same sweep because the rosters
+  # overlap, every one reaching the subtraction path today and every one a
+  # secret or civilian identity in the wiki's own words.
+  - ["peter_parker", "spider-man"]
+  - ["wanda_maximoff", "scarlet_witch"]
+  - ["mizuno_ami", "sailor_mercury", "super_sailor_mercury"]
+  - ["misumi_nagisa", "cure_black"]
+  - ["yukishiro_honoka", "cure_white"]
+  - ["doma_umaru", "komaru_(himouto!_umaru-chan)"]
+  - ["ryougi_shiki", "void_shiki"]
+  - ["zero_(mega_man)", "zero(z)_(mega_man)"]
+  - ["selena_(pgr)", "selena:_pianissimo_(pgr)"]
+
+  # Zenless Zone Zero. Nearly everything tags as `<name>_(zenless_zone_zero)`
+  # with costumes in parentheses, so the name part covers it. What is left are
+  # the agents' Bangboo forms — "Hoshimi Miyabi in bangboo form", "the bangboo
+  # form of Soukaku" — and they are Fubuzilla again: a mascot body wearing the
+  # agent's design. Measured 16 Sep 2026: grouped, Miyaboo gets `fox_ears`,
+  # Soukaboo `oni, horns, blue_skin`, Asaboo Harumasa's headband and necktie;
+  # ungrouped, each was a bare `bangboo`. John Doe is "an unofficial
+  # genderswapped version of Jane Doe" and keeps her mouse ears and tail only
+  # when grouped. Bangboo 6 is "visually identical to Eous, except numbered 06"
+  # — a look-alike, listed as the Tribbie triplets are — and gets the orange
+  # bandana back.
+  - ["hoshimi_miyabi", "miyaboo_(zenless_zone_zero)"]
+  - ["soukaku_(zenless_zone_zero)", "soukaboo_(zenless_zone_zero)"]
+  - ["asaba_harumasa", "asaboo_(zenless_zone_zero)"]
+  - ["jane_doe_(zenless_zone_zero)", "john_doe_(zenless_zone_zero)_(scopeophilia)"]
+  - ["eous_(zenless_zone_zero)", "bangboo_6_(zenless_zone_zero)", "bangboo_18_(zenless_zone_zero)"]
+  #
+  # Left OUT: Tailless is the demon in Miyabi's katana, Magus is Orphie's
+  # cybernetic tail, Seed Sr. is the mech Seed pilots, and Chalky, Kamanosuke,
+  # the Qingming bird, Hu Wei and Lucy's crew are pets and companions. The
+  # playable Bangboos (Amillion, Butler, Safety, Robin, Drusilla, Anastella)
+  # belong to their teams and look nothing like them.
+
+  # Mushoku Tensei needs nothing. Every character the sweep proposed was
+  # family — Zenith, Lilia and Hilda are mothers, Paul a father, Lucy a
+  # daughter — or a teacher, and those are what subtraction is for. Eris's
+  # adult form is `eris_greyrat_(adult)`, which the name part already covers,
+  # and danbooru has no separate tag for Sylphiette's disguise as Fitz.
+
+  # Surfaced by the Mushoku and ZZZ rosters, reaching the path, and measured.
+  # Panther is "the Phantom Thief alias of Takamaki Ann" and gets her twintails
+  # back. The other three Inner Senshi are Sailor Mercury's case: ungrouped,
+  # Sailor Venus was every Senshi's collar colour at once with no hair colour;
+  # grouped, `blonde_hair, blue_eyes` and only orange. Ultimate Madoka is "an
+  # alternate persona of Kaname Madoka" and came back with `black_hair` until
+  # grouped, when her pink hair returned. Magia Baiser is "the magical girl
+  # form of Hiiragi Utena". Kenjaku is drawn in Geto Suguru's body and only
+  # keeps Geto's long black hair when grouped.
+  - ["takamaki_ann", "panther_(persona_5)"]
+  # The Super forms, measured 17 Sep 2026: ungrouped each was a pile of every
+  # Senshi's collar colours; grouped, their own hair and eyes came back.
+  - ["aino_minako", "sailor_venus", "super_sailor_venus"]
+  - ["hino_rei", "sailor_mars", "super_sailor_mars"]
+  - ["kino_makoto", "sailor_jupiter", "super_sailor_jupiter"]
+  - ["kaname_madoka", "ultimate_madoka"]
+  - ["hiiragi_utena", "magia_baiser"]
+  - ["geto_suguru", "kenjaku"]
+  - ["togawa_sakiko", "oblivionis_(bang_dream!)"]
+  - ["ten'ou_haruka", "sailor_uranus"]
+  - ["kaiou_michiru", "sailor_neptune"]
+  #
+  # Measured and left out because grouping changed nothing: Superman, Felicia
+  # Hardy, Omni-Man, Slave Leia and RED Pyro. Left out because it made them
+  # WORSE: grouped, Joker (Persona 5) lost his mask, coat and gloves and came
+  # back as Ren in plain clothes, and Reze's Bomb hybrid lost the bomb head —
+  # a costume or a transformation that replaces the face is the part that
+  # subtraction was protecting.
+
+  # League of Legends tags every skin as its own character, `<skin line>_<champ>`
+  # — `k/da_ahri`, `star_guardian_jinx`, `arcane_vi` — and danbooru puts the
+  # champion's `<champ>_(league)` tag on all of them. The two names share no
+  # part, so every skin that is rarely drawn alone had its own champion
+  # subtracted. Measured 16 Sep 2026 over all 151 skin tags with 30+ posts:
+  # ungrouped, K/DA Ahri had no fox ears, no tails and no whisker marks; Arcane
+  # Vi came back with Jinx's `blue_hair` and without her own red hair and face
+  # tattoo; every Soraka skin lost the horn and every Lulu skin the yordle.
+  #
+  # Listed, not a rule. "Ends with a champion's name" also matches Big Bad
+  # Wolf, Sniper Wolf, Hitou Nami, Harley Quinn and the Graves family, which
+  # is kumano_maru all over again. Only skins that reach the path and came back
+  # better are here; skins with enough solo posts (the Evelynn K/DA line,
+  # Foxfire Ahri, the Miss Fortune line) changed nothing and are left out.
+  - ["ahri_(league)", "k/da_ahri", "k/da_all_out_ahri", "spirit_blossom_ahri", "star_guardian_ahri",
+     "popstar_ahri", "academy_ahri", "the_baddest_ahri", "arcade_ahri", "dynasty_ahri",
+     "immortalized_legend_ahri"]
+  - ["jinx_(league)", "arcane_jinx", "arcane_fractured_jinx", "powder_(arcane)"]
+  - ["vi_(league)", "arcane_vi", "arcane_brawler_vi"]
+  - ["caitlyn_(league)", "arcane_caitlyn", "officer_caitlyn", "pool_party_caitlyn"]
+  - ["akali_(league)", "k/da_akali", "k/da_all_out_akali", "star_guardian_akali", "nurse_akali",
+     "the_baddest_akali", "blood_moon_akali"]
+  - ["gwen_(league)", "soul_fighter_gwen", "cafe_cuties_gwen"]
+  - ["lux_(league)", "elementalist_lux", "battle_academia_lux"]
+  - ["lulu_(league)", "star_guardian_lulu", "winter_wonder_lulu"]
+  - ["soraka_(league)", "star_guardian_soraka", "cafe_cuties_soraka", "spirit_blossom_soraka"]
+  - ["kai'sa_(league)", "k/da_kai'sa", "k/da_all_out_kai'sa"]
+  - ["xayah_(league)", "star_guardian_xayah", "redeemed_star_guardian_xayah"]
+  - ["poppy_(league)", "star_guardian_poppy"]
+  - ["janna_(league)", "star_guardian_janna"]
+  - ["neeko_(league)", "star_guardian_neeko"]
+  - ["ezreal_(league)", "heartsteel_ezreal", "star_guardian_ezreal"]
+  - ["irelia_(league)", "divine_sword_irelia"]
+  - ["sett_(league)", "heartsteel_sett", "spirit_blossom_sett"]
+  - ["zoe_(league)", "star_guardian_zoe", "pool_party_zoe"]
+  - ["taliyah_(league)", "star_guardian_taliyah"]
+  #
+  # Powder is "what Jinx was known as before she renamed herself" — the sweep
+  # read "sister" and called her a companion, but she is Jinx as a child, and
+  # grouped she keeps the blue hair and braids instead of `dark_skin`.
+  #
+  # Left OUT, measured. Battle Bunny Riven, Arcade Riven and Star Guardian Miss
+  # Fortune came back worse grouped: their samples are crowd shots, and
+  # grouping moved the subtraction onto Jinx or Ahri. K/DA Neeko lost
+  # `chameleon_girl` and her aqua hair, Coven Nami her grey skin, Star Nemesis
+  # Morgana her wings and mask — the skin is the difference, as with Seele.
+  # Lamb and Wolf are the two halves of Kindred, and Lamb and Kindred come back
+  # the same either way; `wolf` is also far too common a name part to list.
+  # Pix, Tibbers, Valor and Vex's shadow are companions.
+
+  # Granblue Fantasy needs nothing, measured 17 Sep 2026. Characters are
+  # `<name>_(granblue_fantasy)`, costumes in parentheses. The outfits shared by
+  # both protagonists (`fighter_(granblue_fantasy)`, `conqueror_of_the_eternals`,
+  # `guider_to_the_eternal_edge`, Alter Ego Malevolent) are worn by Gran AND
+  # Djeeta, so grouping just trades armour and swords for whichever face is
+  # commoner. Dark Jeanne is recoloured: grouped she lost her white hair and
+  # came back blonde. Gran and Djeeta themselves have enough solo posts.
+
+  # Nikke needs nothing, measured 17 Sep 2026. Costumes are parenthesised
+  # (`rapi_(red_hood)_(nikke)`, `rapunzel_(pure_grace)_(nikke)`). The two real
+  # second identities, Marian as the Heretic Modernia and Dorothy as the Doro
+  # meme, have enough solo posts that grouping changes nothing. Everything else
+  # the sweep proposed was a squadmate, a twin, a pet or a mech.
+
+  # Azur Lane, measured 17 Sep 2026 over 799 characters with 50+ posts. Costumes,
+  # META, μ and retrofit forms are all parenthesised and need nothing, and
+  # nearly every sweep proposal was a sister ship. Two second personifications
+  # of the same girl were being given their original subtracted: Laffey II is
+  # drawn as Laffey, and grouped she (and her bunny costume) gets the white
+  # twintails and red eyes back; Bismarck Zwei, "the second personification of
+  # Bismarck", gets her blonde hair.
+  - ["laffey_(azur_lane)", "laffey_ii_(azur_lane)"]
+  - ["bismarck_(azur_lane)", "bismarck_zwei_(azur_lane)"]
+  #
+  # Left OUT, measured and changing nothing: the child versions (Little
+  # Enterprise, Akagi-chan and the other -chan and little_ forms), the other
+  # "II" carriers (Hornet II "has the body and memories of the original Hornet",
+  # but both have enough solo posts), Observer Alpha, and the Commander
+  # variants. Tosa and Kaga (battleship) are sister ships, not one girl.
+
+  # Love Live!, measured 17 Sep 2026. Genjitsu no Yohane is a fantasy spin-off
+  # where every Aqours girl has an "incarnation" tag, always drawn with her
+  # original: grouped, Yohane gets her blue side bun back, You her brown hair,
+  # Riko her red hair, Kanan her blue ponytail. Nakagawa Nana is "Yuki
+  # Setsuna's real identity" and keeps her glasses and braids once grouped.
+  - ["tsushima_yoshiko", "yohane_(genjitsu_no_yohane)"]
+  - ["watanabe_you", "you_(genjitsu_no_yohane)"]
+  - ["matsuura_kanan", "kanan_(genjitsu_no_yohane)"]
+  - ["kunikida_hanamaru", "hanamaru_(genjitsu_no_yohane)"]
+  - ["sakurauchi_riko", "riko_(genjitsu_no_yohane)"]
+  - ["kurosawa_ruby", "ruby_(genjitsu_no_yohane)"]
+  - ["yuki_setsuna", "nakagawa_nana"]
+  #
+  # Left OUT: Dia and Chika's incarnations came back with NO traits at all once
+  # grouped. Michelle is Misaki's bear costume, and grouped it took her hair.
+  # The rest of the franchise is costumes in parentheses, siblings and pets.
+
+  # Surfaced by the Love Live roster, all measured.
+  - ["akemi_homura", "akuma_homura"]
+  - ["tsukino_usagi", "sailor_moon", "super_sailor_moon"]
+  - ["tomoe_hotaru", "sailor_saturn"]
+  - ["marinette_dupain-cheng", "ladybug_(miraculous_ladybug)"]
+  - ["yukikaze_(kancolle)", "tan_yang_(kancolle)"]
+  #
+  # Left OUT, and worse grouped: Chibi Moon and Super Chibi Moon (lost the pink
+  # buns and picked up Usagi as companion), Zero and Captain America (the mask
+  # and helmet are the character), Chat Noir (Adrien started wearing the suit).
+
+  # Sword Art Online. Avatars and real names are separate tags (Leafa/Suguha,
+  # Sinon/Asada Shino, Silica/Keiko, Lisbeth/Rika) and every one of them has
+  # enough solo posts that grouping changes nothing. Two do: Titania is Asuna's
+  # first fairy avatar and gets her brown hair back, and Kohiruimaki Karen,
+  # LLENN's real-world self, stops having LLENN subtracted.
+  - ["asuna_(sao)", "titania_(sao)"]
+  - ["llenn_(sao)", "kohiruimaki_karen"]
+
+  # Akame ga Kill! needs nothing, measured 17 Sep 2026: the characters that
+  # reach the path are squadmates in group shots, the sisters Akame and Kurome,
+  # and Seryu with her Teigu dog. Strays from its roster measured and left out:
+  # Dark Sakura and Girlycard lose the dress and suit that define them, Snow
+  # Miku loses her snowflakes, and Iris Heart, Yellow Heart and Majin Android 21
+  # barely change.
+
+  # Persona, measured 17 Sep 2026. Two families of second tag, both always drawn
+  # alongside the real name. The Phantom Thief code names: grouped, Violet gets
+  # her red ponytail back, Oracle her orange hair and glasses, Fox his blue hair
+  # (ungrouped he was orange), and each keeps the mask and outfit. The Persona
+  # 4/5 Shadow selves: grouped they get their owner's hair back and keep the
+  # yellow eyes that mark them. Panther is listed further up.
+  - ["yoshizawa_kasumi", "yoshizawa_sumire", "violet_(persona_5)"]
+  - ["okumura_haru", "noir_(persona_5)"]
+  - ["sakura_futaba", "oracle_(persona_5)", "shadow_futaba"]
+  - ["kitagawa_yusuke", "fox_(persona_5)"]
+  - ["sakamoto_ryuji", "skull_(persona_5)"]
+  - ["akechi_goro", "crow_(persona_5)", "black_mask_(persona_5)"]
+  - ["niijima_sae", "shadow_sae"]
+  - ["shirogane_naoto", "shadow_naoto"]
+  - ["kujikawa_rise", "shadow_rise"]
+  - ["amagi_yukiko", "shadow_yukiko"]
+  - ["satonaka_chie", "shadow_chie"]
+  - ["hanamura_yousuke", "shadow_yousuke"]
+  - ["tatsumi_kanji", "shadow_kanji"]
+  - ["narukami_yu", "shadow_yu"]
+  #
+  # Left OUT: Queen and Joker. Grouped, both lost the outfit that makes them
+  # the code name (Queen her mask, bodysuit and spikes) and came back as the
+  # schoolkid, which is the Zero and Captain America case. The Personas
+  # themselves (Izanagi, Arsene, Orpheus, Jiraiya, …) are summoned beings, and
+  # subtracting their user is right. From the roster, Genocider Sho is Toko
+  # Fukawa's other personality, but grouped she put Toko's glasses and braids
+  # back on and dropped the scissors: left out.
+
+  # Attack on Titan, measured 17 Sep 2026. A Titan form replaces the face, so
+  # this was expected to fail and did not: grouped, the Rogue Titan gets Eren's
+  # green eyes and keeps its monster traits, and the Female Titan gets the
+  # blonde hair and blue eyes she really has. Usamin is Armin in a bunny suit
+  # and gets his blonde hair back.
+  - ["eren_yeager", "rogue_titan"]
+  - ["annie_leonhart", "female_titan"]
+  - ["armin_arlert", "usamin"]
+  #
+  # Left OUT: the Armored, Colossal and Beast Titans change nothing. The Jaw and
+  # Founding Titans have had several holders, so no one face is theirs.
+  # Everyone else reaching the path is Levi's squad and the 104th in group
+  # shots, and parents. Historia has no separate tag (danbooru aliases her to
+  # Krista Lenz), and Ymir Fritz is not Ymir.
+
+  # My Hero Academia, Demon Slayer, Fullmetal Alchemist, One Punch Man, No Game
+  # No Life and Dr. Stone, measured 17 Sep 2026. Three groups across the six.
+  # Todoroki Touya is Dabi's real name and gets his burn scars and stitches back
+  # once Dabi stops being subtracted; Dynamy is a chibi Bakugou; in Brotherhood
+  # Wrath IS King Bradley ("only tag King Bradley as Wrath when…"), and grouped
+  # he gets the moustache and eyepatch.
+  - ["dabi_(boku_no_hero_academia)", "todoroki_touya"]
+  - ["bakugou_katsuki", "dynamy_(boku_no_hero_academia)"]
+  - ["king_bradley", "wrath_(fma)"]
+  #
+  # Measured and changing nothing, so left out: All Might/Yagi Toshinori, Greed/
+  # Ling Yao, Pride/Selim Bradley, Father/Van Hohenheim, Kokushibou/Tsugikuni
+  # Michikatsu, Akaza/Hakuji. One Punch Man, No Game No Life and Dr. Stone had
+  # no second identities to test; everything reaching the path is a sibling,
+  # a teammate or a group shot.
+
+  # Black Clover, Spy x Family, Kill la Kill, Fairy Tail, DARLING in the FRANXX,
+  # That Time I Got Reincarnated as a Slime and DanMachi, measured 17 Sep 2026.
+  # Two groups across the seven. Berserk Ryuuko is "a monstrous form that Ryuuko
+  # and Senketsu mutate into": grouped it keeps every monster trait and gets
+  # Ryuuko's black hair with the red streak back, and Senketsu is still the one
+  # subtracted. Ciel is Rimuru's skill Raphael given a body, drawn with Rimuru's
+  # face; her wiki page is one line, so the evidence is her other names
+  # (ラファエル, 智慧之王) and her posts, 85 of 93 tagged blue_hair. Ungrouped she
+  # came back as `2others, multiple_others` with no hair colour at all.
+  - ["matoi_ryuuko", "berserk_ryuuko"]
+  - ["rimuru_tempest", "ciel_(tensura)"]
+  #
+  # Measured and changing nothing, so left out: Secre Swallowtail/Nero (her
+  # bird form, "She is the human form of Nero"), Syr Flover/Freya, Zero Two/
+  # Strelizia. Everything else reaching the path is a companion: Bond and
+  # Chimera, the Black Bulls, the Mankanshoku family, Junketsu and Senketsu,
+  # the Exceeds, each Franxx pilot's partner and mech. Fairy Tail's Edolas
+  # counterparts (Mystogan, Erza Knightwalker, Lucy Ashley) have 2-13 posts.
+  # Izawa Shizue is not grouped with Rimuru: he wears her form in his colours.
+
+  # Evangelion, Cyberpunk, DanDaDan, Stellar Blade, Blue Exorcist, Mahouka,
+  # Fire Force and High School DxD, measured 17 Sep 2026. Three groups over two
+  # lines, all Evangelion. Lilith Rei is "Ayanami Rei ... takes this form" in
+  # End of Evangelion: grouped she gets Rei's red eyes and short hair and keeps
+  # giantess, wings and white skin, losing only the Lance and the Evas around
+  # her. Lina Rei is "an alternative reality version of Ayanami Rei": grouped
+  # she gets the blue hair, red eyes and Tokyo-3 uniform, where ungrouped she
+  # came back blue-eyed. One line for both, because two lines sharing
+  # ayanami_rei would undo each other. Final Battle: Mari is "the white plugsuit
+  # worn by Mari": grouped she gains the glasses, twintails and brown hair and
+  # loses nothing.
+  - ["ayanami_rei", "lilith_(ayanami_rei)", "lina_rei"]
+  - ["makinami_mari_illustrious", "final_battle:_mari"]
+  #
+  # Measured and left out. Rei Chikita is "a character doll of Ayanami Rei":
+  # grouped she got Rei's hair and eyes but lost character_doll, doll and the
+  # plugsuit, which is what the tag is. The Evil Eye is the yokai possessing
+  # Enjoji Jin: grouped it kept the possessed look but lost child, hoodie and
+  # glasses — a trade, not a fix. V, Valerie and Vincent (Cyberpunk) changed
+  # nothing either way. Everything else reaching the path is a companion: Kuro
+  # (Rin's familiar), the Shiba siblings, the Edgerunners crew, the Fire Force
+  # companies, the Occult Research Club, Nerv staff and the Angels. Turbo
+  # Granny's youkai form already shares her name part; Acrobatic Silky is the
+  # yokai that possessed Aira, not Aira. Angie Sirius has no tag of her own, and
+  # Stellar Blade's Evie is Blood Rain's new protagonist, not Eve.
+
+  # Overlord, measured 17 Sep 2026. Nabe is "the alias/disguise Narberal Gamma
+  # uses when she's adventuring with Momon", drawn with Narberal's face: grouped
+  # she gets the black hair, black eyes, ponytail and blunt bangs, where
+  # ungrouped she came back blue-eyed with no hair colour.
+  - ["narberal_gamma", "nabe_(overlord)"]
+  #
+  # Measured and left out. Momon, Ainz's armoured alter-ego, only gains
+  # `fantasy`: the armour covers everything. Saint Clementine (Mass for the
+  # Dead) changes nothing. Suzuki Satoru is Ainz's human self: grouped he picks
+  # up Ainz's skeleton, skull and hood, which is the one thing he is not. The
+  # Pleiades maids and the floor guardians are companions.
+
+  # Girls' Frontline, GF2: Exilium and Neural Cloud, measured 17 Sep 2026.
+  # Almost every GF2 doll is a GF1 doll under a new name — danbooru's own
+  # wording, "an android imprinted with the H&K UMP45 … returning from the first
+  # game" — and Neural Cloud's Agents are "a past instance of" one. danbooru
+  # tags both names on the post, so the new name had the old one's face
+  # subtracted, the Mega Pokémon case. Grouped, Leva gets UMP45's scar and
+  # brown hair, Makiatto the purple hair and red eyes 70 of her 100 posts carry
+  # (ungrouped she was blonde), Groza her blonde hair, Kuro MDR's streaked pink
+  # hair and heterochromia. Same-named dolls (Vector, Jiangyu, Centaureissi in
+  # both games) already join by name, so one line covers GF2 and NC together.
+  - ["ump45_(girls'_frontline)", "leva_(girls'_frontline_2)"]
+  - ["ots-14_(girls'_frontline)", "groza_(girls'_frontline_2)"]
+  - ["g11_(girls'_frontline)", "mechty_(girls'_frontline_2)"]
+  - ["wa2000_(girls'_frontline)", "makiatto_(girls'_frontline_2)"]
+  - ["ump9_(girls'_frontline)", "lenna_(girls'_frontline_2)"]
+  - ["m200_(girls'_frontline)", "cheyanne_(girls'_frontline_2)"]
+  - ["g36_(girls'_frontline)", "centaureissi_(girls'_frontline_2)"]
+  - ["ak-15_(girls'_frontline)", "voymastina_(girls'_frontline_2)"]
+  - ["spas-12_(girls'_frontline)", "sabrina_(girls'_frontline_2)"]
+  - ["ro635_(girls'_frontline)", "robella_(girls'_frontline_2)"]
+  - ["ak-alfa_(girls'_frontline)", "tololo_(girls'_frontline_2)"]
+  - ["mp7_(girls'_frontline)", "cheeta_(girls'_frontline_2)"]
+  - ["an-94_(girls'_frontline)", "alva_(girls'_frontline_2)"]
+  - ["m4_sopmod_ii_(girls'_frontline)", "soppo_(girls'_frontline_2)"]
+  - ["aa-12_(girls'_frontline)", "lind_(girls'_frontline_2)"]
+  - ["nagant_revolver_(girls'_frontline)", "nagant_(girls'_frontline_2)"]
+  - ["g41_(girls'_frontline)", "faelynn_(girls'_frontline_2)"]
+  - ["ak-12_(girls'_frontline)", "koleda_(girls'_frontline_2)"]
+  - ["p90_(girls'_frontline)", "mityl_(girls'_frontline_2)"]
+  - ["type_100_(girls'_frontline)", "sakura_(girls'_frontline_2)"]
+  - ["welrod_mkii_(girls'_frontline)", "welrod_(girls'_frontline_2)"]
+  - ["ppsh-41_(girls'_frontline)", "papasha_(girls'_frontline_2)"]
+  - ["tmp_(girls'_frontline)", "harpsy_(girls'_frontline_2)"]
+  # Lainie is "an OGAS entity based on Leva's memories" of UMP40, and wears her
+  # face: grouped she gets the star pupils and green eyes. UMP45 is still
+  # subtracted from her, which is right — they are sisters.
+  - ["ump40_(girls'_frontline)", "lainie_(girls'_frontline_2)"]
+  - ["mdr_(girls'_frontline)", "kuro_(neural_cloud)"]
+  - ["idw_(girls'_frontline)", "betty_(neural_cloud)"]
+  # Clukay is "a neural copy of HK416": grouped she gets the green eyes, grey
+  # hair and teardrop mark her posts carry. Agent Vector is Vector's counterpart
+  # in the Division collab and gets her yellow eyes and short hair back.
+  - ["hk416_(girls'_frontline)", "clukay_(neural_cloud)"]
+  - ["vector_(girls'_frontline)", "agent_vector_(girls'_frontline)"]
+  #
+  # Left OUT, measured. Klukai is HK416 in GF2 but recoloured: 64 of her 100
+  # posts are blue_hair, and grouped she turned grey. Agent 416 lost the mask
+  # (46 posts) and her P416 for 416's own rifle, the Joker case. Belka/G28 and
+  # Gaia/Destroyer come back as noise either way. 19 renames changed nothing:
+  # Nikketa, Helen, Loreley, Daiyan, Dushevnaya, Jiangyu, Qiongjiu, Peri,
+  # Littara, Qiuhua, Basti, Ksenia, Liushih, Faye, Yoohee, Florence, Yelena,
+  # Persicaria/Persica and Black Groza. Sharkry, Andoris and the Professor only
+  # mention a GF1 name. The Nyto types (Alina, Adeline, Nimogen, …) are a
+  # species, not one girl.
+  # Short new names join by name part across franchises (sakura, lind, kuro,
+  # nagant): harmless unless such a character is drawn beside the GF1 doll.
+
+  # Final Fantasy, measured 17 Sep 2026 over 421 characters from the main
+  # entries (failed=0). The Crystal Exarch is G'raha Tia a hundred years on and
+  # gets his red hair, cat ears and red eyes back while keeping the robe; Sarisa
+  # is "Faris Scherwiz's true identity" and gets her purple hair and headband;
+  # Safer Sephiroth came back blonde until grouped, then silver-haired with the
+  # Masamune.
+  - ["g'raha_tia", "crystal_exarch"]
+  - ["faris_scherwiz", "sarisa_scherwil_tycoon"]
+  - ["sephiroth", "safer_sephiroth"]
+  #
+  # Left OUT, measured. Trance Terra is her Esper form and grouping moved her
+  # eye colour, which is the Seele case. The FF14 Adventurer and Azem were
+  # tested against `warrior_of_light_(ff14)`, but that tag is every player's
+  # character, so no one face is theirs. Hydaelyn/Venat and Omega-F changed
+  # nothing. The rest are party members, moogles, twins and FF14 players' OCs.
+
+  # Vocaloid and the other voice synths, swept 18 Sep 2026 (vocaloid,
+  # project_sekai, utau, voiceroid, synthesizer_v, cevio; failed=0) and every
+  # proposal A/B measured, 115 pairs. Danbooru tags a module with its singer
+  # on nearly every post, so every module is "never drawn alone" and the
+  # subtraction took the singer's own look off it: ungrouped, Racing Miku
+  # came back with no hair at all, Magical Mirai and the Project Sekai Mikus
+  # with blue instead of aqua and no twintails, the Sekai KAITOs blonde, the
+  # Sekai Rins and Lens with no hair colour. Grouped, each gets the singer's
+  # hair, eyes and twintails back and keeps what the module adds (Brazilian
+  # Miku's dark skin, 25-ji Miku's grey hair and heterochromia, Gramophone
+  # Miku's green hair, Wonderlands x Showtime Miku's cat ears). Name parts
+  # cover the yearly and outfit variants: `magical_mirai_miku` is every year.
+  #
+  # The Evillious roles are the singer in another costume, the Tribbie case:
+  # Riliane/Rin, Allen/Len, Banica/MEIKO, Gallerian/KAITO, Margarita/Miku.
+  # Banica ungrouped was blue-haired; grouped, MEIKO's brown. The genderswaps
+  # (Mikuo, KAIKO, Gumiya) are in too: grouped they gain the hair colour and
+  # lose only the `genderswap` labels.
+  #
+  # Left OUT, measured. Snow Miku (every year) loses her snowflakes, Sakura
+  # Miku her cherries, Strawberry Miku her strawberries: recoloured modules
+  # whose motif is the design, the Seele rule. Ghost, Psychic, Steel and Rock
+  # Miku (Project Voltage) picked up aqua hair over their type colour, and
+  # Doushite-chan lost her pink to it. Takoluka, Rabbit Yukine, Hamo and
+  # Usano Mimi are the mascot or the pet. Rin and Len are twins and stay two
+  # groups: their outfit variants (V4X, Append, NT) subtract the other twin,
+  # and merging the two was not measured.
+  - ["hatsune_miku", "magical_mirai_miku", "racing_miku", "brazilian_miku",
+     "cinnamiku", "chibi_miku", "hachune_miku", "25-ji_miku", "symphony_miku",
+     "bottle_miku", "hatsune_mikuo", "gramophone_miku",
+     "wonderlands_x_showtime_miku", "vivid_bad_squad_miku", "leo/need_miku",
+     "more_more_jump!_miku", "batsu_miku", "hiramado_miku", "mikudayo",
+     "shiteyan'yo", "expo_miku", "bicute_bunnies_miku", "hagane_miku",
+     "neko_hatsune_miku", "glorpi_miku_(dyarikku)", "margarita_blankenheim",
+     "fairy_miku_(project_voltage)", "fighting_miku_(project_voltage)",
+     "dark_miku_(project_voltage)", "bug_miku_(project_voltage)",
+     "poison_miku_(project_voltage)", "flying_miku_(project_voltage)",
+     "water_miku_(project_voltage)", "normal_miku_(project_voltage)"]
+  - ["kagamine_rin", "magical_mirai_rin", "25-ji_rin", "wonderlands_x_showtime_rin",
+     "more_more_jump!_rin", "vivid_bad_squad_rin", "symphony_rin",
+     "riliane_lucifen_d'autriche"]
+  - ["kagamine_len", "magical_mirai_len", "25-ji_len", "wonderlands_x_showtime_len",
+     "vivid_bad_squad_len", "symphony_len", "allen_avadonia"]
+  - ["megurine_luka", "magical_mirai_luka", "leo/need_luka", "25-ji_luka", "symphony_luka"]
+  - ["kaito_(vocaloid)", "magical_mirai_kaito", "wonderlands_x_showtime_kaito",
+     "25-ji_kaito", "vivid_bad_squad_kaito", "leo/need_kaito", "kaiko_(vocaloid)",
+     "gallerian_marlon"]
+  - ["meiko_(vocaloid)", "sakine_meiko", "magical_mirai_meiko", "vivid_bad_squad_meiko",
+     "banica_conchita"]
+  - ["kasane_teto", "pearto"]
+  - ["gumi", "gumiya"]
+  - ["zundamon", "ojou-sama_zundamon"]
+
+  # Jujutsu Kaisen, Naruto, One Piece, Dragon Ball, Chainsaw Man, JoJo, Bleach
+  # and Frieren, 18 Sep 2026. Eight sweeps (failed=0), 28 pairs A/B'd, 13 kept.
+  #
+  # A possessed body keeps its face, so the possession is grouped with the
+  # body's owner: Sukuna's second possession is "Sukuna as depicted after he
+  # possesses Megumi" (ungrouped he was white-haired; grouped, Megumi's black
+  # spiked hair under the tattoos). The Gun Fiend is "the form the Gun Devil
+  # takes after possessing the body of Hayakawa Aki" (grouped he gets Aki's
+  # suit and hair back; ungrouped he was only guns). The War Devil tag is
+  # mostly Yoru in Asa's body, and ungrouped came back as `bird, owl`; grouped,
+  # the ringed eyes, cross scar and uniform. Yoru and Asa share that body, so
+  # they are one group. Kawajiri Kosaku is the face Kira "subsequently adopts";
+  # grouped he gains the suit and loses a stray `stand_(jojo)`.
+  #
+  # A secret identity or alternate form: Tobi is Obito "for all of his masked
+  # appearances" (ungrouped, Naruto's blonde hair; grouped, black hair and
+  # sharingan, mask kept). Death Devil "is revealed to be Fami" (ungrouped only
+  # `medium_hair, red_eyes`). Chainsaw Man is "Denji's hybrid devil form"
+  # (gains his shirt and tie). Demonio Fleur is "an alternate form of Nico
+  # Robin". Unohana Yachiru is "the original bloodthirsty persona of Unohana
+  # Retsu" (gains her haori and long black hair).
+  #
+  # Genderswaps, as with Vocaloid: Law-chan gains Law's hat, tattoos and yellow
+  # eyes; Luffyko gains the straw hat and the scar. Both lose only the labels.
+  #
+  # Orange Piccolo breaks the recolour rule on measurement: grouped he KEEPS
+  # `orange_skin` and gains the antennae, pointy ears and bald head he was
+  # missing. Super Shadow (Sonic, a stray from the Dragon Ball roster) gains
+  # his red stripes and red eyes.
+  #
+  # Left OUT, measured. Majin Vegeta loses `majin_symbol`, the M on his
+  # forehead. The Bomb Hybrid loses `object_head` and `explosive`, the bomb
+  # head that is the whole design. Haruno Shiobana (child Giorno) loses
+  # `child, bowl_cut`. Majin Android 21 trades her tube top and pants for
+  # earrings: no gain. Beast Gohan and Great Saiyaman lose the purple gi and
+  # the sunglasses. No effect either way: Kenjaku (Geto's body is already
+  # `geto_suguru_(kenjaku)`, the same name part), Perfect Cell, every Frieza,
+  # Cooler and Buu form, Fused Zamasu — their samples are never mixed.
+  # Stands, familiars, Kurama, Gyokuken and Rika are companions. Frieren
+  # needs nothing.
+  - ["ryoumen_sukuna_(second_possession)_(jujutsu_kaisen)", "fushiguro_megumi"]
+  - ["tobi_(naruto)", "uchiha_obito"]
+  - ["law-chan", "trafalgar_law"]
+  - ["luffyko", "monkey_d._luffy"]
+  - ["demonio_fleur", "nico_robin"]
+  - ["orange_piccolo", "piccolo"]
+  - ["super_shadow", "shadow_the_hedgehog"]
+  - ["chainsaw_man_(character)", "denji_(chainsaw_man)"]
+  - ["death_devil_(chainsaw_man)", "fami_(chainsaw_man)"]
+  - ["gun_fiend_(chainsaw_man)", "hayakawa_aki"]
+  - ["war_devil_(chainsaw_man)", "yoru_(chainsaw_man)", "mitaka_asa"]
+  - ["kawajiri_kosaku", "kira_yoshikage"]
+  - ["unohana_yachiru", "unohana_retsu"]
+
+  # NieR, Konosuba, Dress-Up Darling, Rent-a-Girlfriend, swept 19 Sep 2026
+  # (failed=0 on all four). One group: Devola and Popola, identical twin
+  # androids drawn together — the Tribbie case. Ungrouped, Popola lost her
+  # red hair and long hair to her sister; grouped she has them, and Devola
+  # (enough solo posts) is unchanged either way. Everything else is a
+  # companion: Pod, Grimoire Weiss, Chomusuke, Vanir, the Kanokari leads in
+  # each other's group shots. Dress-Up Darling's in-show characters (Black
+  # Lobelia, Izayoi Arisa) are mostly Marin in cosplay, and taking Marin out
+  # is right there — their look is the costume, not her.
+  - ["devola", "popola"]
+
+  # Zelda, Street Fighter and Girls und Panzer, swept 19 Sep 2026 (failed=0;
+  # the Zelda and SF rosters drag in the whole Smash cast, ignored). Twelve
+  # pairs measured. In: the younger and toon versions of one person — Young
+  # and Toon Link got blonde hair, pointy ears and blue eyes back, Young Malon
+  # her blue eyes and long hair, Toon Zelda her long hair; Young Zelda and
+  # Young Ruto changed nothing and are listed for the same reason — and
+  # Decapre, Cammy's clone, who got the blonde twin braids and scar and lost
+  # a stray brown hair and yellow eyes. Out: Wolf Link (a wolf given blonde
+  # hair), the Light Dragon (a dragon given braids), Ravio (loses the rabbit
+  # hood that is him), Dark Link and Fierce Deity (recolours, nothing gained).
+  # Girls und Panzer is tank crews and schools in group shots: nothing.
+  - ["link", "young_link", "toon_link"]
+  - ["princess_zelda", "toon_zelda", "young_zelda"]
+  - ["malon", "young_malon"]
+  - ["princess_ruto", "young_princess_ruto"]
+  - ["cammy_white", "decapre"]
+
+  - ["gengar", "mega_gengar"]
+
+  # Precure. Every Cure is tagged with her civilian name too, so a Cure almost
+  # never has solo posts and had her own civilian self subtracted: Cure Blossom
+  # came back with no hair colour at all, Cure Marine with Blossom's pink hair,
+  # Cure Sword blonde. Candidates came from a friend's research pass over 345
+  # characters (wiki sentence for each), and all 129 distinct pairs were
+  # measured both ways on 16 Sep 2026. Listed: every pair where grouping gave the
+  # Cure her own hair and eye colour back. A transformation usually recolours
+  # the girl, so this was not assumed; it held for all of these.
+  #
+  # Parenthesised forms need nothing: `cure_happy_(princess_form)`, the Miracle
+  # and Magical styles and `akechi_anna_(civilian)` join their group by name.
+  # One cost of that: `cure_sky_(dark)` joins Cure Sky's group and loses its
+  # `armor` and `dark_persona`. Cure Sky has 1,393 posts to its 165.
+  - ["cure_sky", "sora_harewataru"]
+  - ["cure_blossom", "hanasaki_tsubomi"]
+  - ["cure_marine", "kurumi_erika"]
+  - ["cure_moonlight", "tsukikage_yuri"]
+  - ["cure_peach", "momozono_love"]
+  - ["cure_berry", "aono_miki"]
+  - ["cure_pine", "yamabuki_inori"]
+  # Eas is her villain self before she became Setsuna; grouped she gets her
+  # silver short hair and red eyes, where ungrouped she was a magical girl.
+  - ["cure_passion", "higashi_setsuna", "eas_(precure)"]
+  - ["cure_melody", "houjou_hibiki"]
+  - ["cure_rhythm", "minamino_kanade"]
+  - ["cure_happy", "hoshizora_miyuki"]
+  - ["cure_sunny", "hino_akane_(precure)"]
+  - ["cure_peace", "kise_yayoi"]
+  - ["cure_march", "midorikawa_nao"]
+  - ["cure_beauty", "aoki_reika"]
+  - ["cure_heart", "aida_mana"]
+  - ["cure_diamond", "hishikawa_rikka"]
+  - ["cure_sword", "kenzaki_makoto"]
+  - ["cure_princess", "shirayuki_hime_(precure)"]
+  - ["cure_dream", "yumehara_nozomi"]
+  - ["cure_rouge", "natsuki_rin"]
+  - ["cure_lemonade", "kasugano_urara_(precure)"]
+  - ["cure_mint", "akimoto_komachi"]
+  - ["cure_aqua", "minazuki_karen"]
+  - ["cure_bloom", "hyuuga_saki"]
+  - ["cure_egret", "mishou_mai"]
+  - ["shiny_luminous", "kujou_hikari"]
+  - ["cure_miracle", "asahina_mirai"]
+  - ["cure_magical", "izayoi_liko"]
+  - ["cure_felice", "hanami_kotoha"]
+  - ["cure_whip", "usami_ichika"]
+  - ["cure_flora", "haruno_haruka"]
+  - ["cure_mermaid", "kaidou_minami"]
+  - ["cure_twinkle", "amanogawa_kirara"]
+  # Twilight is Towa brainwashed; grouped she keeps her white hair and red eyes.
+  - ["cure_scarlet", "akagi_towa", "twilight_(precure)"]
+  - ["cure_yell", "nono_hana"]
+  - ["cure_ange", "yakushiji_saaya"]
+  - ["cure_etoile", "kagayaki_homare"]
+  - ["cure_macherie", "aisaki_emiru"]
+  - ["cure_amour", "ruru_amour"]
+  - ["cure_star", "hoshina_hikaru"]
+  - ["cure_milky", "hagoromo_lala"]
+  - ["cure_soleil", "amamiya_elena"]
+  - ["cure_selene", "kaguya_madoka"]
+  # Blue Cat is "one of Yuni's personas, a phantom thief"; grouped she keeps the
+  # cat ears and blue braids.
+  - ["cure_cosmo", "yuni_(precure)", "blue_cat_(precure)"]
+  - ["cure_grace", "hanadera_nodoka"]
+  - ["cure_fontaine", "sawaizumi_chiyu"]
+  - ["cure_sparkle", "hiramitsu_hinata"]
+  - ["cure_summer", "natsuumi_manatsu"]
+  - ["cure_coral", "suzumura_sango"]
+  - ["cure_papaya", "ichinose_minori"]
+  - ["cure_flamingo", "takizawa_asuka"]
+  - ["cure_la_mer", "laura_la_mer"]
+  - ["cure_precious", "nagomi_yui"]
+  - ["cure_spicy", "fuwa_kokone"]
+  - ["cure_yum-yum", "hanamichi_ran"]
+  - ["cure_finale", "kasai_amane"]
+  - ["cure_prism", "nijigaoka_mashiro"]
+  - ["cure_wing", "yuunagi_tsubasa"]
+  - ["cure_butterfly", "hijiri_ageha"]
+  - ["cure_majesty", "ellee-chan"]
+  - ["cure_wonderful", "inukai_komugi"]
+  - ["cure_friendy", "inukai_iroha"]
+  - ["cure_nyammy", "nekoyashiki_yuki"]
+  - ["cure_lillian", "nekoyashiki_mayu"]
+  - ["cure_idol", "sakura_uta_(precure)"]
+  - ["cure_wink", "aokaze_nana"]
+  - ["cure_kyunkyun", "shigure_kokoro"]
+  - ["cure_answer", "akechi_anna"]
+  - ["cure_mystique", "kobayashi_mikuru"]
+  - ["cure_eclair", "howa_kurea"]
+  - ["cure_arcana", "moria_luluka", "eclipse_shadow"]
+  #
+  # Left OUT, measured. Cure Muse is blonde and Ako has orange hair: grouped,
+  # Muse turned orange and lost the blonde, a recolour in the Seele sense.
+  # Cure Echo and Cure Lovely's dance forms picked up a stranger (Tsubomi,
+  # Hime) as the companion once grouped. Cure Rosetta traded her orange hair
+  # and yellow eyes for brown. Gentlu is a masked villain and lost the mask.
+  # Zakkuri and Touya Kazuma have no evidence of being anyone else.
+  # 32 pairs changed nothing either way (Cure Sunshine, Cure Beat, the
+  # KiraKira Cures, the fairies' human forms, …) and are not listed; the
+  # fairy-versus-human-form pairs can be revisited if they ever reach the path.

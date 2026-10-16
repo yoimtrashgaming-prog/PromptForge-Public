@@ -1,0 +1,21 @@
+[Desktop Entry]
+# Desktop icon for the Linux box, so starting the app is not a terminal job.
+#
+# Copy to ~/Desktop/PromptForge.desktop and to
+# ~/.local/share/applications/promptforge.desktop, replace /home/USER with the
+# real home directory, then:
+#
+#   chmod +x ~/Desktop/PromptForge.desktop
+#   gio set ~/Desktop/PromptForge.desktop metadata::trusted true
+#
+# GNOME ignores a desktop file that is not both executable and trusted, and it
+# does so silently — the icon just sits there doing nothing when clicked.
+#
+# This opens the app; it does not start it. promptforge.service owns starting.
+Type=Application
+Name=PromptForge
+Comment=Model-aware prompt assistant
+Exec=/home/USER/promptforge/open-promptforge.sh
+Icon=applications-graphics
+Terminal=false
+Categories=Graphics;Utility;

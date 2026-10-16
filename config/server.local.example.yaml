@@ -1,0 +1,44 @@
+# Per-machine config overrides — copy to server.local.yaml to use.
+#
+# This file is an example and is committed. `config/server.local.yaml` is
+# gitignored and never leaves the machine it is written on.
+#
+# Only put here what actually DIFFERS on this box. Everything omitted comes
+# from config/server.yaml, which stays the shared source of truth — so a fix
+# made on either machine reaches both through a normal `git pull`, with
+# nothing to merge and no branch to keep in step.
+#
+# Merge rules: objects merge key by key, so `llm: { model: ... }` replaces the
+# model and leaves the rest of the llm block alone. Arrays and nulls replace
+# outright. Environment variables still win over this file.
+#
+# The values below are the Linux / Tesla P40 deployment box, filled in as a
+# starting point. **Re-measure rather than trusting them** — the quant and
+# context length below are educated guesses against 24GB and Pascal, not
+# measurements, and this project's standing rule is that an unverified number
+# is worse than an absent one.
+
+server:
+  # 127.0.0.1 is correct when `tailscale serve` proxies to it, which is the
+  # recommended deployment. Only widen this if serving without that proxy.
+  bind: "127.0.0.1"
+
+llm:
+  # 24GB against the 16GB this was developed on. The 27B at a higher quant
+  # should fit — measure it. archive/docs/model-eval-2026-08-18.md is the baseline to
+  # re-measure against, not to copy.
+  model: "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL"
+
+  # Pascal has no flash attention and no q8_0 KV cache, so the KV cache is f16
+  # and costs roughly twice what it does on the 5080. Cap context to pay for
+  # that rather than carrying the dev box's 16384 over untested.
+  context_length: 12288
+
+  # A box that does nothing but serve this app never needs to give the card
+  # back, and cold starts stop existing. "15m" on the dev box is because
+  # ComfyUI shares the GPU there.
+  keep_alive: "-1"
+
+# Taggers work the same way: copy config/taggers.local.example.yaml if the
+# ONNX weight paths differ here, which on Linux they certainly do — the
+# committed ones point into a Windows ComfyUI install.

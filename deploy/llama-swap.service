@@ -1,0 +1,65 @@
+# llama-swap - several models behind one endpoint, swapped on demand.
+#
+# Replaces llamacpp.service. That unit serves exactly one model, which is fine
+# until you want to compare two - and comparing the base 27B against the
+# decensored ones is a live question, so it stops being fine.
+#
+# llama-swap fronts several llama-server backends on one port, starts the one
+# a request names, and stops it after its ttl. Only one 27B fits on a 23GB
+# card, so a swap costs a model load. That is the price of choosing at all,
+# and it is what ollama was doing too.
+#
+# Install (this REPLACES llamacpp.service - do not run both, they want the
+# same port and the same card):
+#   sudo systemctl disable --now llamacpp
+#   sudo cp deploy/llama-swap.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now llama-swap
+#
+# Watch it:
+#   systemctl status llama-swap
+#   journalctl -u llama-swap -f
+#
+# It also serves a web UI on the same port with a playground, live logs and
+# manual load/unload. Bound to loopback below, so reach it over an SSH tunnel
+# rather than opening a port on the mesh.
+#
+# The config lives OUTSIDE the repo, at ~/llama-swap/config.yaml, because it
+# holds this box's absolute paths and ollama blob hashes. config.example.yaml
+# in this repo is the shape; it is not usable as-is on another machine.
+#
+# Port 8099 deliberately matches what llamacpp.service used, so
+# llm.base_url in server.local.yaml needs no change and rolling back is
+# swapping which unit is enabled.
+
+[Unit]
+Description=llama-swap - multi-model llama.cpp front end for PromptForge
+Documentation=https://github.com/mostlygeek/llama-swap
+After=network-online.target
+Wants=network-online.target
+Conflicts=llamacpp.service
+
+[Service]
+Type=simple
+User=USER
+WorkingDirectory=/home/USER/llama-swap
+
+ExecStart=/home/USER/llama-swap/llama-swap \
+  -config /home/USER/llama-swap/config.yaml \
+  -listen 127.0.0.1:8099 \
+  -watch-config
+
+Restart=on-failure
+RestartSec=10
+
+# llama-swap starts fast; the models it spawns are what take time, and it
+# manages those itself with its own healthCheckTimeout.
+TimeoutStartSec=60
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

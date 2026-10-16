@@ -1,0 +1,157 @@
+node_modules/
+
+logs/
+
+data/training/temp/
+data/training/datasets/
+data/training/saved/
+
+models/
+taggers/
+
+# Per-model run counts. Runtime state, written on every inference — it
+# is different on every box and belongs to the box, not the repo.
+data/usage.json
+
+data/tags/*.csv
+data/tags/*.sqlite
+data/tags/*.db
+data/tags/*.json
+
+
+.env
+*.log
+venv/
+__pycache__/
+
+.ollama/
+
+# SQLite WAL sidecars — *.sqlite alone does not cover these
+data/tags/*.sqlite-shm
+data/tags/*.sqlite-wal
+data/tags/*.sqlite-journal
+
+# The half-built database. update-tags.mjs builds at `<db_path>.new` and only
+# renames over the live file once everything has succeeded, so the patterns
+# above — which all end at `.sqlite` — miss it and its sidecars entirely.
+#
+# Committed by accident on 7 Sep 2026: an interrupted run left the build file
+# behind, `git add -A` took it, and the next `git pull` on the P40 refused to
+# merge over the copy already sitting there. Empty, so nothing but noise, but
+# a completed run would have put 16 MB of binary in the history.
+data/tags/*.new
+data/tags/*.new-shm
+data/tags/*.new-wal
+
+# dialect/probe run logs — regenerated, not source
+logs/*.log
+logs/h3-*.txt
+
+# saved prompt libraries — per-user content, not source
+data/users/
+
+# Per-machine config overrides. The tracked config/*.yaml files hold the
+# shared defaults; these hold what differs on this box, and never leave it.
+config/*.local.yaml
+
+# And their backups. `config/*.local.yaml` does not match
+# `server.local.yaml.bak` or `server.local.yaml.pre-llamacpp`, so copies taken
+# before an edit sat untracked-but-unignored - one `git add -A` from being
+# committed, carrying this box's addresses with them. Same trap as
+# data/system-prompts.json above.
+config/*.local.yaml.*
+
+# Runtime settings changed through the admin UI - keep_alive today. Machine
+# state, not source: config/server.yaml holds the default this overrides.
+data/runtime.json
+
+# Which LLM server this install talks to, written by the admin backend switch
+# and the first-run setup. It holds a machine's own address, and one committed
+# copy (PR #1) would have pointed every other install at that machine.
+data/backend.json
+
+# Whether other devices may connect - the owner's switch in the Backend panel.
+# Per machine, like backend.json above.
+data/network.json
+
+# Tagger file paths found or downloaded from the Setup panel. Per machine.
+data/taggers.json
+
+# Self-signed TLS keys generated on first boot when server.tls.enabled is on.
+data/certs/
+
+# Shared notes people write about each installed LLM. Runtime content, like
+# the user directories above - it belongs to a deployment, not to the repo.
+data/llm-notes.json
+
+# Custom system prompt blocks, written through the UI. Same reasoning as the
+# user directories: this is what people wrote, not what the app ships, and it
+# holds other people's work - a user's blocks live here too. Untracked but
+# unignored meant one `git add -A` would have committed all of it.
+data/system-prompts.json
+
+# Where each checkpoint and LoRA lives, pasted in by hand. Runtime content
+# like the notes and the system prompts above: it is this group's bookmarks
+# for this box's weights, not something the app ships.
+data/weight-links.json
+
+# The pinboard — pictures people put up and the prompts that made them. Same
+# reasoning as the user directories and llm-notes above: it is what the group
+# made, not what the app ships, and it belongs to a deployment rather than to
+# the repo. Binary, too, and it only grows.
+#
+# The DIRECTORY is tracked and its contents are not, which is the same shape
+# data/queue uses. scripts/check-portability.mjs asserts that every path in
+# config/server.yaml resolves on disk character for character — the check that
+# keeps a `data/Shared-Images` off a case-sensitive filesystem — and it runs
+# without booting the server, so a folder that only appears on first upload
+# would fail it on every fresh clone.
+data/shared-images/*
+!data/shared-images/.gitkeep
+
+# Registration requests, including the free-text "how did you hear about us"
+# box. The only place this app keeps anything a person typed about themselves.
+data/requests/
+data/probe-cache/
+
+# Bake-off reports: every prompt from a measurement run, in full. Written by
+# scripts/bakeoff-tools.mjs. Read them, quote the numbers into docs/status.md,
+# then let them go — they are raw output, not a record.
+data/bakeoff-tools-*.json
+
+# Local-only. Describes this specific deployment - addresses, account names,
+# which services sit on which port - so it is useful to have beside the code
+# and wrong to hand to a collaborator along with it. Removed from history
+# 31 Aug 2026 rather than merely deleted; re-adding it would undo that.
+docs/security-plan.md
+
+# the DaSiWa Director documentation. Fetched by `npm run fetch-h3-refs`
+# and served to the h3 panel by /api/docs/h3-director, so the help button
+# links to this box rather than off the tailnet. Third-party: read locally,
+# not redistributed - the same rule README.md states for the MiniMax pair.
+docs/minimax_h3_director.md
+
+# SQLite scratch files beside a seed database opened for a look.
+data/seed/*-shm
+data/seed/*-wal
+data/seed/*-journal
+
+# Hand-taken backups before an edit (system-prompts.json.bak-before-v5-gemma,
+# server.yaml.bak-before-same-person). The data ones hold what people wrote,
+# so they must never be one `git add -A` from a commit.
+data/*.bak*
+config/*.bak*
+
+# Benchmark sheets - measurements of the box they were taken on. Not shipped:
+# nobody else's hardware is close enough for them to mean anything. The
+# Benchmarks tab reads this folder and hides itself when it is empty.
+data/benchmarks/
+
+# The Close PromptForge switch: runtime state on the box, not repo content.
+data/maintenance.txt
+
+# The sync script's target box (scripts/sync-z440.sh reads it).
+scripts/sync.local.env
+
+# The server windows/start.ps1 started, so windows/stop.ps1 stops exactly that one.
+data/promptforge.pid
