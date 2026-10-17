@@ -20,6 +20,15 @@ AI-powered prompt engineering tool for image and video generation models (Illust
 
 You need an LLM server first — [Ollama](https://ollama.com) is the easiest (`ollama pull qwen3-vl:8b`, or any model you like; a vision model lets it read reference pictures).
 
+**On Linux, let the container reach Ollama.** Ollama on Linux only answers its own machine by default, and the container counts as another one, so the setup wizard finds no models. Make it listen on every address with `sudo systemctl edit ollama`, add these two lines, then `sudo systemctl restart ollama`:
+
+```ini
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0"
+```
+
+That also lets other devices on your network use Ollama, so only do it behind a firewall or router. Docker Desktop on Windows and Mac needs none of this.
+
 ```bash
 git clone https://github.com/yoimtrashgaming-prog/PromptForge-public.git PromptForge
 cd PromptForge

@@ -26,6 +26,12 @@ EXPOSE 8090
 # compose.yaml sets the same; this covers running the image without it.
 ENV PROMPTFORGE_BIND=0.0.0.0
 
+# Same reason for the LLM: config/server.yaml's 127.0.0.1 is the container
+# itself, so a plain `docker run` reported every model offline (found 16 Oct
+# 2026). Ollama on the host, as compose.yaml has it. The setup wizard and the
+# admin Backend panel still override it (data/backend.json).
+ENV PROMPTFORGE_LLM_BASE_URL=http://host.docker.internal:11434/v1
+
 # Fetches the third-party H3 documents the image does not carry, then starts
 # the server. See scripts/docker-start.sh.
 CMD ["sh", "scripts/docker-start.sh"]
