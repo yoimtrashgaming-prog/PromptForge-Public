@@ -37,6 +37,19 @@ Everything can be changed or switched on later from **Setup** in the top bar, wh
 
 Everyone who registers after you waits in the Accounts panel until you approve them.
 
+### Or straight from Docker Hub, no clone
+
+The same app, prebuilt: [trashai/promptforge](https://hub.docker.com/r/trashai/promptforge).
+
+```bash
+docker run -d --name promptforge -p 8090:8090 \
+  --add-host host.docker.internal:host-gateway \
+  -v promptforge-data:/app/data -v promptforge-logs:/app/logs \
+  --restart unless-stopped trashai/promptforge:latest
+```
+
+Then open **http://localhost:8090** and follow the same first-run steps. Your accounts, settings and history live in the `promptforge-data` volume, so updating is `docker pull trashai/promptforge:latest`, then `docker rm -f promptforge` and the same `docker run` again.
+
 ## Quick Start (no container)
 
 Needs Node 22+.
