@@ -997,6 +997,9 @@ button.ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 .setup-choice { display: flex; gap: 16px; flex-wrap: wrap; margin: 4px 0 10px; font-size: 13px; }
 .setup-choice label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .setup-link { display: inline-block; text-decoration: none; margin: 4px 0 8px; }
+.setup-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.references-notice { margin: 0 0 12px; }
+.references-notice a { color: inherit; }
 .wizard-dots { display: flex; gap: 6px; }
 .wizard-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
 .wizard-dots span.on { background: var(--accent, #7aa2f7); }

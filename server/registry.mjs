@@ -518,7 +518,16 @@ export function loadRegistry(rootDir, { warn = console.warn, prompts = new Map()
             // that a model can.
             render,
             ...m
-          }) => ({ ...m, can_render: Boolean(render?.workflow) })
+          }) => ({
+            ...m,
+            can_render: Boolean(render?.workflow),
+            // Which files are missing stays here; THAT some are goes out, so
+            // the page can say it is running reduced (h3 without MiniMax's
+            // guides, 20 Oct 2026) instead of quietly being worse.
+            references_missing:
+              missing_reference_files.length > 0 ||
+              Object.values(missing_reference_files_by_mode).some((l) => l.length > 0),
+          })
         ),
       };
     },

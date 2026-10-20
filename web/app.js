@@ -1523,6 +1523,32 @@ async function renderBuilder(model) {
   const charCounter = $('[data-bind="char_counter"]', mount);
   const forbidden = $('[data-bind="forbidden_words"]', mount);
 
+  // A model running without some of its reference files says so (20 Oct
+  // 2026). Until then H3 without MiniMax's guides was quietly worse, and
+  // nothing on the page told anyone why. `reference_setup` names the Setup
+  // section that installs them, so the owner gets a way to fix it.
+  if (model.references_missing) {
+    const note = document.createElement('p');
+    note.className = 'auth-message error references-notice';
+    const owner = !$('#btn-backend').hidden;
+    note.textContent = `${model.label}'s prompt guides aren't installed, so it is running in a reduced mode. `;
+    if (owner && model.reference_setup) {
+      const link = document.createElement('a');
+      link.href = '#';
+      link.textContent = 'Set them up';
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        openBackendPanel(null).then(() =>
+          $(`.setup-sec[data-sec="${model.reference_setup}"]`)?.scrollIntoView({ block: 'start' })
+        );
+      });
+      note.append(link);
+    } else if (model.reference_setup) {
+      note.append('Ask the owner to install them from Setup.');
+    }
+    ($('.builder', mount) ?? mount).prepend(note);
+  }
+
   const updateCounters = () => {
     const text = brief?.value ?? '';
     if (charCounter && model.max_output_chars) {
@@ -14330,7 +14356,43 @@ function featureMessage(id, text, kind = 'error') {
 }
 
 // What the server last said about each, for the wizard's summary.
-const FEATURE_STATE = { comfyui: null, training: null };
+const FEATURE_STATE = { comfyui: null, training: null, h3guides: null };
+
+// MiniMax's H3 guides (20 Oct 2026): downloaded only on the owner's
+// agreement to MiniMax's licence. See server/h3guides.mjs.
+function paintH3Guides(info) {
+  FEATURE_STATE.h3guides = info;
+  const text = info.restart_needed
+    ? 'Downloaded. Restart PromptForge for H3 to use them.'
+    : info.installed
+      ? '✓ Installed. H3 is using them.'
+      : '';
+  featureMessage('#h3guides-status', text, info.restart_needed ? 'error' : 'ok');
+  $('#h3guides-download').hidden = info.installed;
+  if (info.licence_url) $('#h3guides-licence').href = info.licence_url;
+  if (info.guide_urls?.[0]) $('#h3guides-guide-base').href = info.guide_urls[0];
+  if (info.guide_urls?.[1]) $('#h3guides-guide-ref').href = info.guide_urls[1];
+}
+
+async function downloadH3Guides(btn) {
+  btn.disabled = true;
+  featureMessage('#h3guides-message', 'Downloading from MiniMax…', 'ok');
+  try {
+    const res = await fetch('/api/admin/setup/guides', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accept: true }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return featureMessage('#h3guides-message', body.message || `Failed (${res.status})`);
+    featureMessage('#h3guides-message', body.message || '');
+    paintH3Guides(body);
+  } catch (e) {
+    featureMessage('#h3guides-message', `Failed — ${e.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 function paintComfy(info) {
   FEATURE_STATE.comfyui = info;
@@ -14369,12 +14431,14 @@ function paintTraining(info) {
 }
 
 async function loadFeatureSetup() {
-  const [c, t] = await Promise.all([
+  const [c, t, h] = await Promise.all([
     fetch('/api/admin/setup/comfyui').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     fetch('/api/admin/setup/training').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch('/api/admin/setup/guides').then((r) => (r.ok ? r.json() : null)).catch(() => null),
   ]);
   if (c) paintComfy(c);
   if (t) paintTraining(t);
+  if (h) paintH3Guides(h);
 }
 
 /** POST to a setup route, painting the result or the error. Returns true on success. */
@@ -14433,6 +14497,7 @@ function initFeatureSetup() {
     postFeature('training', { url }, e.currentTarget);
   });
   $('#training-off').addEventListener('click', (e) => postFeature('training', { enabled: false }, e.currentTarget));
+  $('#h3guides-download').addEventListener('click', (e) => downloadH3Guides(e.currentTarget));
   initWizard();
 }
 
@@ -14898,6 +14963,7 @@ const WIZARD_LABELS = {
   taggers: 'Image taggers',
   comfyui: 'Render pictures',
   training: 'LoRA training',
+  h3guides: 'MiniMax H3 guides',
 };
 
 function wizardSection(name) {
@@ -14979,6 +15045,8 @@ function paintWizardSummary() {
   const model = $('#backend-modal').dataset.currentModel;
   row('Prompt writing', model ? `ready, default model ${model}` : 'ready');
   row('Who can connect', $('#network-remote').checked ? 'other devices too' : 'only this PC');
+  const h = FEATURE_STATE.h3guides;
+  row('MiniMax H3 guides', h?.installed ? 'downloaded' : 'not downloaded — H3 runs in a reduced mode');
   const taggers = $('#tagger-rows').textContent;
   const ready = (taggers.match(/✓ ready/g) ?? []).length;
   const busy = /downloading/.test(taggers);
@@ -14988,7 +15056,8 @@ function paintWizardSummary() {
   const t = FEATURE_STATE.training;
   row('LoRA training', t?.enabled ? 'connected' : 'off');
   $('#wizard-summary').innerHTML = rows.join('');
-  const restart = Boolean(c?.restart_needed) || /Restart PromptForge/.test($('#network-message').textContent);
+  const restart =
+    Boolean(c?.restart_needed) || Boolean(h?.restart_needed) || /Restart PromptForge/.test($('#network-message').textContent);
   featureMessage('#wizard-restart', restart ? 'Restart PromptForge once so every choice takes effect.' : '');
 }
 
@@ -14999,6 +15068,9 @@ async function wizardNext({ skip = false } = {}) {
       'welcome',
       'llm',
       'network',
+      // Asked whenever they are not on this machine yet: H3 is part of prompt
+      // writing, which is always on, so this is not an optional extra.
+      ...(FEATURE_STATE.h3guides?.installed ? [] : ['h3guides']),
       ...($('#wizard-want-taggers').checked ? ['taggers'] : []),
       ...($('#wizard-want-comfyui').checked ? ['comfyui'] : []),
       ...($('#wizard-want-training').checked ? ['training'] : []),

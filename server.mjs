@@ -138,6 +138,7 @@ import { createAuth, SESSION_COOKIE } from './server/auth.mjs';
 import { loadTlsCredentials } from './server/certs.mjs';
 import { createTaggerSetup } from './server/taggersetup.mjs';
 import { createFeatureSetup, findComfy, cleanUrl } from './server/featuresetup.mjs';
+import { createH3Guides, referencesMissing, LICENCE_URL, GUIDE_URLS } from './server/h3guides.mjs';
 import { createBenchRunner } from './server/benchrun.mjs';
 import { createCharCast } from './server/charcast.mjs';
 import { createMetrics } from './server/metrics.mjs';
@@ -420,6 +421,7 @@ function applyFeatureChoices(cfg) {
   return setup.apply(cfg, process.env.PROMPTFORGE_COMFYUI ? [...localServerKeys, 'comfyui'] : localServerKeys);
 }
 const featureSetup = createFeatureSetup({ rootDir: ROOT, dataDir: config.paths?.data ?? 'data' });
+const h3Guides = createH3Guides({ rootDir: ROOT, dataDir: config.paths?.data ?? 'data' });
 // Where each optional feature is set, for the Setup panel: here, or by hand.
 function featureSource(block) {
   if (block === 'comfyui' && process.env.PROMPTFORGE_COMFYUI) return 'environment';
@@ -7690,6 +7692,60 @@ async function handleAdminTrainingSetup(req, res) {
 }
 
 /**
+ * /api/admin/setup/guides — owner only, enforced by the caller. MiniMax's
+ * H3 guides, downloaded only on the owner's agreement; see server/h3guides.mjs
+ * for why. GET says where it stands; POST { accept: true } saves the
+ * agreement and runs scripts/fetch-h3-references.mjs, which downloads and
+ * slices them. The registry reads reference files at start-up, so H3 uses
+ * them after the next restart.
+ */
+let h3Fetch = null;
+async function handleAdminH3Guides(req, res) {
+  const h3 = registry.get('h3');
+  const reply = (extra = {}) => {
+    const installed = h3Guides.installed();
+    return sendJSON(res, 200, {
+      installed,
+      accepted: Boolean(h3Guides.accepted()),
+      // On disk, but this running server loaded H3 without them.
+      restart_needed: installed && referencesMissing(h3),
+      licence_url: LICENCE_URL,
+      guide_urls: GUIDE_URLS,
+      ...extra,
+    });
+  };
+  if (req.method === 'GET') return reply();
+  if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method_not_allowed', message: 'GET or POST only.' });
+  const body = await readBody(req, 4 * 1024).catch(() => ({}));
+  if (body.accept !== true) {
+    return sendJSON(res, 400, { error: 'bad_value', message: 'Send accept: true to agree to the licence and download.' });
+  }
+  h3Guides.accept(whoIs(req));
+  console.log(`[setup] MiniMax H3 licence accepted, downloading the guides — by ${whoIs(req)}`);
+  h3Fetch ??= new Promise((resolve) => {
+    let out = '';
+    const child = spawn(process.execPath, [path.join(ROOT, 'scripts', 'fetch-h3-references.mjs')], { cwd: ROOT });
+    child.stdout.on('data', (d) => (out += d));
+    child.stderr.on('data', (d) => (out += d));
+    const timer = setTimeout(() => child.kill(), 180_000);
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ ok: code === 0, log: out.trim().split('\n').slice(-12).join('\n') });
+    });
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      resolve({ ok: false, log: err.message });
+    });
+  }).finally(() => (h3Fetch = null));
+  const result = await h3Fetch;
+  if (!result.ok) console.warn(`[setup] H3 guides download failed:\n${result.log}`);
+  // The script's own reason for the first failure, so "permission denied"
+  // does not read as "you are offline".
+  const why = /FAIL\s+\S+\s+—\s+(.+)/.exec(result.log)?.[1] ?? result.log.split('\n').pop();
+  return reply(result.ok ? {} : { message: `The download did not finish: ${why}`, log: result.log });
+}
+
+/**
  * The addresses another device would type, one per real network. Container
  * bridges, WSL and link-local addresses are left out: nobody can reach them
  * from another machine. 100.64.0.0/10 is the range NetBird and Tailscale hand
@@ -8122,6 +8178,9 @@ async function handleRequest(req, res) {
       }
       if (pathname === '/api/admin/setup/training') {
         return await handleAdminTrainingSetup(req, res);
+      }
+      if (pathname === '/api/admin/setup/guides') {
+        return await handleAdminH3Guides(req, res);
       }
       if (pathname === '/api/admin/models/backend') {
         return await handleAdminBackend(req, res);

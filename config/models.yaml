@@ -1378,6 +1378,11 @@ models:
     label: "MiniMax H3"
     type: "video"
     template: "video-h3"
+    # The Setup section that downloads this model's reference guides, when
+    # they are missing (20 Oct 2026). MiniMax's guides are fetched only on the
+    # owner's agreement to MiniMax's licence; see server/h3guides.mjs. The
+    # builder's "running in a reduced mode" notice links here.
+    reference_setup: "h3guides"
     # Opted out of the lighting slider, 8 Sep 2026. It is an image-model
     # control for now: a clip can change its exposure from shot to shot, and
     # one scalar for the whole thing is the wrong shape of control here.
