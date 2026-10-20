@@ -15,8 +15,8 @@
 // timing is carried by token ranges, not by anything in the text. Two things
 // follow, and both are load-bearing:
 //
-//   1. The joined result must read as continuous prose, so ltx.md's single
-//      flowing paragraph and its forbidden words still apply per segment.
+//   1. The joined result must read as one paragraph, so ltx.md's rules and
+//      its forbidden word apply to the whole, not piece by piece.
 //   2. A timecode written into a segment would be concatenated verbatim into
 //      the prompt. Times are context for how much happens in a stretch, never
 //      text to reproduce.
@@ -119,8 +119,9 @@ export function directorLines(model, controls = {}) {
   }
   lines.push(
     'The node joins your Global prompt and every Segment with single spaces into ONE prompt. ' +
-      'Each segment must continue the previous one so the joined text reads as a single flowing ' +
-      'paragraph. Do NOT write timecodes, labels, segment numbers or field names into any segment.'
+      'Each segment must carry on from the previous one so the joined text reads as a single ' +
+      'flowing paragraph. Do NOT write timecodes, labels, segment numbers or field names into ' +
+      'any segment.'
   );
   // What the two kinds of segment ARE. The joining rule above says how the
   // pieces are stuck together and never said what belongs in each, which left
@@ -128,41 +129,50 @@ export function directorLines(model, controls = {}) {
   // and a Global prompt that opens with the first beat means beat one is
   // described twice in the joined text.
   //
-  // The punctuation rule below carries more than tidiness. ltx.md's whole
-  // argument is that LTX reads a sentence boundary as a potential cut, and the
-  // node's join adds a space and nothing else — so a piece that ends in a full
-  // stop puts a cut on a timeline boundary, which is the exact failure
-  // Director mode exists to avoid.
+  // Split along Lightricks' order (20 Oct 2026): shot, scene and character are
+  // true for the whole clip and open the paragraph; action, camera and sound
+  // are what each stretch adds. Whole sentences, because the guide asks for
+  // 4 to 8 of them and never says a full stop reads as a cut — until then
+  // each segment was a comma-joined clause on that belief.
   lines.push(
-    'Global prompt: who and where, the setting, the light and the overall look — ' +
-      'everything true for the whole clip. It is the opening of the paragraph, so do not ' +
-      'describe the first beat in it.',
-    'Each Segment: what changes across that stretch, written as a continuation of the ' +
-      'clause before it. Start mid-flow, not with a capital letter and a new sentence.',
-    // Where the comma goes, which the join makes a rule rather than taste.
+    'Global prompt: the shot and its style, who and where, the setting, the light and the ' +
+      'overall look, as whole sentences — everything true for the whole clip. It is the opening ' +
+      'of the paragraph, so do not describe the first beat in it.',
+    'Each Segment: what happens across that stretch — the action, what the camera does, the ' +
+      'sound — as one or more whole sentences that carry on from the one before.',
+    // The user's line is the idea, not the text. The owner's point, 20 Oct
+    // 2026: a Director mode that hands back the user's own words is no better
+    // than typing them into the node in ComfyUI. Told only to carry on, the
+    // 27B opened every segment with the user's words nearly verbatim and
+    // added a clause after them.
+    'Each segment idea below is the user\'s rough note of what happens, not text to keep. ' +
+      'Rewrite it the way LTX wants it: how the body moves and at what pace, what the hands ' +
+      'and face do, what the camera does and what it ends on, and the sound it makes. Keep ' +
+      'what happens and its order, and keep quoted dialogue word for word; use your own words ' +
+      'for everything else.',
+    // Where the punctuation goes, which the join makes a rule rather than taste.
     //
-    // Measured on the P40, 9 Sep 2026: told only to continue the clause, the
-    // 27B started each segment with ", " — the natural way to write a
-    // continuation, and wrong here. The multi-segment join is `global + " " +
-    // seg` per fragment, so a leading comma lands as `...fading sky ,
-    // crouched near the parapet` with a space in front of every one. The
-    // segments read perfectly one at a time and the seam is where it shows,
-    // which is why the probe prints the joined string.
+    // The multi-segment join is `global + " " + seg` per fragment, so each
+    // piece has to end its own sentence: a leading comma lands as `...fading
+    // sky , crouched near the parapet` (measured on the P40, 9 Sep 2026) and a
+    // missing full stop runs two sentences together. The segments read
+    // perfectly one at a time and the seam is where it shows.
     //
     // The single-segment path is the opposite case and gets the opposite
-    // rule: `f"{global.strip()}, {local.strip()}"` supplies the comma itself,
-    // so a Global prompt ending in one gives `sky,, crouched`. Both quoted
-    // from the node's source at the top of this file.
+    // rule: `f"{global.strip()}, {local.strip()}"` supplies a comma itself,
+    // so the Global prompt ends bare and the Segment carries on its last
+    // sentence. Both quoted from the node's source at the top of this file.
     ...(blocks.length > 1
       ? [
           'Punctuation at the joins: the node inserts a space and nothing else, so end the ' +
-            'Global prompt and every Segment except the last with a comma, and never begin one ' +
-            'with punctuation. The last Segment ends the paragraph and takes the full stop.',
+            'Global prompt and every Segment with a full stop, and begin every Segment with a ' +
+            'capital letter, never with punctuation.',
         ]
       : [
-          'Punctuation at the join: the node supplies the comma between the Global prompt and ' +
-            'the Segment, so end the Global prompt with no punctuation at all and do not begin ' +
-            'the Segment with any. The Segment ends the paragraph and takes the full stop.',
+          'Punctuation at the join: the node puts a comma between the Global prompt and the ' +
+            'Segment, so end the Global prompt with no punctuation at all and begin the Segment ' +
+            'in lower case, carrying on that last sentence; after it, write whole sentences. ' +
+            'The Segment ends with a full stop.',
         ]),
     // The label, spelled out, because the model keeps abbreviating it.
     //
@@ -210,7 +220,7 @@ export function directorLines(model, controls = {}) {
     const span = `${b.start}s to ${b.end}s`;
     lines.push(
       b.brief
-        ? `Segment ${b.index} (${span}, context only): ${b.brief}`
+        ? `Segment ${b.index} (${span}, context only), the user's idea: ${b.brief}`
         : `Segment ${b.index} (${span}, context only): continue the action; the user left this one blank.`
     );
   }
@@ -237,8 +247,8 @@ export function directorProse(model, controls = {}) {
  * Fix the punctuation at the seams, in place.
  *
  * The model writes each fragment on its own and cannot see the joined result,
- * which is the only thing LTX ever reads. Told to continue the previous
- * clause it starts each segment with ", " — the natural way to write a
+ * which is the only thing LTX ever reads. Told to carry on from the previous
+ * piece it starts a segment with ", " — the natural way to write a
  * continuation, and wrong here, because the multi-segment join is
  * `global + " " + seg` per fragment and a leading comma lands as
  * `...fading sky , crouched near the parapet`. Measured on the P40, 9 Sep
@@ -252,8 +262,13 @@ export function directorProse(model, controls = {}) {
  * of a fragment, against a join whose exact shape is quoted at the top of this
  * file and which the model has no way to see.
  *
+ * Since 20 Oct 2026 every piece is whole sentences (Lightricks' guide asks
+ * for 4 to 8), so with two or more segments each piece ends in a full stop
+ * and opens with a capital. It was a comma between pieces until then.
+ *
  * The single-segment path is the opposite case: the node supplies `", "`
- * itself, so the Global prompt must end bare rather than with a comma.
+ * itself, so the Global prompt must end bare and the Segment carries on its
+ * last sentence.
  *
  * @param {object} model     registry entry
  * @param {object} controls  the request's controls
@@ -272,25 +287,29 @@ export function fixDirectorSeams(model, controls = {}, segments = []) {
   if (pieces.length !== order.length) return [];
 
   // With one segment the node writes the comma. With more it writes a space,
-  // so every piece but the last has to carry its own.
+  // so every piece has to end its own sentence.
   const nodeSuppliesComma = order.length === 2;
   const changed = [];
 
   for (const [i, seg] of pieces.entries()) {
-    const last = i === pieces.length - 1;
     // Leading punctuation always goes: the piece before it now ends with
     // whatever separator belongs there, and the node adds the space.
     let body = seg.body.replace(/^[\s,;:.—-]+/, '');
-    // Trailing: a comma between pieces, a full stop at the end, and never both
-    // — `...air.,` is what stripping without replacing produces.
+    // Trailing: a full stop, never a comma or both — `...air.,` is what
+    // stripping without replacing produces. A closing quote may follow the
+    // stop: `"Wait."` already ends its sentence.
     body = body.replace(/[\s,;:]+$/, '');
-    if (last) {
-      if (!/[.!?]$/.test(body)) body += '.';
-    } else {
-      body = body.replace(/[.!?]+$/, '');
+    if (i === 0 && nodeSuppliesComma) {
       // The Global prompt of a single-segment timeline ends bare, because the
       // node is about to insert `", "` after it.
-      if (!(i === 0 && nodeSuppliesComma)) body += ',';
+      body = body.replace(/[.!?]+$/, '');
+    } else if (!/[.!?]["'”’)]*$/.test(body)) {
+      body += '.';
+    }
+    // Each piece of a multi-segment timeline opens a sentence. The single
+    // segment carries on the Global prompt's last one, so it is left alone.
+    if (!(i === 1 && nodeSuppliesComma)) {
+      body = body.replace(/^\p{Ll}/u, (c) => c.toUpperCase());
     }
     if (body !== seg.body) {
       seg.body = body;

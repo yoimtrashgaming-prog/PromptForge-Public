@@ -836,10 +836,12 @@ const CHECKS = {
       ['is ONE unbroken paragraph (no newlines)', !/\n/.test(p.trim())],
       ['no bullets or list markers', !/^\s*[-*•]|\n\s*[-*•]/.test(p)],
       ['no numbered shots', !/\[?shot\s*\d/i.test(p)],
-      ['avoids its forbidden words (shot/scene/frame/cut)',
-        !/\b(shot|scene|frame|cut)\b/i.test(p)],
-      ['one or two sentences, not five', sentenceCount(p) <= 2, `${sentenceCount(p)} sentences`],
-      ['within its 60-120 word band', words(p) >= 60 && words(p) <= 120, `${words(p)} words`],
+      // Lightricks' guide, 20 Oct 2026: establish the shot first, 4 to 8
+      // sentences, within 200 words.
+      ['avoids its forbidden word (cut)', !/\bcut\b/i.test(p)],
+      ['establishes the shot', /\bshot\b/i.test(p)],
+      ['4 to 8 sentences', sentenceCount(p) >= 4 && sentenceCount(p) <= 8, `${sentenceCount(p)} sentences`],
+      ['within its 80-160 word band', words(p) >= 80 && words(p) <= 160, `${words(p)} words`],
     ];
   },
 

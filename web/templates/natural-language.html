@@ -14,20 +14,26 @@
   </label>
 
   <label class="field" data-layout-only hidden>
-    <span>Global prompt <span class="field-optional">the scene inside the JSON — Generate writes it, edit freely</span></span>
+    <span>Global prompt <span class="field-optional">the scene inside the JSON — Generate prompt writes it, edit freely</span></span>
     <textarea data-bind="layout_caption" rows="5"
       placeholder="Empty until you generate, or write the scene here yourself around boxes you drew."></textarea>
   </label>
 
+  <!-- summary.meta. MOSS's guide defines no list: its examples use
+       illustration and poster, the studio's placeholder adds photo, so those
+       three and Other for anything else. Rewrite prompt / Rewrite all are not
+       here: they rewrite what is on the canvas, not the brief, and stay in the
+       studio's own Scene column (Full screen), so Generate is the one button. -->
   <div class="row layout-scene" data-layout-only hidden>
     <label class="field"><span>Medium / genre</span>
-      <input type="text" data-bind="layout_meta" autocomplete="off" placeholder="illustration, poster, photo"></label>
-    <div class="layout-rewrite">
-      <button type="button" class="ghost" data-bind="layout_rewrite_scene"
-        title="Rewrite the Global prompt with the whole layout as context">✧ Rewrite prompt</button>
-      <button type="button" class="ghost" data-bind="layout_rewrite_all"
-        title="Rewrite the Global prompt and every box">✧ Rewrite all</button>
-    </div>
+      <select data-bind="layout_meta">
+        <option value="illustration">Illustration</option>
+        <option value="poster">Poster</option>
+        <option value="photo">Photo</option>
+        <option value="other">Other…</option>
+      </select></label>
+    <label class="field" data-bind="layout_meta_other_field" hidden><span>Other medium</span>
+      <input type="text" data-bind="layout_meta_other" autocomplete="off" placeholder="e.g. comic, 3d render"></label>
   </div>
 
   <div class="row">
@@ -178,7 +184,18 @@
     <textarea data-bind="negative" rows="2"></textarea>
   </label>
 
-  <button type="button" data-bind="generate"></button>
+  <button type="button" data-bind="generate" data-layout-hide></button>
+
+  <!-- Layout JSON's two steps, in place of the one Generate (owner, 20 Oct
+       2026: a brief, a Global prompt and one button left nobody knowing what
+       it generated from). Generate prompt: the brief into the Global prompt,
+       written as Natural language would write it. Generate JSON: the Global
+       prompt (or the brief, while that is empty) into the boxes; the Global
+       prompt stays as written. -->
+  <div class="layout-gen" data-layout-only hidden>
+    <button type="button" class="primary" data-bind="generate_prompt">Generate prompt</button>
+    <button type="button" class="primary" data-bind="generate_json">Generate JSON</button>
+  </div>
 
   <!-- Layout JSON has no Output panel (the studio shows the JSON), so the
        progress, any error with its Retry, and the negative prompt land here. -->

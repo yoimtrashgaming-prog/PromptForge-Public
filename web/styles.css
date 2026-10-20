@@ -3299,7 +3299,8 @@ body.layout-mode #output-panel { display: none; }
 body.layout-mode #layout-panel:not(.full) { grid-column: 2; grid-row: 1; position: sticky; top: 12px; }
 body.layout-mode #layout-panel:not(.full) .layout-frame { height: calc(100vh - 110px); min-height: 520px; }
 .layout-scene { align-items: end; }
-.layout-rewrite { display: flex; gap: 8px; flex-wrap: wrap; }
+.layout-gen { display: flex; gap: 8px; }
+.layout-gen button { flex: 1; }
 .layout-status:empty { display: none; }
 .layout-status { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 @media (max-width: 900px) {

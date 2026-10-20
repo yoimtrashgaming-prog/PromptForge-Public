@@ -119,7 +119,7 @@ const check = (what, ok, detail) => {
   check('the model is told the parts get joined', /joins your Global prompt/.test(lines), lines);
   check('...and told not to write timecodes', /Do NOT write timecodes/.test(lines), lines);
   check('...and each segment must continue the last',
-    /continue the previous one/.test(lines), lines);
+    /carry on from the previous one/.test(lines), lines);
   check('the times are marked context only', /context only/.test(lines), lines);
   check('the clip duration and fps reach the model',
     /5 seconds at 24 fps/.test(lines), lines);
@@ -142,14 +142,14 @@ const check = (what, ok, detail) => {
   check('a model with no word_target simply gets no sum',
     !/words total/.test(lines), lines);
 
-  // Which comma rule the model is given depends on the count, because the
+  // Which punctuation rule the model is given depends on the count, because the
   // node's two join paths punctuate differently — both quoted in
   // server/director.mjs.
   const one = directorLines(ltx, { mode: 'Director', segments: timeline.slice(0, 1) }).join('\n');
-  check('a multi-segment timeline is told to end each piece with a comma',
-    /except the last with a comma/.test(lines), lines);
+  check('a multi-segment timeline is told to end each piece with a full stop',
+    /every Segment with a full stop/.test(lines), lines);
   check('...and a single-segment one is told the node supplies it',
-    /the node supplies the comma/.test(one), one);
+    /the node puts a comma between/.test(one), one);
   check('the delimiter label is spelled out',
     /A bare number is not the label/.test(lines), lines);
 }
@@ -258,30 +258,35 @@ const check = (what, ok, detail) => {
   // The measured defect: every fragment starting with ", " puts a space in
   // front of every comma once the node joins them.
   {
-    const list = segs('a woman on a rooftop', ', crouched at the edge', ', she rises.');
+    const list = segs('A woman on a rooftop.', ', she crouches at the edge.', ', she rises.');
     const changed = fixDirectorSeams(ltx, controls(2), list);
-    check('a leading comma is moved to the end of the piece before it',
-      joined(list) === 'a woman on a rooftop, crouched at the edge, she rises.', joined(list));
-    check('...and the pieces it touched are named', changed.length === 3, changed.join(', '));
+    check('a leading comma goes and the piece opens its own sentence',
+      joined(list) === 'A woman on a rooftop. She crouches at the edge. She rises.', joined(list));
+    check('...and the pieces it touched are named', changed.length === 2, changed.join(', '));
   }
 
-  // A full stop between pieces is the failure Director mode exists to avoid:
-  // the node adds a space and nothing else, so it lands as a sentence
-  // boundary and LTX reads one of those as a potential cut.
+  // Every piece is whole sentences since 20 Oct 2026 (Lightricks' guide asks
+  // for 4 to 8), so a comma between pieces becomes a full stop: the node adds
+  // a space and nothing else, and two sentences would run together.
   {
-    const list = segs('a woman on a rooftop.', 'She crouches at the edge.', 'She rises');
+    const list = segs('a woman on a rooftop,', 'She crouches at the edge,', 'She rises');
     fixDirectorSeams(ltx, controls(2), list);
-    check('a full stop between pieces becomes a comma',
-      joined(list) === 'a woman on a rooftop, She crouches at the edge, She rises.', joined(list));
+    check('a comma between pieces becomes a full stop',
+      joined(list) === 'A woman on a rooftop. She crouches at the edge. She rises.', joined(list));
+  }
+  {
+    const list = segs('A woman on a rooftop.', 'She whispers, "Wait."', 'She rises.');
+    check('a sentence ending inside its closing quote is already ended',
+      fixDirectorSeams(ltx, controls(2), list).length === 0, joined(list));
   }
 
   // One segment and the node writes `", "` itself, so the global has to end
-  // bare or the joined text gets two commas.
+  // bare and the segment carries on its last sentence.
   {
-    const list = segs('a woman on a rooftop,', ', she crouches');
+    const list = segs('A woman on a rooftop.', ', she crouches');
     fixDirectorSeams(ltx, controls(1), list);
     check('a single-segment global ends bare, because the node adds the comma',
-      list[0].body === 'a woman on a rooftop', list[0].body);
+      list[0].body === 'A woman on a rooftop', list[0].body);
     check('...and its one segment still closes the paragraph',
       list[1].body === 'she crouches.', list[1].body);
   }
@@ -289,7 +294,7 @@ const check = (what, ok, detail) => {
   // Already correct is left alone — a repair that rewrites clean output is a
   // repair nobody can tell from a bug.
   {
-    const list = segs('a woman on a rooftop,', 'crouched at the edge,', 'then she rises.');
+    const list = segs('A woman on a rooftop.', 'She crouches at the edge.', 'Then she rises.');
     const before = joined(list);
     check('clean output is not touched',
       fixDirectorSeams(ltx, controls(2), list).length === 0 && joined(list) === before, joined(list));

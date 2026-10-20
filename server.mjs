@@ -4396,7 +4396,10 @@ ${toolGuide}` : system;
     for (const seg of result.segments) {
       const tidied = seg.body
         .replace(/[ 	]*,(?:[ 	]*,)+/g, ',')
-        .replace(/,(?=\S)/g, ', ')
+        // Not before a closing quote or a digit: `"Wait," she says` and
+        // `1,000` are already right, and a space there split LTX dialogue
+        // into `"You're late, " his voice` (20 Oct 2026).
+        .replace(/,(?=[^\s"'”’\d])/g, ', ')
         .replace(/[ 	]{2,}/g, ' ')
         .replace(/\s+,/g, ',');
       if (tidied !== seg.body) seg.body = tidied;

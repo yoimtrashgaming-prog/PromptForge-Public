@@ -1912,22 +1912,28 @@ models:
     segments: ["Enhanced paragraph", "Improvement notes"]
     meta_segments: ["Improvement notes"]
     has_negative: false
-    word_target: { min: 60, max: 120 }
-    # ltx.md forbids these outright — each nudges LTX toward static or
-    # discontinuous framing. The output panel flags any that appear.
-    forbidden_words: ["shot", "scene", "frame", "cut"]
+    # Lightricks' guide (ltx.io/blog/prompting-guide-for-ltx-2, 20 Oct 2026):
+    # "expect to write 4 to 8 descriptive sentences", and the LTX-2 README:
+    # "Keep within 200 words". 80-160 is four to eight sentences at ordinary
+    # length; 200 is the ceiling, reached only at Exhaustive. It was 60-120
+    # with one or two run-on sentences until then, on a belief that a full
+    # stop reads as a cut - which neither source says.
+    word_target: { min: 80, max: 160 }
+    # "cut" alone, 20 Oct 2026. "shot", "scene" and "frame" were banned until
+    # then and the guide uses all three: its first rule is "Establish the
+    # shot", and "static frame" is in its camera vocabulary. "cut" stays: a
+    # Director clip is one continuous generation, so asking for an edit
+    # mid-clip asks for something the timeline cannot give. The output panel
+    # flags it.
+    forbidden_words: ["cut"]
     # An LTX-shaped detail ladder, 23 Sep 2026, right after wan's and for the
     # same reason: the shared ladder is written for a still and cannot move a
     # model with a hard word band. See the long note on wan above for the
-    # argument. Three things make this one different from wan's, and all three
-    # are in the rule text rather than in code:
+    # argument. Rebuilt 20 Oct 2026 on Lightricks' guide: length arrives as
+    # sentences in the guide's order (shot, scene, character, action, camera,
+    # sound), the top notch is the README's 200. Two things make it different
+    # from wan's, and both are in the rule text rather than in code:
     #
-    #   - **Length arrives as clauses, not sentences.** ltx.md's whole case is
-    #     that a sentence boundary reads as a break in the continuous take, and
-    #     "write more" is exactly the pressure that turns one paragraph into
-    #     five short sentences - the documented failure this format exists to
-    #     avoid. So the two notches that ask for extra length say where it goes,
-    #     the same way wan's 9 and 10 do.
     #   - **The word count is the FINISHED paragraph**, said on every notch
     #     that carries a number. In Director mode the model writes a Global
     #     prompt plus up to eight segments and the node joins them into one
@@ -1939,40 +1945,40 @@ models:
     #     omit sound language entirely then. The notches that ask for sound say
     #     what to spend those words on instead.
     #
-    # The four words in forbidden_words above are deliberately absent from
-    # every rule here. These strings go into the user turn, and the surest way
-    # to get a banned word into the output is to put it in the instructions.
+    # The word in forbidden_words above is deliberately absent from every rule
+    # here. These strings go into the user turn, and the surest way to get a
+    # banned word into the output is to put it in the instructions.
     detail_levels:
       1:
         label: "Bare"
-        rule: "About 20-35 words in the finished paragraph. The subject, the one thing it does, and where it happens, with the camera named as a continuous movement or as explicitly holding still. No light, no surfaces, no sound. This overrides any minimum length this model's format normally expects."
+        rule: "About 25-40 words in the finished paragraph, two or three sentences. The shot, the subject, the one thing it does, and where it happens. No light, no surfaces, no sound. This overrides any minimum length this model's format normally expects."
       2:
         label: "Minimal"
-        rule: "About 45-60 words in the finished paragraph. The subject, what it does, where it happens, how the camera moves through it, and - with audio on - one clause of sound attached to the action. Nothing further. This overrides any minimum length this model's format normally expects."
+        rule: "About 45-60 words in the finished paragraph. The shot, the subject, what it does, where it happens, what the camera does, and - with audio on - the sound of the action. Nothing further. This overrides any minimum length this model's format normally expects."
       3:
         label: "Light"
-        rule: "About 60-75 words in the finished paragraph, the bottom of this model's band. Everything dissolved into one unbroken chain of clauses: who, what they do, where, the camera easing through it, and - with audio on - the sound of the action carried in the same breath as the action."
+        rule: "About 60-80 words in the finished paragraph, about four sentences: the shot and its style, the setting, the subject and what it does, and the camera. With audio on, the sound of the action sits in the sentence where it happens."
       4:
         label: "Modest"
-        rule: "About 75-90 words in the finished paragraph. The movement gains its manner and its tempo, and the camera gains where it begins and where it comes to rest, both as continuous verbs rather than as instructions."
+        rule: "About 80-95 words in the finished paragraph. The action gains its manner and its tempo, and the camera move gains where it starts and what it shows when it ends."
       5:
         label: "Standard"
-        rule: "About 85-100 words in the finished paragraph. The light gains a source, a direction and a quality, carried in the same clause flow as everything else rather than added on at the end."
+        rule: "About 90-110 words in the finished paragraph. The light gains a source, a direction and a colour."
       6:
         label: "Full"
-        rule: "About 95-110 words in the finished paragraph. Sound gains a second layer, each one attached to the thing that makes it - and with audio silent, spend those words on a second continuous movement instead. Make room for it by tightening what is already there rather than adding to the end."
+        rule: "About 105-125 words in the finished paragraph. Sound gains a second layer - ambient sound, music or a voice - each placed where it happens; with audio silent, spend those words on a second camera move or beat of action instead."
       7:
         label: "Rich"
-        rule: "About 105-120 words in the finished paragraph. Materials and surfaces arrive - fabric, skin, metal, water - and what the light does across them while the movement plays. Make room for them by replacing general words with precise ones, not by adding clauses."
+        rule: "About 120-140 words in the finished paragraph. Textures and materials arrive - fabric, skin, metal, water - and what the light does across them."
       8:
         label: "Dense"
-        rule: "About 110-120 words in the finished paragraph, and 120 is the ceiling. Add what else moves in the space - rain, steam, drifting dust, someone passing behind - and, with audio on, the sound each of those makes, still joined into the same unbroken chain of clauses. Hold the total at or under 120 by tightening every other clause to pay for them: this notch is dense, not long. Going past 120 is what the two notches above this one are for."
+        rule: "About 135-160 words in the finished paragraph, and 160 is the ceiling at this notch. Add what else moves in the space - rain, steam, drifting dust, someone passing behind - and, with audio on, the sound each of those makes."
       9:
         label: "Very detailed"
-        rule: "About 130-155 words in the finished paragraph. The extra length arrives as more clauses joined by commas and participles, never as more sentences - one or two sentences in total however long the paragraph runs. This overrides any maximum length this model's format normally expects."
+        rule: "About 160-180 words in the finished paragraph, eight sentences or a few more. This overrides any maximum length this model's format normally expects."
       10:
         label: "Exhaustive"
-        rule: "About 155-185 words in the finished paragraph: the subject and its materials, the movement beat by beat with its tempo, where the camera travels and where it settles, the light and what it touches, whatever else moves in the space, and - with audio on - the sound of all of it. Still one or two sentences built from commas and participial clauses, because a full stop is a break in the continuous take: the length may grow and the sentence count may not. This overrides any maximum length this model's format normally expects."
+        rule: "About 180-200 words in the finished paragraph, and 200 is LTX's limit: the shot and its style, the subject and its materials, the action beat by beat with its tempo, where the camera travels and what it ends on, the light and what it touches, whatever else moves in the space, and - with audio on - the sound of all of it. This overrides any maximum length this model's format normally expects."
     supports_audio: true
     quality_modes: ["Pro", "Fast"]
     default_quality_mode: "Pro"

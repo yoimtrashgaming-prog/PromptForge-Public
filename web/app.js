@@ -1114,8 +1114,9 @@ function togglePeople(open) {
 }
 
 function setGenerateEnabled(ok) {
-  const btn = $('[data-bind="generate"]');
-  if (btn) btn.disabled = !ok || generating;
+  for (const btn of $$('[data-bind="generate"], [data-bind="generate_prompt"], [data-bind="generate_json"]')) {
+    btn.disabled = !ok || generating;
+  }
 }
 
 // ── registry-driven UI ───────────────────────────────────────
@@ -6204,8 +6205,8 @@ function paintStudioSummary() {
   if (summary) {
     const n = studio ? studio.getProject().items.length : 0;
     summary.textContent = n
-      ? `${w}×${h} · ${n} box${n === 1 ? '' : 'es'} — Generate keeps them and writes their descriptions`
-      : `${w}×${h} · no boxes yet — Generate drafts the layout`;
+      ? `${w}×${h} · ${n} box${n === 1 ? '' : 'es'} — Generate JSON keeps them and writes their descriptions`
+      : `${w}×${h} · no boxes yet — Generate JSON drafts the layout`;
   }
   const note = $('#layout-panel-note');
   if (note && studio) {
@@ -6293,7 +6294,7 @@ function setupLayoutStudio(mount, model) {
     // whole prompt, so "What changed" is not written.
     for (const item of $$('.segment-switches > *', mount)) item.hidden = on && !/negative/i.test(item.textContent);
     if (briefEl) {
-      briefEl.placeholder = on ? 'What you want. Generate drafts the layout from this, or describes the boxes you drew — left empty, it works from the Global prompt.' : briefHint;
+      briefEl.placeholder = on ? 'What you want. Generate prompt writes the Global prompt from this.' : briefHint;
       // Shorter beside the Global prompt, which holds the long version.
       briefEl.rows = on ? 4 : 7;
     }
@@ -6316,11 +6317,23 @@ function setupLayoutStudio(mount, model) {
   $('[data-bind="layout_caption"]', mount)?.addEventListener('input', (e) => {
     layoutStudio()?.setScene({ caption: e.target.value });
   });
-  $('[data-bind="layout_meta"]', mount)?.addEventListener('input', (e) => {
-    layoutStudio()?.setScene({ meta: e.target.value });
-  });
-  $('[data-bind="layout_rewrite_scene"]', mount)?.addEventListener('click', () => layoutStudio()?.rewrite('scene'));
-  $('[data-bind="layout_rewrite_all"]', mount)?.addEventListener('click', () => layoutStudio()?.rewrite('all'));
+  // Medium: a pick from the list, or Other and its own words.
+  const metaSel = $('[data-bind="layout_meta"]', mount);
+  const metaOther = $('[data-bind="layout_meta_other"]', mount);
+  const sendMeta = () => {
+    const other = metaSel.value === 'other';
+    $('[data-bind="layout_meta_other_field"]', mount).hidden = !other;
+    layoutStudio()?.setScene({ meta: other ? metaOther.value : metaSel.value });
+  };
+  metaSel?.addEventListener('change', sendMeta);
+  metaOther?.addEventListener('input', sendMeta);
+  // The two steps that stand in for Generate here. See generate().
+  for (const step of ['prompt', 'json']) {
+    $(`[data-bind="generate_${step}"]`, mount)?.addEventListener('click', () => {
+      closeReadback();
+      generate({ layoutStep: step });
+    });
+  }
   $('[data-bind="aspect_ratio"]', mount)?.addEventListener('change', (e) => {
     syncStudioSize(model, e.target.value);
     paintStudioSummary();
@@ -6339,9 +6352,17 @@ function syncFromStudio() {
   if (!studio || !wantsLayout(currentModel, mount)) return;
   const p = studio.getProject();
   const captionEl = $('[data-bind="layout_caption"]', mount);
-  const metaEl = $('[data-bind="layout_meta"]', mount);
   if (captionEl && document.activeElement !== captionEl && captionEl.value !== p.caption) captionEl.value = p.caption;
-  if (metaEl && document.activeElement !== metaEl && metaEl.value !== p.meta) metaEl.value = p.meta;
+  // A medium the list has selects it; anything else (a generated "comic", an
+  // import) shows as Other with its words.
+  const metaSel = $('[data-bind="layout_meta"]', mount);
+  const metaOther = $('[data-bind="layout_meta_other"]', mount);
+  if (metaSel && metaOther && document.activeElement !== metaOther) {
+    const listed = [...metaSel.options].some((o) => o.value !== 'other' && o.value === p.meta.trim());
+    metaSel.value = listed ? p.meta.trim() : 'other';
+    metaOther.value = listed ? '' : p.meta;
+    $('[data-bind="layout_meta_other_field"]', mount).hidden = listed;
+  }
   // A size that is one of the aspects' (an undo, an import) shows as it.
   const aspectEl = $('[data-bind="aspect_ratio"]', mount);
   const match = Object.entries(currentModel.layout_canvas ?? {})
@@ -10304,7 +10325,7 @@ function renderError(data) {
   retry.className = 'ghost';
   retry.textContent = 'Retry';
   retry.style.marginTop = '10px';
-  retry.addEventListener('click', () => generate());
+  retry.addEventListener('click', () => generate({ layoutStep: lastLayoutStep }));
   box.appendChild(retry);
   return box;
 }
@@ -10515,15 +10536,23 @@ if (hasDom()) {
   });
 }
 
-async function generate() {
+// The Layout JSON step the last run was, so Retry repeats that one.
+let lastLayoutStep = null;
+
+async function generate({ layoutStep = null } = {}) {
   if (generating || !currentModel) return;
-  // MOSS Layout JSON: the brief, or, left empty, the Layout Studio's Global
-  // prompt — a scene written there, around boxes drawn by hand.
+  lastLayoutStep = layoutStep;
+  // MOSS Layout JSON goes in two steps (setupLayoutStudio). 'prompt': the
+  // brief, written as Natural language writes it, into the Global prompt; the
+  // boxes are not touched. 'json': the Global prompt, or the brief while that
+  // is empty, into the boxes, and the Global prompt stays as written.
   const layoutOnly = wantsLayout(currentModel);
   const typed = $('[data-bind="brief"]')?.value ?? '';
-  const brief = layoutOnly && !typed.trim() ? layoutStudio()?.getProject().caption ?? '' : typed;
+  const globalPrompt = layoutOnly ? layoutStudio()?.getProject().caption ?? '' : '';
+  const keepGlobal = layoutStep === 'json' && globalPrompt.trim() ? globalPrompt : null;
+  const brief = keepGlobal ?? (layoutOnly && layoutStep !== 'prompt' && !typed.trim() ? globalPrompt : typed);
   if (!brief.trim() && !readShotBriefs().some((row) => row.trim())) {
-    return toast(layoutOnly ? 'Write a brief, or a Global prompt' : 'Write a brief first');
+    return toast(layoutStep === 'prompt' ? 'Write a brief first' : layoutOnly ? 'Write a brief, or a Global prompt' : 'Write a brief first');
   }
 
   clearTabFlag();
@@ -10533,7 +10562,8 @@ async function generate() {
   // Layout JSON has no Output panel: progress, errors and the negative prompt
   // go under Generate, and the JSON goes onto the studio (applyLayoutToStudio).
   const mount = (layoutOnly && $('#builder-mount [data-bind="layout_status"]')) || $('#output-mount');
-  const shown = (label) => !(layoutOnly && label === 'Layout JSON');
+  // The prose of the prompt step goes into the Global prompt, not under it.
+  const shown = (label) => !(layoutOnly && (label === 'Layout JSON' || (layoutStep === 'prompt' && label === 'Enhanced prompt')));
   mount.innerHTML = '';
   // A new prompt starts a new story.
   story = null;
@@ -10566,6 +10596,12 @@ async function generate() {
 
   // Kept: a MOSS layout goes back onto the canvas it was sent with.
   const sentControls = collectControls();
+  // The prompt step is a Natural language run: the same writer, canon lookup
+  // and controls, with no canvas sent.
+  if (layoutStep === 'prompt') {
+    sentControls.mode = 'Natural language';
+    delete sentControls.layout;
+  }
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
@@ -10717,6 +10753,15 @@ async function generate() {
             referenceIdentity: data.reference_analysis_identity ?? '',
           };
           if (sentControls.layout) applyLayoutToStudio(data.segments, sentControls.layout);
+          // The Global prompt it was written from stays the person's own; the
+          // prompt step's prose becomes it.
+          const prose = layoutStep === 'prompt'
+            ? (data.segments ?? []).find((s) => s.label === 'Enhanced prompt')?.body
+            : keepGlobal;
+          if (prose) {
+            layoutStudio()?.setScene({ caption: prose });
+            syncFromStudio();
+          }
           // Into the session list. After lastResult so a failure here cannot
           // cost the person the output that is already on screen.
           lastResult.sessionId = recordSessionPrompt({
