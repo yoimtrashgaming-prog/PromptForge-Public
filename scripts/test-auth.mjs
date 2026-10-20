@@ -897,6 +897,21 @@ try {
     check('...and it closes on the next request, without a re-login', closed.status === 403, `got ${closed.status}`);
     const stillIn = await friend.call('GET', '/api/models');
     check('...while leaving the session alone', stillIn.status === 200, `got ${stillIn.status}`);
+
+    // Captioning (17 Oct 2026) is not under /api/admin/, so it is gated at its
+    // own route. No picture is sent: with the grant, the refusal is the
+    // upload check (415), which proves the permission check came first.
+    const capBefore = await friend.call('POST', '/api/caption?style=illustrious', { body: {} });
+    check('without the grant, captioning is refused', capBefore.status === 403, `got ${capBefore.status}`);
+    check('...naming the permission', /caption/i.test(capBefore.json?.message ?? ''), JSON.stringify(capBefore.json));
+    await owner.call('POST', '/api/admin/users/friendo/grant', { body: { grant: 'caption', on: true } });
+    const capAfter = await friend.call('POST', '/api/caption?style=illustrious', { body: {} });
+    check('the caption grant opens it', capAfter.status !== 403, `got ${capAfter.status}`);
+    const capOwner = await owner.call('POST', '/api/caption?style=illustrious', { body: {} });
+    check('...and the owner never needs it', capOwner.status !== 403, `got ${capOwner.status}`);
+    await owner.call('POST', '/api/admin/users/friendo/grant', { body: { grant: 'caption', on: false } });
+    const capClosed = await friend.call('POST', '/api/caption?style=illustrious', { body: {} });
+    check('...and closes on revoke', capClosed.status === 403, `got ${capClosed.status}`);
   }
 
   // ── 10. logout ───────────────────────────────────────────

@@ -520,7 +520,10 @@ export function createAuth(rootDir, config) {
   // `render` joined it 3 Oct 2026 (docs/render-plan.md): sending prompts to
   // ComfyUI takes the GPU for as long as a picture takes, so it is the
   // owner's to hand out.
-  const GRANTS = new Set(['offload', 'train', 'render']);
+  //
+  // `caption` joined it 17 Oct 2026, at the owner's ask: Caption all on the
+  // LoRA tab is a whole dataset of vision calls on the shared card.
+  const GRANTS = new Set(['offload', 'train', 'render', 'caption']);
 
   /** Only grants that still exist. A name removed from GRANTS stops counting. */
   const grantsOf = (acc) =>

@@ -108,6 +108,12 @@ const NAME_MAPS = new Set([
   'creativity_presets',
   'styles',
   'reference_files_by_mode',
+  // Keyed by the Aspect control's labels, looked up as layout_canvas[aspect].
+  'layout_canvas',
+  // Keyed by the Mode control's own strings, like reference_files_by_mode.
+  // h3's only passed because its mode names happen to be spelled in code.
+  'segments_by_mode',
+  'mode_blocks',
 ]);
 
 const dead = [];

@@ -34,6 +34,7 @@ import {
   labelsFor,
 } from './server/references.mjs';
 import { musicOnlyWhenAsked } from './server/music.mjs';
+import { loadCaptionStyles, loadLoraTypes, publicStyles, publicLoraTypes, captionInstructions, parseExclude, finishCaption, captionRequest, closestTag } from './server/captions.mjs';
 import { shotsLine, shotCountWarning, repairCutTimes, foldShotBriefs } from './server/shots.mjs';
 import { applyPictureLabels, promptMode, usesLabels, labelledCast, labelledBrief, labelledLines, labelledSegments, keepReferenceLook, describeUnits, describeMessage, framedBrief, givenCast, castDescriptions, unitsToRead, castUnit, sceneUnit, castLook, framedCastLines, characterCards } from './server/picture-labels.mjs';
 import { cropImage, pictureSize, parsePeople, FIND_PEOPLE_PROMPT } from './server/people-boxes.mjs';
@@ -111,6 +112,7 @@ import { cleanPositive } from './server/positive.mjs';
 import { spaceUnderscores } from './server/tagspacing.mjs';
 import { escapeLiteralParens } from './server/parens.mjs';
 import { stripAspect } from './server/aspect.mjs';
+import { layoutLines, tidyLayout, rewriteMessages } from './server/layout.mjs';
 import { createTaggerStore } from './server/taggers.mjs';
 import { createStorage, safeUsername } from './server/storage.mjs';
 import { createSharedImages } from './server/sharedimages.mjs';
@@ -140,6 +142,7 @@ import { createBenchRunner } from './server/benchrun.mjs';
 import { createCharCast } from './server/charcast.mjs';
 import { createMetrics } from './server/metrics.mjs';
 import { getGrafanaUrl } from './server/grafana.mjs';
+import { pastedStyle, styleInstruction, stripStyle, pasteStyle } from './server/style.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -869,6 +872,9 @@ const mayTrain = (req) => isOwner(req) || auth.can(req.user, 'train');
 // the owner, or an account holding `render`. Checked on every one of them.
 const mayRender = (req) => isOwner(req) || auth.can(req.user, 'render');
 
+// LoRA captions (/api/caption): the owner, or an account holding `caption`.
+const mayCaption = (req) => isOwner(req) || auth.can(req.user, 'caption');
+
 // With auth disabled there are no accounts to hold a grant, so this answers
 // false and the isOwner header path is the whole of the check.
 const mayAdmin = (req, pathname) =>
@@ -1357,6 +1363,9 @@ function buildUserMessage(model, brief, controls = {}, characterText = '', stand
   const lines = [`Brief: "${String(brief).trim()}"`];
 
   const parts = [];
+  // A style pasted in code goes out as its own line below, not as a setting.
+  // See server/style.mjs.
+  const styleBlock = pastedStyle(model, controls);
   for (const [key, label] of Object.entries(CONTROL_LABELS)) {
     // Shots has a default with no control behind it: FL2VA is one shot on
     // Auto, and a request that left the control out entirely is Auto.
@@ -1367,6 +1376,7 @@ function buildUserMessage(model, brief, controls = {}, characterText = '', stand
     // suppressed rather than sent as `Style: None` - which the model would
     // read as a style called None. Same intent as the None quality preset.
     if (key === 'style' && value === 'None') continue;
+    if (key === 'style' && styleBlock) continue;
     // A quality preset of "none" is handled below as an explicit instruction,
     // not as a setting. Passing it through here as well would put "Preset:
     // None" in front of the model, which reads as "no constraint" rather than
@@ -1462,6 +1472,10 @@ function buildUserMessage(model, brief, controls = {}, characterText = '', stand
   if (parts.length) {
     lines.push(`Settings (context for how to write, never text to include): ${parts.join(' · ')}`);
   }
+  if (styleBlock) lines.push(styleInstruction(controls.style ?? model.default_style, styleBlock));
+  // The canvas a layout's boxes are measured on, and any boxes the person
+  // drew. See server/layout.mjs.
+  lines.push(...layoutLines(model, controls));
 
   // Detail. The rule text is config, not code - see defaults.detail_levels in
   // config/models.yaml, which also explains why only the two notches at each
@@ -2521,8 +2535,11 @@ async function handleRevise(req, res) {
   try {
     sse.send('status', { state: 'revising' });
 
+    // A pasted style comes off the draft and goes back on after, so the
+    // revision neither rewrites it nor doubles it. See server/style.mjs.
+    const styleBlock = pastedStyle(model, controls);
     const draft = revisable
-      .map((seg) => `===SEGMENT: ${seg.label}===\n${String(seg.body ?? '').trim()}`)
+      .map((seg) => `===SEGMENT: ${seg.label}===\n${stripStyle(String(seg.body ?? ''), styleBlock).trim()}`)
       .join('\n\n');
 
     // Everything the FIRST pass was given, or the revision is judging the
@@ -2710,6 +2727,8 @@ async function handleRevise(req, res) {
         spared: [controls.positive ?? '', ...(Array.isArray(controls.tags) ? controls.tags : [])],
       });
     }
+
+    pasteStyle(model, controls, out);
 
     // A rewrite can put a cut past the end too. See server/shots.mjs.
     {
@@ -4413,6 +4432,12 @@ ${toolGuide}` : system;
       if (message) sse.send('warning', { message });
     }
 
+    // Layout JSON: fixed fields, boxes inside the canvas. See server/layout.mjs.
+    {
+      const message = tidyLayout(model, body.controls, result.segments);
+      if (message) sse.send('warning', { message });
+    }
+
     // "N/A" is not a ratio, so there is nothing that could have leaked and
     // nothing to strip. Running the stripper on it would build match patterns
     // out of the letters N and A, which is exactly the kind of thing
@@ -4598,6 +4623,12 @@ ${toolGuide}` : system;
           );
         }
       }
+    }
+
+    // The chosen style, word for word, last - after every pass that edits
+    // text, so none of them touches it. See server/style.mjs.
+    if (!result.refused && pasteStyle(model, body.controls ?? {}, result.segments)) {
+      console.log(`[style] ${model.key}: pasted "${body.controls?.style}" onto the prompt`);
     }
 
     // What the model looked up, on the done event as well as the live `tool`
@@ -6410,6 +6441,216 @@ async function handleAnalyzeDescribe(req, res, url) {
   }
 }
 
+/**
+ * POST /api/caption — one LoRA training caption (17 Oct 2026).
+ *
+ * Same shape as Describe above: raw image body, options in the query string,
+ * queued like a generation, streamed as SSE. The style (config/captions.yaml)
+ * names the instruction file under prompts/captions/; the trigger word,
+ * "Don't include" and tag spelling are applied in server/captions.mjs after
+ * the model answers, so they hold whatever the model did. `done` carries the
+ * finished caption; `token` events are the raw reply, for the progress view.
+ */
+// The MOSS Layout Studio's Rewrite: one section of the layout rewritten with
+// the whole scene as context, answered as the studio's own engine answered —
+// JSON { text }. The instruction is the studio's, in the file the registry
+// names. See server/layout.mjs.
+async function handleMossAssist(req, res) {
+  const model = registry.all().find((m) => m.layout_rewrite_prompt);
+  if (!model) return sendJSON(res, 404, { error: 'not_found', message: 'No model has a Layout Studio.' });
+  let body;
+  try {
+    body = await readBody(req, 2 * 1024 * 1024);
+  } catch {
+    return sendJSON(res, 400, { error: 'unreadable', message: 'Could not read the request.' });
+  }
+  let messages;
+  try {
+    messages = rewriteMessages(readFileSync(path.join(ROOT, model.layout_rewrite_prompt), 'utf8'), body);
+  } catch (err) {
+    return sendJSON(res, 400, { error: 'bad_request', message: err.message });
+  }
+  const llmModel = chooseModel(model, storage.getPrefs(whoIs(req))) ?? llm.model;
+  if (!llmModel) return sendJSON(res, 503, { error: 'no_model', message: 'No model is selected.' });
+
+  const abort = new AbortController();
+  res.on('close', () => abort.abort());
+  const ticket = inferenceQueue.enqueue({ user: whoIs(req), model: llmModel, kind: 'layout-rewrite' });
+  try {
+    await ticket.started;
+    usageStats.record(llmModel);
+    metrics.incGenerations(llmModel);
+    let text = '';
+    for await (const ev of llm.stream({
+      system: messages.system,
+      messages: [{ role: 'user', content: messages.user }],
+      model: llmModel,
+      // The studio's own settings.
+      temperature: 0.25,
+      maxTokens: 1200,
+      thinking: false,
+      signal: abort.signal,
+    })) {
+      if (ev.type === 'token') text += ev.text;
+    }
+    text = text.trim();
+    if (!text) return sendJSON(res, 502, { error: 'empty', message: 'The model returned an empty prompt.' });
+    return sendJSON(res, 200, { text });
+  } catch (err) {
+    if (abort.signal.aborted) return;
+    return sendJSON(res, 502, { error: err instanceof LLMError ? err.code : 'failed', message: err.message });
+  } finally {
+    ticket.release();
+  }
+}
+
+async function handleCaption(req, res, url) {
+  // First, before the upload is read: a refused request should not get to
+  // send twenty megabytes.
+  if (!mayCaption(req)) {
+    return sendJSON(res, 403, {
+      error: 'forbidden',
+      message: 'That needs the "caption" permission, which the owner grants per account.',
+    });
+  }
+  const limits = taggers.info().limits;
+  const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+  if (!limits.allowed_image_types.includes(contentType)) {
+    return sendJSON(res, 415, {
+      error: 'unsupported_type',
+      message: `${contentType || 'that file'} cannot be read. Accepted: ${limits.allowed_image_types.join(', ')}`,
+    });
+  }
+
+  let style;
+  try {
+    style = loadCaptionStyles(ROOT).find((s) => s.id === url.searchParams.get('style'));
+  } catch (err) {
+    return sendJSON(res, 500, { error: 'caption_styles', message: `config/captions.yaml could not be read: ${err.message}` });
+  }
+  if (!style) return sendJSON(res, 400, { error: 'unknown_style', message: 'Pick a caption style.' });
+
+  // What the LoRA is for (18 Oct 2026): the trigger word carries what the type
+  // names, and the type's own instruction file says what to leave out. An
+  // unknown or missing type falls back to the first one in config.
+  const loraTypes = loadLoraTypes(ROOT);
+  const loraType = loraTypes.find((t) => t.id === url.searchParams.get('type')) ?? loraTypes[0] ?? null;
+  const type = loraType?.id ?? 'character';
+
+  const instructions = captionInstructions(ROOT, style, loraType?.id);
+  if (!instructions) {
+    return sendJSON(res, 503, {
+      error: 'no_instructions',
+      message: `prompts/${style.prompt} is missing, so ${style.label} captions are switched off.`,
+    });
+  }
+
+  let buf;
+  try {
+    buf = await readRawBody(req, (limits.max_image_mb ?? 20) * 1024 * 1024);
+  } catch (err) {
+    return sendJSON(res, err.statusCode === 413 ? 413 : 400, {
+      error: err.statusCode === 413 ? 'too_large' : 'unreadable',
+      message: err.statusCode === 413 ? `Over the ${limits.max_image_mb} MB limit.` : 'Could not read the upload.',
+    });
+  }
+
+  // The view's own "Written by"; absent means whatever writes my prompts.
+  let model;
+  const wanted = url.searchParams.get('model');
+  if (wanted) {
+    const picked = await resolveChatModel(wanted);
+    if (picked.error) return sendJSON(res, 400, picked.error);
+    model = picked.model;
+  } else {
+    model = chooseModel(undefined, storage.getPrefs(whoIs(req))) ?? llm.model;
+  }
+  if (!model) return sendJSON(res, 503, { error: 'no_model', message: 'No model is selected.' });
+  if ((await visionTags.canSee(model)) === false) {
+    return sendJSON(res, 503, { error: 'no_vision', message: `${model} cannot see images. Pick one marked vision.` });
+  }
+
+  const trigger = String(url.searchParams.get('trigger') ?? '').trim().slice(0, 100);
+  const exclude = parseExclude(url.searchParams.get('exclude'));
+  const tagList = String(url.searchParams.get('tags') ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 200);
+  const length = url.searchParams.get('length') ?? undefined;
+
+  let readable;
+  try {
+    readable = await visionBytes(buf, contentType);
+  } catch (err) {
+    return sendJSON(res, 422, { error: 'unreadable_image', message: `Could not convert that picture for the model (${err.message}).` });
+  }
+
+  const sse = openSSE(req, res);
+  const abort = new AbortController();
+  res.on('close', () => abort.abort());
+
+  const ticket = inferenceQueue.enqueue({ user: whoIs(req), model, kind: 'caption' });
+  ticket.onPosition((position) => {
+    if (position > 0) sse.send('queued', { position });
+  });
+
+  try {
+    await ticket.started;
+    if (sse.closed) return;
+    sse.send('started', { model, style: style.id });
+    let written = '';
+    usageStats.record(model);
+    metrics.incGenerations(model);
+    for await (const ev of llm.stream({
+      system: instructions,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: captionRequest(style, { tags: tagList, exclude, trigger, typeLabel: loraType?.label }) },
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${readable.toString('base64')}` } },
+          ],
+        },
+      ],
+      model,
+      // A reading task, like Describe: low temperature, thinking off. MOSS's
+      // guide recommends thinking ON for its recaptioner; not done here yet,
+      // because it multiplies the time per picture and that is the owner's call.
+      temperature: 0.3,
+      presence_penalty: 0.5,
+      thinking: false,
+      signal: abort.signal,
+    })) {
+      if (ev.type === 'token') { written += ev.text; sse.send('token', { text: ev.text }); }
+      else if (ev.type === 'usage') sse.send('usage', ev.usage);
+    }
+    let finished;
+    try {
+      finished = finishCaption(style, written, {
+        trigger, exclude, length, type,
+        resolve: tags.loaded ? (t) => closestTag(t, { postCount: tags.postCount, aliasTarget: tags.aliasTarget }) : null,
+      });
+    } catch (err) {
+      sse.send('error', { error: err.code ?? 'unparseable', message: err.message, raw: written });
+      return;
+    }
+    // Tags danbooru has never seen, reported rather than removed: a rare
+    // real tag and an invented one look the same from here.
+    const meta = new Set((style.meta_tags ?? []).map((t) => t.toLowerCase()));
+    const unknown = (finished.tags ?? []).filter((t) =>
+      !t.startsWith('@') && !meta.has(t) && tags.loaded && tags.postCount(t.replace(/ /g, '_')) === 0);
+    sse.send('done', { ...finished, unknown, model });
+  } catch (err) {
+    if (!abort.signal.aborted) {
+      sse.send('error', { error: err instanceof LLMError ? err.code : 'failed', message: err.message });
+    }
+  } finally {
+    ticket.release();
+    sse.end();
+  }
+}
+
 async function handleReferenceAnalysis(req, res, url) {
   const limits = taggers.info().limits;
   const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
@@ -7986,6 +8227,21 @@ async function handleRequest(req, res) {
     }
     if (req.method === 'GET' && pathname === '/api/taggers') {
       return sendJSON(res, 200, taggers.info());
+    }
+    // The Caption view's Style dropdown. Read per request rather than at boot:
+    // it is a few lines, and an edit to the file shows without a restart.
+    if (req.method === 'GET' && pathname === '/api/caption/styles') {
+      try {
+        return sendJSON(res, 200, { styles: publicStyles(loadCaptionStyles(ROOT)), types: publicLoraTypes(loadLoraTypes(ROOT)) });
+      } catch (err) {
+        return sendJSON(res, 500, { error: 'caption_styles', message: `config/captions.yaml could not be read: ${err.message}` });
+      }
+    }
+    if (req.method === 'POST' && pathname === '/api/caption') {
+      return await handleCaption(req, res, url);
+    }
+    if (req.method === 'POST' && pathname === '/api/moss/assist') {
+      return await handleMossAssist(req, res);
     }
     if (pathname === '/api/render' || pathname.startsWith('/api/render/')) {
       return await handleRender(req, res, pathname, url);

@@ -1,0 +1,119 @@
+# LoRA caption styles: the Style dropdown on the LoRA Training tab's Caption
+# view. The frontend reads this through GET /api/caption/styles and hardcodes
+# none of it, same rule as config/models.yaml.
+#
+# Added 17 Oct 2026. Each style names its instruction file under prompts/
+# and the rules server/captions.mjs applies to the reply in code:
+#
+#   id               stable key, lowercase
+#   label            what the dropdown shows
+#   format           the badge beside it
+#   note             one line under the dropdown
+#   prompt           instruction file, relative to prompts/
+#   kind             tags | mixed (tags, then prose, one line) | prose | moss (JSON)
+#   tag_spelling     spaces | underscores; score_N keeps its underscore either way
+#   drop_tags        regexes, whole-tag, removed from the reply in code: a safety
+#                    net under the prompt's own "no quality tags" rule
+#   meta_tags        the model's own non-danbooru tags, left alone by the danbooru
+#                    lookup and the unknown-tag report
+#   lengths          moss only: the three lengths, and which goes in the .txt
+#   trigger          prose only: where the trigger word goes. position start|end,
+#                    join (the text between it and the caption), strip_period
+#                    (drop the caption's last full stop first), at (put @ in
+#                    front if it is missing). Default: start, ", ".
+#   trigger_by_type  the same keys, per LoRA type (see lora_types)
+#
+# The instructions sent are the style's prompt, then the LoRA type's file:
+# prompts/captions/<style id>/<type id>.md when that model's own LoRAs do it
+# differently (Krea 2 style), else the shared prompts/captions/types/<type id>.md.
+# A missing type file is not an error; the style's prompt goes alone.
+
+# What kind of LoRA the dataset is for, owner's call 18 Oct 2026. The trigger
+# word carries what the type names; the caption describes the rest. `exclude`
+# is the hint under "Don't include" while that type is picked.
+lora_types:
+  - id: character
+    label: "Character"
+    exclude: "List what makes them them: hair colour, eye colour, distinctive marks. Anything not listed gets captioned, and then has to be prompted every time."
+  - id: style
+    label: "Art style"
+    exclude: "Usually empty: the captions already leave the style out. List anything else every picture shares that the style should carry."
+  - id: outfit
+    label: "Outfit or clothing"
+    exclude: "Usually empty: the captions already leave the outfit out. List its parts if it keeps getting described."
+  - id: object
+    label: "Object"
+    exclude: "List what makes the object itself if it keeps getting described: its colours, markings, shape."
+  - id: concept
+    label: "Concept, pose or effect"
+    exclude: "List the parts of the concept: the pose, the gesture, the effect. Those stay out; everything else is captioned."
+  - id: background
+    label: "Background or place"
+    exclude: "List the landmarks and features that make the place itself."
+
+styles:
+  - id: illustrious
+    label: "Illustrious XL"
+    format: "Tags"
+    note: "Danbooru tags with spaces, count and character first. No quality tags."
+    prompt: captions/illustrious.md
+    kind: tags
+    tag_spelling: spaces
+    drop_tags:
+      - "masterpiece( \\(quality\\))?"
+      - "(best|high|good|average|normal|bad|low|worst) quality"
+      - "(very )?(aesthetic|displeasing)"
+      - "absurdres|highres|lowres"
+      - "newest|recent|mid|early|old|oldest|modern"
+      - "year \\d{4}"
+      - "score_\\d(_up)?"
+      - "rating[: ]+\\w+"
+  - id: moss
+    label: "MOSS-Image"
+    format: "Prose"
+    note: "Long, medium and short descriptions, to MOSS's own recaptioner structure."
+    prompt: captions/moss.md
+    kind: moss
+    lengths: [long, medium, short]
+    default_length: medium
+  # 18 Oct 2026, the owner's call: Anima captions match this app's own Anima
+  # prompter (prompts/image/anima-min-v2.md) - tags in its order, then prose,
+  # on one line - so a LoRA trains on the shape it will be prompted with.
+  # Anima reads tags, prose and mixes alike (model card); its makers' one
+  # example LoRA happens to be prose only, but nothing says LoRAs must be.
+  # The @ is what Anima needs for an artist-style name, so a style trigger
+  # gets one.
+  - id: anima
+    label: "Anima"
+    format: "Tags + prose"
+    note: "Tags in Anima's order, then sentences, on one line: the same shape our Anima prompts take."
+    prompt: captions/anima.md
+    kind: mixed
+    tag_spelling: spaces
+    drop_tags:
+      - "masterpiece( \\(quality\\))?"
+      - "(best|high|good|average|normal|bad|low|worst) quality"
+      - "absurdres|highres|lowres"
+      - "newest|recent|mid|early|old|oldest|modern"
+      - "year \\d{4}"
+      - "score_\\d(_up)?"
+    # Anima's own safety tags: not danbooru tags, so neither looked up nor
+    # reported as unknown.
+    meta_tags: [safe, sensitive, nsfw, explicit]
+    trigger_by_type:
+      style: { at: true }
+  # Krea 2 (Krea AI, June 2026), NOT FLUX.1 Krea: the owner's call, 17 Oct.
+  # 18 Oct: short content-only sentences with the trigger at the END, from
+  # Krea's own LoRAs ("A deer grazing in the forest, Art Deco watercolor
+  # style") and the reference Krea 2 trainer built on the authors' guidance
+  # (multimodalart/krea2-lora-trainer): style after a comma, subject after a
+  # space.
+  - id: krea2
+    label: "Krea 2"
+    format: "Prose"
+    note: "A few short sentences of content, the trigger at the end, as Krea's own LoRAs do it."
+    prompt: captions/krea2.md
+    kind: prose
+    trigger: { position: end, join: " " }
+    trigger_by_type:
+      style: { join: ", ", strip_period: true }

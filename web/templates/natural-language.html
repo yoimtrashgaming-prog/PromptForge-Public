@@ -1,14 +1,42 @@
-<!-- Descriptive prose: Krea2 and Flux. No negative field — neither model
-     uses one in this workflow, so has_negative is false for both and the
-     block below never renders. -->
+<!-- Descriptive prose: Krea2 and MOSS. The negative field shows only where the
+     registry says has_negative - true on MOSS, false on Krea2. -->
 <section class="builder" data-template="natural-language">
+  <!-- In a format that writes a layout (MOSS Layout JSON) the Layout Studio
+       sits beside this builder, and its Global prompt and medium are edited
+       here, kept in step both ways; the Aspect sets its canvas. The brief stays
+       the person's own: Generate writes the Global prompt, never the brief.
+       data-layout-hide is not shown there, data-layout-only only there. See
+       setupLayoutStudio. -->
   <label class="field">
     <span>Brief</span>
     <textarea data-bind="brief" rows="7"
       placeholder="Describe the scene as you would to someone drawing it without seeing it."></textarea>
   </label>
 
+  <label class="field" data-layout-only hidden>
+    <span>Global prompt <span class="field-optional">the scene inside the JSON — Generate writes it, edit freely</span></span>
+    <textarea data-bind="layout_caption" rows="5"
+      placeholder="Empty until you generate, or write the scene here yourself around boxes you drew."></textarea>
+  </label>
+
+  <div class="row layout-scene" data-layout-only hidden>
+    <label class="field"><span>Medium / genre</span>
+      <input type="text" data-bind="layout_meta" autocomplete="off" placeholder="illustration, poster, photo"></label>
+    <div class="layout-rewrite">
+      <button type="button" class="ghost" data-bind="layout_rewrite_scene"
+        title="Rewrite the Global prompt with the whole layout as context">✧ Rewrite prompt</button>
+      <button type="button" class="ghost" data-bind="layout_rewrite_all"
+        title="Rewrite the Global prompt and every box">✧ Rewrite all</button>
+    </div>
+  </div>
+
   <div class="row">
+    <!-- The prompt format, on a model that writes more than one (MOSS). The
+         select holds the value Generate sends; what the person clicks is the
+         FORMAT row at the top of the builder, which app.js builds from it.
+         Hidden by class, not [hidden]: collectControls skips [hidden]. -->
+    <label class="field format-source" data-show="modes"><span>Format</span>
+      <select data-bind="mode"></select></label>
     <label class="field"><span>Style guidance</span>
       <select data-bind="style"></select></label>
     <label class="field"><span>Aspect</span>
@@ -19,7 +47,14 @@
     <div class="sliders" data-bind="slider_block"></div>
   </div>
 
-  <aside class="tips" data-bind="tips"></aside>
+  <aside class="tips" data-bind="tips" data-layout-hide></aside>
+
+  <!-- What Generate will do with the studio's canvas. Boxes drawn there go
+       with Generate and are kept exactly; with none drawn, the generated
+       layout is loaded into it. -->
+  <div class="layout-studio-bar" data-bind="layout_studio" hidden>
+    <span class="field-note" data-bind="studio_summary"></span>
+  </div>
 
   <!-- The tag builder, identical to the booru template's. Tags are an INPUT
        here, not the output format: the LLM rewrites them into whatever
@@ -44,7 +79,7 @@
        Present in the three image templates and nowhere else. Its presence is
        the switch, exactly as reference_upload's is in video-h3.html; app.js
        returns early when the block is absent and names no model to decide it. -->
-  <div class="imgref" data-bind="image_reference">
+  <div class="imgref" data-bind="image_reference" data-layout-hide>
     <h4>Reference images <span class="field-optional">optional</span></h4>
     <div data-bind="imgref_list"></div>
     <template data-bind="imgref_row">
@@ -101,7 +136,7 @@
     <p class="field-note" data-bind="imgref_status"></p>
   </div>
 
-  <div class="tagbuilder">
+  <div class="tagbuilder" data-layout-hide>
     <input type="text" data-bind="tag_search" placeholder="Search tags..." autocomplete="off">
     <ul class="autocomplete" data-bind="tag_suggestions" hidden></ul>
     <p class="pills-head" data-bind="pills_head" hidden>
@@ -121,7 +156,9 @@
       </p>
       <div class="pills" data-bind="trait_chips"></div>
     </div>
-    <label class="field weight">
+    <!-- Hidden on a model with no weight_range: Krea2 and MOSS are prose and
+         ignore (tag:1.2), so the slider had no range to read and moved nothing. -->
+    <label class="field weight" data-show="weight_range">
       <span>Weight <output data-bind="weight_value"></output></span>
       <input type="range" data-bind="weight">
     </label>
@@ -130,11 +167,20 @@
   <!-- Anything that must survive into the positive prompt exactly as typed:
        a LoRA trigger word, an artist tag, a phrase that works. The brief is
        rewritten by the LLM; this is not. -->
-  <label class="field">
+  <label class="field" data-layout-hide>
     <span>Custom positive <span class="field-optional">kept verbatim</span></span>
     <textarea data-bind="positive" rows="2"
       placeholder="Trigger words, artist tags, anything that must appear as written."></textarea>
   </label>
 
+  <label class="field" data-show="has_negative">
+    <span>Negative prompt</span>
+    <textarea data-bind="negative" rows="2"></textarea>
+  </label>
+
   <button type="button" data-bind="generate"></button>
+
+  <!-- Layout JSON has no Output panel (the studio shows the JSON), so the
+       progress, any error with its Retry, and the negative prompt land here. -->
+  <div class="layout-status" data-bind="layout_status" data-layout-only hidden></div>
 </section>

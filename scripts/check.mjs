@@ -83,6 +83,7 @@ const SUITES = [
   ['controls', 'test-controls.mjs', 'custom positive, no quality preset, leaked aspect'],
   ['search', 'test-search.mjs', 'search parsers and every way a search can fail'],
   ['llm-finish', 'test-llm-finish.mjs', 'llama.cpp says when a token limit cut the answer off'],
+  ['captions', 'test-captions.mjs', 'LoRA caption rules: trigger, excludes, spelling, MOSS JSON'],
   // The two entries that take arguments; the GPU half of both stays out.
   ['dialect-helpers', 'dialect-check.mjs', 'the dialect predicates, no server', ['--selftest']],
   // Same rule, same reason: this probe's two predicates are regexes whose

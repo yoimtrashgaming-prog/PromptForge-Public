@@ -1199,37 +1199,154 @@ models:
     # they are good at. Not enforced anywhere — it feeds the tips line and
     # seeds the manual length control, which is the real override.
     word_target: { min: 80, max: 250 }
-    # Anima's style set, carried across on the owner's call — 5 Sep 2026 —
-    # and rewritten into this model's dialect on the way.
+    # Styles are pasted onto the end of the prompt word for word, in code, not
+    # handed to the LLM to rewrite. The owner's call, 18 Oct 2026: Krea2 reads
+    # a style at the end, and these blocks were tested as written. The LLM
+    # still sees the block, so the scene agrees with it. See server/style.mjs.
+    style_placement: "append"
+    # Each value is ONE block of prose, the exact text that is pasted.
     #
-    # It was four bare labels until now, which is the identical bug fixed for
-    # anima on 3 Sep: only the NAME travelled, so "Style: Painterly" reached
-    # the model and it wrote whatever it remembered painterly meaning. The
-    # control fired; it carried no payload.
+    # Most of these are a user's, from his Krea2 style catalogue
+    # (Catalogue_styles_Krea2.html, 27 tests, each with the render it made):
+    # tested, so his replace every one of the older descriptor lists he
+    # covers. **His wording, unchanged, except for words that described his
+    # test CHARACTER** rather than the style - on the owner's call, 18 Oct
+    # 2026: "his prompts are tested, don't cut that". The only cuts:
+    # "heterochromatic eyes" (Concept Art), "delicate red and blue eye
+    # accents" (Colored Pencils), "melancholic aristocratic young woman"
+    # (Dark Romanticism), "graceful feminine silhouette" (Art Nouveau),
+    # "lightning symbols" (Psychedelic Character) and "optionally crossed
+    # by / accents of subtle electric energy" (both Shattered Mirrors).
+    # "gothic", "portrait", the palettes and the Japanese settings are his
+    # style and stay. His tests 19 and 20 are the same block on two poses,
+    # so they are one entry here.
     #
-    # **The terms are NOT anima's tags.** Anima's payloads are Danbooru tags
-    # for an anime checkpoint — `cel shading`, 'watercolor \(medium\)' — and
-    # pasting those into a prose model would put comma-separated booru
-    # fragments into a natural-language prompt — krea2-min.md says "never
-    # emit tags" outright. Same labels, same
-    # coverage, descriptors instead of tags. buildUserMessage words the
-    # instruction differently for the two dialects, gated on `tag_style`.
-    #
-    # Two of anima's nineteen are folded rather than copied: "Realistic" is
-    # what "Photorealistic" already meant here, and "Cinematic lighting" is
-    # what "Cinematic" already meant. "Digital art" is this model's own and
-    # has no anima counterpart.
-    #
-    # The label set is anima's and therefore a user's; the descriptors under
-    # each one are mine and unreviewed. Several are anime looks on a model
-    # built for photography and real skin, so expect them to pull less
-    # cleanly here than the same label does on anima — the mirror of the
-    # caveat anima's own "Realistic" entry carries.
-    #
-    # "None" was the default before this and was NOT in the list, so the
-    # selector fell to the first option and every Krea2 generation shipped a
-    # Photorealistic style whether or not anyone chose one. It is in the list
-    # now, and server.mjs suppresses the Style line entirely for it.
+    # Photorealistic, Realistic CGI, Video game render and the ones after his
+    # are not his - the looks his catalogue does not have, carried over from
+    # the old list or added on the owner's ask (CGI, video game), written in
+    # his register. Untested on renders.
+    styles:
+      "Photorealistic": "Photorealistic photograph, natural skin texture with visible pores and fine detail, realistic light falloff, natural colour, true-to-life materials and fabrics, shallow depth of field, shot on a full-frame camera with a fast prime lens."
+      "Realistic CGI": "High-end realistic CGI render, physically based materials, ray-traced lighting with soft global illumination, subtle subsurface scattering on skin, finely modelled hair and fabric, crisp clean detail, cinematic composition, polished studio-quality 3D artwork, like a frame from a feature-film animation or a premium cinematic trailer."
+      "Video game render": "Modern video game render, real-time game engine graphics, stylized-realistic PBR textures, sharp normal-mapped detail on clothing, armor and props, dramatic in-engine lighting with rim light, bloom and ambient occlusion, clean readable silhouettes, polished AAA game key art, like an in-game cinematic screenshot."
+      "Traditional Watercolor": "Traditional watercolor illustration, hand-painted on textured paper. Soft, slightly desaturated colors, translucent pigments, delicate washes and visible layers of paint. Fine, flowing, partly softened outlines, with areas where colors naturally bleed into the paper. Gentle shadows, refined details around the face and eyes, and a looser, more abstract background. Small brushwork irregularities, wet edges, subtle splashes and a handcrafted texture. An elegant, poetic, slightly gothic atmosphere, like an artist-painted storybook illustration."
+      "Watercolor and Gouache": "Watercolor and gouache painting, layered pigments, expressive visible brushstrokes, soft painterly edges, detailed face, textured paper, rich but muted colors, elegant gothic storybook illustration."
+      "Rough Pencil Sketch": "Rough pencil sketch, visible raw linework, messy expressive strokes, imperfect contours, cross-hatching, scribbled shading, sketchbook drawing, unfinished hand-drawn look, traditional paper texture, organic and lively artistic sketch."
+      "Expressive Charcoal — A": "Charcoal illustration, hand-drawn on textured paper with dark, raw, expressive strokes. Irregular lines, partly smudged contours, deep shadows and broad areas of black created by rubbing charcoal across the paper. Visible dust, smears, heavy hatching and finger or blending marks create a lively, dramatic, organic appearance. The drawing retains a sketchy, artistic finish, with strong contrasts between the light paper and dark charcoal masses. An elegant, melancholic, slightly gothic atmosphere, like a traditional artist’s study in a sketchbook or on a studio drawing sheet."
+      "Expressive Charcoal — B": "Charcoal sketch, dark expressive strokes, smudged shading, rough hand-drawn linework, deep shadows, heavy contrast, visible charcoal dust, textured paper, organic unfinished look, dramatic traditional drawing, slightly gothic atmosphere."
+      "Chinese Ink": "Traditional Chinese ink drawing, expressive black ink strokes, flowing linework, deep blacks, dry-brush textures, subtle ink splashes, textured rice paper, elegant gothic portrait, delicate facial details."
+      "Victorian Engraving": "Victorian engraved illustration, intricate cross-hatching, fine etched lines, antique book illustration, monochrome ink, dramatic shadows, aged paper texture, elegant gothic atmosphere."
+      "Soft Pastel": "Traditional soft pastel portrait, powdery pigments, visible pastel strokes, gently smudged edges, textured paper, muted colors, delicate highlights, elegant and dreamy atmosphere."
+      "Classical Oil Painting": "Classical oil painting portrait, visible layered brushstrokes, rich fabric textures, soft natural skin, dramatic chiaroscuro lighting, dark elegant background, aristocratic gothic atmosphere, museum-quality painting."
+      "Editorial Gouache": "Hand-painted gouache illustration, opaque matte pigments, simplified elegant shapes, visible brushwork, muted sophisticated palette, vintage editorial illustration, refined gothic character design."
+      "Art Nouveau": "Art Nouveau portrait illustration, elegant flowing lines, ornamental floral frame, black and golden decorative motifs, symmetrical poster composition, muted jewel tones, intricate handcrafted details."
+      "Traditional Ink Manga": "Traditional ink manga illustration, expressive pen linework, rough cross-hatching, hand-drawn screentone shading, detailed eyes and hair, black-and-white comic artwork, visible paper texture."
+      "Painterly Concept Art": "Painterly character concept art, highly detailed face, loose unfinished brushstrokes around the clothing and background, visible construction lines, expressive edges, elegant dark fantasy design."
+      "Gothic Stained Glass": "Gothic stained-glass portrait, bold black lead outlines, luminous translucent glass, deep red and blue accents, ornate cathedral patterns, symmetrical decorative composition, mystical colored light."
+      "Vintage Lithography": "Vintage lithographic portrait, grainy black ink textures, greasy crayon marks, rough tonal shading, imperfect printing, aged paper, dark romantic gothic mood, expressive handmade appearance."
+      "Colored Pencils": "Colored pencil portrait on toned paper, visible layered pencil strokes, white pencil highlights, soft cross-hatching, refined sketchbook illustration, subtle muted colors."
+      "Dark Romanticism": "Dark romantic painting, atmospheric shadows, soft painterly edges, restrained colors, dramatic cloudy background, poetic gothic elegance, subtle supernatural mood."
+      "Geometric Collage": "Stylized illustration built from simple assembled color shapes, like a geometric collage. The image is fragmented into multiple flat areas with clean edges, made of colored pieces fitting together to form the subject. Volume is suggested through the juxtaposition of flat shapes rather than realistic rendering. Little to no gradients, very simplified shading, and a clear organized color palette. Graphic, modern, decorative look, somewhere between paper cut-out, mosaic, and simplified cubism."
+      "Psychedelic Poster": "Hand-drawn psychedelic illustration inspired by 1960s and 1970s counterculture posters. Dense composition filled with flowing organic shapes, swirling ornamental patterns, flames, waves, curls, and floral motifs. Thick, uneven black outlines surround every element. Highly saturated flat colors such as turquoise, purple, orange, red, yellow, and green, with almost no realistic shading. Hair, clothing, and background merge into intricate decorative patterns. Elongated and slightly distorted proportions, surreal mystical imagery, maximalist visual density, vintage screen-print texture, imperfect handmade linework, aged paper appearance, acid-rock poster atmosphere, eccentric and slightly gothic mood."
+      "Psychedelic Character": "Vibrant 1960s–1970s psychedelic poster aesthetic applied to the entire character, not merely the background. Hair becomes flowing colored ribbons, spirals and ornamental waves. Clothing is reconstructed from bold flat color shapes, curved patterns, flowers and swirling organic motifs. Thick, slightly irregular black outlines, simplified graphic shadows and saturated poster colors. Dense maximalist composition, almost no empty space, hand-drawn linework, vintage screen-print texture, aged cream paper, Japanese waves mixed with psychedelic flames, flowers and spirals."
+      "Shattered Mirrors — A": "Illustration seen through a multitude of mirror fragments. The image is divided into many glass shards or irregular mirror panels, each reflecting a different part of the subject. Some facets show almost the entire portrait, while others capture only an eye, a hand, a strand of hair or a piece of clothing. The composition should feel like a kaleidoscope or a shattered mirror, with varied angles, visual repetition and subtle distortions in the reflections. The mirrors catch the light, creating bright reflections, glints and luminous edges. The subject’s identity must remain immediately recognizable, while the image repeats and fragments throughout the scene. An elegant, mysterious, slightly dramatic atmosphere, with purple, blue and silver tones."
+      "Shattered Mirrors — B": "Portrait reflected in a multitude of mirror shards. The entire image is split into many irregular mirror fragments or broken glass panels, each reflecting a different part of the subject. Some mirror pieces show nearly the full portrait, while others only capture one eye, a hand, a strand of hair, or a small section of the costume. The composition should feel like a kaleidoscope or a shattered mirror, with varied angles, repeated reflections, and subtle distortions across the glass surfaces. Bright highlights, silver reflections, and sparkling edges should emphasize the mirror material. The subject must remain clearly recognizable, but the image is multiplied and fragmented throughout the scene. Elegant, mysterious, slightly dramatic mood, with purple, blue, and silver tones."
+      "Ground Pebble Mosaic": "A flat ground pebble mosaic fully integrated into a Japanese-inspired garden. The portrait is reconstructed entirely from many smooth colored pebbles, with each pebble forming part of the face, hair, clothing, and ornaments. The mosaic lies flat on the garden floor, embedded into a bed of small dark stones and pebbles, surrounded by moss, smooth rocks, low plants, delicate grasses, and purple flowers. Serene Japanese garden atmosphere, bamboo water feature, stone lanterns, scattered sakura petals, subtle purple glow, ornamental stones, and a refined mystical mood. The subject exists entirely as the pebble mosaic itself, not as a person or an upright sculpture."
+      "Modular Origami": "Portrait recreated entirely as a modular origami artwork, built from hundreds of folded paper pieces assembled together to form the face, hair, eyes, clothing and ornaments. The entire character is made of folded paper modules. Elegant Japanese handcrafted aesthetic, highly detailed paper texture, layered folded geometry, refined composition, soft lighting, sophisticated atmosphere."
+      "Shadow Installation": "An artistic shadow installation inspired by a Japanese aesthetic. Paper lanterns, folding fans, branches, cords, charms, flowers, wooden pieces, ribbons, and ornamental elements are arranged in space. The objects look scattered and sculptural, but the shadow they cast on the ground or wall forms a clear and recognizable portrait. The subject’s defining silhouette and ornaments are visible in the shadow. Poetic, clever, magical composition, strong dramatic lighting, elegant Japanese atmosphere, conceptual artwork."
+      "Glowing Lantern Portrait": "A large-scale night installation viewed directly from above. Hundreds of individual glowing paper lanterns are carefully arranged across the ground to collectively form a recognizable portrait. The subject exists only through the placement, color, density, and light of the separate lanterns, with no solid body or conventionally drawn character. Colored lanterns reconstruct the face, hair, eyes, clothing and ornaments. Every lantern remains individually visible, with small spaces between them. Viewed up close, the scene is only an arrangement of lanterns; viewed from above and at a distance, the lights resolve into a portrait. Dark Japanese-inspired festival garden at night, stone paths, sakura trees, shrine architecture, subtle purple illumination, and a magical ceremonial atmosphere."
+      "Digital art": "Digital painting, clean polished rendering, controlled color palette, crisp edges, smooth blended shading, refined detail where the eye lands, modern digital illustration finish."
+      "Cinematic": "Cinematic film still, dramatic key light with a defined rim light, soft volumetric haze, deep but readable shadows, natural film colour grade, widescreen framing, shallow depth of field, like a frame from a feature film."
+      "Anime": "Anime illustration, clean confident linework, cel-shaded colour with crisp shadow shapes, saturated but controlled palette, expressive eyes, polished key-visual finish."
+      "Cel shaded": "Cel-shaded illustration, hard-edged shadows, flat blocks of color, clean even linework, two-tone shading, bright graphic finish."
+      "Flat color": "Flat color illustration, no gradients, solid blocks of color, clean linework, bold graphic shapes, simplified shading, modern poster finish."
+      "Lineless": "Lineless illustration, no outlines, forms defined by color alone, soft shading, smooth gradients, gentle painterly edges."
+      "Chibi": "Chibi illustration, oversized head on a small rounded body, simplified features, big expressive eyes, clean linework, soft flat colour, cute and playful finish."
+      "Pixel art": "Pixel art, limited colour palette, visible pixel grid, hard aliased edges, simple dithered shading, retro 16-bit game sprite look."
+      "90s anime": "1990s anime cel illustration, retro hand-painted cel look, flat cel color with hard shadows, slightly muted vintage palette, soft film grain, like a frame from a 90s anime broadcast."
+      "Semi-realistic": "Semi-realistic illustration, realistic anatomy with slightly stylized proportions, detailed skin texture, painterly rendering, soft natural lighting, refined detail on the face and hands."
+      "None": ""
+    default_style: "None"
+    # Render from PromptForge. See the note on illustrious. Turbo and Raw are
+    # two files of one model, so each preset names its own.
+    render:
+      workflow: "config/comfyui/krea2.json"
+      ui_workflow: "config/comfyui/ui/krea2.json"
+      presets:
+        - { name: "Turbo · 8 steps · CFG 1", steps: 8, cfg: 1, sampler: "euler", scheduler: "simple", model_file: "krea2_turbo_fp8_scaled.safetensors" }
+        - { name: "Raw · 50 steps · CFG 3.5", steps: 50, cfg: 3.5, sampler: "euler", scheduler: "simple", model_file: "krea2_raw_fp8_scaled.safetensors" }
+      # A guess, like anima's: no Krea2 LoRA on the box yet to read.
+      lora_match: ["krea"]
+
+  # MOSS-Image (OpenMOSS), added 18 Oct 2026 at the owner's ask. It reads
+  # prose, tags and a JSON layout, alone or combined, so it emits both: the
+  # prose prompt and the layout for the same picture. A user built a layout
+  # editor for it (MOSS Layout Studio); this follows the same format, which is
+  # the one in the makers' guide.
+  moss:
+    name: "MOSS"
+    label: "MOSS-Image"
+    type: "image"
+    template: "natural-language"
+    badge: "nl"
+    format_label: "Natural language · hybrid · layout JSON"
+    gen_button: "Generate prompt"
+    system_prompt: "prompts/image/moss.md"
+    # The makers' guide, then a user's own worked layout and rules from MOSS
+    # Layout Studio. Both load ahead of moss.md.
+    reference_files: ["prompts/image/references/moss-official.md", "prompts/image/references/moss-layout-studio.md"]
+    # The Layout Studio's Rewrite and Rewrite all: the studio's own instruction,
+    # served by POST /api/moss/assist instead of its bundled Qwen engine.
+    layout_rewrite_prompt: "prompts/image/moss-rewrite.md"
+    segment_blocks:
+      "Layout JSON": "prompts/image/segments/moss-layout.md"
+      "Negative prompt": "prompts/image/segments/moss-negative.md"
+      "What changed": "prompts/image/segments/moss-what-changed.md"
+    thinking: false
+    # MOSS reads three formats, and the person picks one (a user's report,
+    # 18 Oct 2026: there was only the layout one, and no way to turn the
+    # Layout Studio off). The layout segment, its Canvas line and the studio
+    # exist only in "Layout JSON". Hybrid is a tag line in the makers' order
+    # with the prose after it, named by the user who has used MOSS most.
+    modes: ["Natural language", "Hybrid", "Layout JSON"]
+    default_mode: "Natural language"
+    segments: ["Enhanced prompt", "Layout JSON", "Negative prompt", "What changed"]
+    segments_by_mode:
+      "Natural language": ["Enhanced prompt", "Negative prompt", "What changed"]
+      "Hybrid": ["Enhanced prompt", "Negative prompt", "What changed"]
+      # The JSON alone, 19 Oct 2026 (owner): summary.caption IS the prose, so
+      # a separate prose segment said everything twice, and the Layout Studio
+      # shows the JSON, so there is no Output panel for notes to land in.
+      "Layout JSON": ["Layout JSON", "Negative prompt"]
+    # Every format listed, the two without a file as []: a format left out
+    # falls back to every format's file, and would be told to write tags.
+    mode_blocks:
+      "Natural language": []
+      "Hybrid": ["prompts/image/modes/moss-hybrid.md"]
+      "Layout JSON": []
+    meta_segments: ["What changed"]
+    has_negative: true
+    # The guide's tested negative minus its leading `nsfw`, which would
+    # quietly work against every NSFW brief this group writes. Owner's call
+    # whether it goes back in.
+    negative_defaults: "worst quality, bad anatomy, watermark, jpeg artifact"
+    word_target: { min: 80, max: 250 }
+    # The layout's boxes are absolute pixels with the origin at the centre, so
+    # they belong to one output size — and the JSON does not carry it. Each
+    # aspect maps to the size the boxes are measured on: about 1M pixels (the
+    # guide's lowest recommendation), both sides multiples of 16, ratio exact.
+    # N/A is square. server/layout.mjs reads this; the tips line shows it so
+    # the same size can be set in ComfyUI.
+    layout_canvas:
+      "N/A":           [1024, 1024]
+      "1:1 Square":    [1024, 1024]
+      "2:3 Portrait":  [832, 1248]
+      "3:2 Landscape": [1248, 832]
+      "3:4 Portrait":  [864, 1152]
+      "4:3 Landscape": [1152, 864]
+      "9:16 Tall":     [864, 1536]
+      "16:9 Wide":     [1536, 864]
+    # Krea2's descriptor set: prose looks, which is what this model reads too.
     styles:
       "Photorealistic":  ["photorealistic", "natural skin texture", "realistic light falloff", "shallow depth of field"]
       "Digital art":     ["digital painting", "clean rendering", "controlled color palette", "crisp edges"]
@@ -1252,16 +1369,6 @@ models:
       "Semi-realistic":  ["semi-realistic rendering", "realistic anatomy", "detailed skin texture", "stylized proportions"]
       "None":            []
     default_style: "None"
-    # Render from PromptForge. See the note on illustrious. Turbo and Raw are
-    # two files of one model, so each preset names its own.
-    render:
-      workflow: "config/comfyui/krea2.json"
-      ui_workflow: "config/comfyui/ui/krea2.json"
-      presets:
-        - { name: "Turbo · 8 steps · CFG 1", steps: 8, cfg: 1, sampler: "euler", scheduler: "simple", model_file: "krea2_turbo_fp8_scaled.safetensors" }
-        - { name: "Raw · 50 steps · CFG 3.5", steps: 50, cfg: 3.5, sampler: "euler", scheduler: "simple", model_file: "krea2_raw_fp8_scaled.safetensors" }
-      # A guess, like anima's: no Krea2 LoRA on the box yet to read.
-      lora_match: ["krea"]
 
 
   # ─────────────────────────── VIDEO ───────────────────────────

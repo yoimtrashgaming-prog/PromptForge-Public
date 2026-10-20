@@ -26,6 +26,7 @@ import { tagClass, tagFacet, isAppearanceTag, isRoleTag, isGarment, isProp, CLAS
 // makes it checkable against his original.
 import { createDirectorTimeline } from './director-timeline.js';
 import { startTour } from './tour.js';
+import { makeZip, readZip } from './zip.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -423,6 +424,7 @@ async function refreshStatus() {
   renderChatModels(statusPayload?.llm);
   renderPromptLlm(statusPayload?.llm);
   renderDescribeLlm(statusPayload?.llm);
+  renderCaptionLlm(statusPayload?.llm);
   renderEditLlm(statusPayload?.llm);
   setGenerateEnabled(view.generate);
 }
@@ -658,6 +660,8 @@ let CAN_OFFLOAD = false;
 let CAN_TRAIN = false;
 // Render from PromptForge: the owner, or an account given `render`.
 let CAN_RENDER = false;
+// LoRA captions: the owner, or an account given `caption` (17 Oct 2026).
+let CAN_CAPTION = false;
 
 /**
  * The waiting line, in order, with the owner's controls beside it.
@@ -1398,8 +1402,9 @@ async function renderBuilder(model) {
     }
   }
   fillSelect($('[data-bind="source_tag"]', mount), model.source_tags ?? [], model.default_source_tag);
-  // `styles` is a label -> tag-list map on the models that carry tags (anima)
-  // and a plain array of labels on the ones that do not (krea2). The selector
+  // `styles` is a label -> tag-list map on the models that carry tags (anima),
+  // a label -> prose block map on krea2 (pasted by server/style.mjs), and may
+  // be a plain array of labels. The selector
   // only ever shows the labels, so both shapes collapse to the same list here
   // - exactly how quality_presets is read a few lines up. The tags do reach
   // the client in the registry payload, same as the quality ladders; nothing
@@ -1486,6 +1491,8 @@ async function renderBuilder(model) {
     if (!model.has_negative) lines.push('No negative prompt on this model; exclude things by describing what is there instead.');
     tips.innerHTML = lines.map((l) => `<p>${l}</p>`).join('');
   }
+  setupFormatToggle(mount);
+  setupLayoutStudio(mount, model);
 
   // data-show="field" hides a block when the registry value is absent/false.
   for (const el of $$('[data-show]', mount)) {
@@ -6104,7 +6111,256 @@ function collectControls() {
     const cards = [...castStateFor(currentModel.key)].filter(([, c]) => c.text.trim()).map(([k, c]) => [keyOf(k), c.text.trim()]).filter(([k]) => k != null);
     if (cards.length) controls.cast = Object.fromEntries(cards);
   }
+  // MOSS: the studio's canvas, and any boxes drawn on it.
+  const studio = wantsLayout(currentModel, mount) ? layoutStudio() : null;
+  if (studio) controls.layout = studio.forPrompt();
+  // In Layout JSON the studio is the whole input. Tags and reference pictures
+  // picked in another format are hidden with the rest, so they stay home.
+  if (wantsLayout(currentModel, mount)) {
+    delete controls.tags;
+    delete controls.image_references;
+  }
   return controls;
+}
+
+// ── MOSS Layout Studio ───────────────────────────────────────
+//
+// A user's canvas editor for MOSS layouts (web/layout-studio/), shown in the
+// page as the full-width Layout panel under the builder and output, in the
+// Layout JSON format only. Full screen pins the same frame over the page
+// rather than moving it, because moving an iframe reloads it. One iframe for
+// the life of the tab, so a model switch keeps the drawing. Its canvas is the
+// canvas: the Aspect control resizes it, Generate sends its size and boxes,
+// and the generated layout comes back onto it. The studio autosaves itself,
+// as it always has.
+
+function layoutStudioFrame() {
+  const host = $('#layout-frame');
+  if (host && !$('iframe', host)) {
+    host.innerHTML = '<iframe title="Layout Studio" src="/layout-studio/index.html"></iframe>';
+    $('iframe', host).addEventListener('load', (e) => {
+      paintThemeInto(e.target);
+      setLayoutFull($('#layout-panel')?.classList.contains('full'));
+      // Once it can be driven: the aspect picked before it loaded applies.
+      const aspect = $('#builder-mount [data-bind="aspect_ratio"]');
+      if (currentModel?.layout_canvas && aspect && aspect.value !== 'N/A') syncStudioSize(currentModel, aspect.value);
+      syncFromStudio();
+    });
+    window.addEventListener('message', (e) => {
+      if (e.origin !== location.origin) return;
+      // The studio's own Close button leaves full screen.
+      if (e.data?.type === 'layout-studio-close') setLayoutFull(false);
+      // Anything changed in the studio: the builder shows its Global prompt,
+      // medium and size.
+      if (e.data?.type === 'layout-studio-changed') syncFromStudio();
+    });
+    $('#btn-layout-full')?.addEventListener('click', () => {
+      setLayoutFull(!$('#layout-panel').classList.contains('full'));
+    });
+  }
+  return host;
+}
+
+/** Full screen on or off. The studio's Close button only means something on. */
+function setLayoutFull(on) {
+  const panel = $('#layout-panel');
+  if (!panel) return;
+  panel.classList.toggle('full', Boolean(on));
+  document.body.classList.toggle('layout-full', Boolean(on));
+  const btn = $('#btn-layout-full');
+  if (btn) btn.textContent = on ? 'Exit full screen' : 'Full screen';
+  try {
+    const close = $('#layout-frame iframe')?.contentDocument?.getElementById('closeStudio');
+    if (close) close.hidden = !on;
+  } catch { /* mid-load */ }
+  // Full screen covers the builder, so the studio's own size and Scene column
+  // come back there; beside the builder they are the builder's.
+  layoutStudio()?.compact(!on);
+  paintStudioSummary();
+}
+
+/** The studio's API, or null until its page has loaded. */
+function layoutStudio() {
+  return $('#layout-frame iframe')?.contentWindow?.MossStudio ?? null;
+}
+
+function syncStudioSize(model, aspect) {
+  const size = model.layout_canvas?.[aspect] ?? model.layout_canvas?.['N/A'];
+  if (size) layoutStudio()?.setSize(size[0], size[1]);
+}
+
+/** The size the boxes are measured on: the studio's, else the aspect's. */
+function paintStudioSummary() {
+  const mount = $('#builder-mount');
+  const model = currentModel;
+  if (!model?.layout_canvas) return;
+  const studio = layoutStudio();
+  const aspect = $('[data-bind="aspect_ratio"]', mount)?.value;
+  const [w, h] = studio
+    ? [studio.size().width, studio.size().height]
+    : model.layout_canvas[aspect] ?? model.layout_canvas['N/A'];
+  // One line in the builder: the size to generate at, and what Generate will do.
+  const summary = $('[data-bind="studio_summary"]', mount);
+  if (summary) {
+    const n = studio ? studio.getProject().items.length : 0;
+    summary.textContent = n
+      ? `${w}×${h} · ${n} box${n === 1 ? '' : 'es'} — Generate keeps them and writes their descriptions`
+      : `${w}×${h} · no boxes yet — Generate drafts the layout`;
+  }
+  const note = $('#layout-panel-note');
+  if (note && studio) {
+    const n = studio.getProject().items.length;
+    note.textContent = `${w}×${h} · ${n} box${n === 1 ? '' : 'es'} · generate at this size`;
+  }
+}
+
+/**
+ * The FORMAT row at the top of the builder: one button per option of the
+ * template's format select (`.format-source`), which stays the value Generate
+ * sends. A click sets the select and fires its change, so everything listening
+ * to it — the Layout Studio bar — follows. Hidden on any template without one.
+ */
+function setupFormatToggle(mount) {
+  const bar = $('#format-bar');
+  const host = $('#format-toggle');
+  const sel = $('.format-source [data-bind="mode"]', mount);
+  if (!bar || !host) return;
+  const shown = Boolean(sel && sel.options.length && !sel.closest('[hidden]'));
+  bar.hidden = !shown;
+  host.replaceChildren();
+  if (!shown) return;
+  const paint = () => {
+    for (const b of host.children) {
+      const on = b.dataset.value === sel.value;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+  };
+  for (const opt of sel.options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.value = opt.value;
+    b.textContent = opt.textContent;
+    b.addEventListener('click', () => {
+      if (sel.value === opt.value) return;
+      sel.value = opt.value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    host.append(b);
+  }
+  sel.addEventListener('change', paint);
+  paint();
+}
+
+/** True when the format picked writes a layout: the studio exists only then. */
+function wantsLayout(model, mount = $('#builder-mount')) {
+  if (!model?.layout_canvas) return false;
+  const mode = $('[data-bind="mode"]', mount)?.value;
+  return (model.segments_by_mode?.[mode] ?? model.segments ?? []).includes('Layout JSON');
+}
+
+function setupLayoutStudio(mount, model) {
+  const bar = $('[data-bind="layout_studio"]', mount);
+  const panel = $('#layout-panel');
+  const briefEl = $('[data-bind="brief"]', mount);
+  const briefHint = briefEl?.placeholder ?? '';
+  // In Layout JSON the studio sits beside this builder, in the Output panel's
+  // place (the studio shows the JSON, so Output has nothing to add). The
+  // Global prompt, Medium and Rewrite come over from its own left column,
+  // which is not drawn, and the Aspect sets its canvas size. The brief stays
+  // the person's own: Generate writes the Global prompt, never the brief.
+  // What the studio makes redundant — reference pictures, tags, custom
+  // positive — is [hidden], so none of it is sent (collectControls); the
+  // state each had is put back on the way out, because some are hidden for
+  // reasons of their own.
+  const layoutHidden = () => $$('[data-layout-hide]', mount);
+  // Every model switch lands here, so the panel is hidden for a model with no
+  // layout even though it lives outside the builder.
+  const show = () => {
+    const on = wantsLayout(model, mount);
+    if (bar) bar.hidden = !on;
+    for (const el of $$('[data-layout-only]', mount)) el.hidden = !on;
+    for (const el of layoutHidden()) {
+      if (on && el.dataset.layoutWas == null) {
+        el.dataset.layoutWas = el.hidden ? '1' : '0';
+        el.hidden = true;
+      } else if (!on && el.dataset.layoutWas != null) {
+        el.hidden = el.dataset.layoutWas === '1';
+        delete el.dataset.layoutWas;
+      }
+    }
+    // Only the negative prompt is optional in this format: the JSON is the
+    // whole prompt, so "What changed" is not written.
+    for (const item of $$('.segment-switches > *', mount)) item.hidden = on && !/negative/i.test(item.textContent);
+    if (briefEl) {
+      briefEl.placeholder = on ? 'What you want. Generate drafts the layout from this, or describes the boxes you drew — left empty, it works from the Global prompt.' : briefHint;
+      // Shorter beside the Global prompt, which holds the long version.
+      briefEl.rows = on ? 4 : 7;
+    }
+    document.body.classList.toggle('layout-mode', on);
+    if (panel) panel.hidden = !on;
+    if (!on) setLayoutFull(false);
+    if (on) {
+      layoutStudioFrame();
+      syncFromStudio();
+      layoutStudio()?.compact(!panel?.classList.contains('full'));
+    }
+  };
+  show();
+  if (!bar || !model.layout_canvas) return;
+  $('[data-bind="mode"]', mount)?.addEventListener('change', () => {
+    show();
+    paintStudioSummary();
+  });
+  // Typing in these is typing in the studio's own boxes.
+  $('[data-bind="layout_caption"]', mount)?.addEventListener('input', (e) => {
+    layoutStudio()?.setScene({ caption: e.target.value });
+  });
+  $('[data-bind="layout_meta"]', mount)?.addEventListener('input', (e) => {
+    layoutStudio()?.setScene({ meta: e.target.value });
+  });
+  $('[data-bind="layout_rewrite_scene"]', mount)?.addEventListener('click', () => layoutStudio()?.rewrite('scene'));
+  $('[data-bind="layout_rewrite_all"]', mount)?.addEventListener('click', () => layoutStudio()?.rewrite('all'));
+  $('[data-bind="aspect_ratio"]', mount)?.addEventListener('change', (e) => {
+    syncStudioSize(model, e.target.value);
+    paintStudioSummary();
+  });
+  paintStudioSummary();
+}
+
+/**
+ * The studio's Global prompt and medium into the builder, when they changed
+ * there (an edit, an undo, a Rewrite, a generated layout). A box being typed
+ * in is left alone, so the two never fight over the cursor.
+ */
+function syncFromStudio() {
+  const mount = $('#builder-mount');
+  const studio = layoutStudio();
+  if (!studio || !wantsLayout(currentModel, mount)) return;
+  const p = studio.getProject();
+  const captionEl = $('[data-bind="layout_caption"]', mount);
+  const metaEl = $('[data-bind="layout_meta"]', mount);
+  if (captionEl && document.activeElement !== captionEl && captionEl.value !== p.caption) captionEl.value = p.caption;
+  if (metaEl && document.activeElement !== metaEl && metaEl.value !== p.meta) metaEl.value = p.meta;
+  // A size that is one of the aspects' (an undo, an import) shows as it.
+  const aspectEl = $('[data-bind="aspect_ratio"]', mount);
+  const match = Object.entries(currentModel.layout_canvas ?? {})
+    .find(([k, [w, h]]) => k !== 'N/A' && w === p.w && h === p.h)?.[0];
+  if (aspectEl && match && aspectEl.value !== match) aspectEl.value = match;
+  paintStudioSummary();
+}
+
+/** A finished generation's Layout JSON onto the studio canvas it was written for. */
+function applyLayoutToStudio(segments, sent) {
+  const studio = layoutStudio();
+  const seg = (segments ?? []).find((s) => s.label === 'Layout JSON');
+  if (!studio || !sent || !seg) return;
+  try {
+    studio.applyGenerated(JSON.parse(seg.body), sent.width, sent.height);
+  } catch (err) {
+    toast(`The layout could not go onto the studio canvas: ${err.message}`);
+  }
+  paintStudioSummary();
 }
 
 // ── chat (Tab 5) ─────────────────────────────────────────────
@@ -10261,14 +10517,23 @@ if (hasDom()) {
 
 async function generate() {
   if (generating || !currentModel) return;
-  const brief = $('[data-bind="brief"]')?.value ?? '';
-  if (!brief.trim() && !readShotBriefs().some((row) => row.trim())) return toast('Write a brief first');
+  // MOSS Layout JSON: the brief, or, left empty, the Layout Studio's Global
+  // prompt — a scene written there, around boxes drawn by hand.
+  const layoutOnly = wantsLayout(currentModel);
+  const typed = $('[data-bind="brief"]')?.value ?? '';
+  const brief = layoutOnly && !typed.trim() ? layoutStudio()?.getProject().caption ?? '' : typed;
+  if (!brief.trim() && !readShotBriefs().some((row) => row.trim())) {
+    return toast(layoutOnly ? 'Write a brief, or a Global prompt' : 'Write a brief first');
+  }
 
   clearTabFlag();
   generating = true;
   setGenerateEnabled(false);
 
-  const mount = $('#output-mount');
+  // Layout JSON has no Output panel: progress, errors and the negative prompt
+  // go under Generate, and the JSON goes onto the studio (applyLayoutToStudio).
+  const mount = (layoutOnly && $('#builder-mount [data-bind="layout_status"]')) || $('#output-mount');
+  const shown = (label) => !(layoutOnly && label === 'Layout JSON');
   mount.innerHTML = '';
   // A new prompt starts a new story.
   story = null;
@@ -10299,6 +10564,8 @@ async function generate() {
   const pictureTiles = currentPictureTiles();
   closeReadingCard();
 
+  // Kept: a MOSS layout goes back onto the canvas it was sent with.
+  const sentControls = collectControls();
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
@@ -10307,7 +10574,7 @@ async function generate() {
       body: JSON.stringify({
         model: currentModel.key,
         brief,
-        controls: collectControls(),
+        controls: sentControls,
       }),
     });
 
@@ -10425,7 +10692,7 @@ async function generate() {
           if (!seen.has(data.label)) {
             const el = segmentEl(currentModel, data);
             seen.set(data.label, el);
-            mount.appendChild(el);
+            if (shown(data.label)) mount.appendChild(el);
             note.segment(data.label);
           }
         } else if (ev[1] === 'done') {
@@ -10449,6 +10716,7 @@ async function generate() {
             // the reading only while they are still the ones selected.
             referenceIdentity: data.reference_analysis_identity ?? '',
           };
+          if (sentControls.layout) applyLayoutToStudio(data.segments, sentControls.layout);
           // Into the session list. After lastResult so a failure here cannot
           // cost the person the output that is already on screen.
           lastResult.sessionId = recordSessionPrompt({
@@ -10476,7 +10744,7 @@ async function generate() {
           // the place the registry orders it.
           const order = currentModel.segments ?? [];
           for (const seg of data.segments ?? []) {
-            if (seen.has(seg.label) || !seg.body) continue;
+            if (seen.has(seg.label) || !seg.body || !shown(seg.label)) continue;
             const el = segmentEl(currentModel, seg);
             const at = order.indexOf(seg.label);
             const before = [...seen].find(([label]) => at >= 0 && order.indexOf(label) > at)?.[1];
@@ -11705,10 +11973,11 @@ function applyIdentity(user) {
   // With accounts off there is no user to hold it, and the server lets the
   // owner header through, as every fetch here sends.
   CAN_RENDER = owner || (user?.grants ?? []).includes('render') || ME?.auth_enabled === false;
+  CAN_CAPTION = owner || (user?.grants ?? []).includes('caption') || ME?.auth_enabled === false;
   PERMISSIONS_SEEN = permissionsKey(user);
-  // Hidden outright for everyone else rather than showing a "testing" notice:
-  // the server refuses them anyway, and a tab they can never use is noise.
-  paintLoraTab(undefined, user ?? null);
+  // Train is hidden outright for everyone else rather than showing a notice:
+  // the server refuses them anyway, and a view they can never use is noise.
+  paintLoraTab();
   loadEditOptions();
   if (user) {
     who.hidden = false;
@@ -11850,6 +12119,7 @@ function accountRow(user, context) {
       grantBtn('offload', 'Allow offload', 'Revoke offload') +
       grantBtn('train', 'Allow LoRA training', 'Revoke LoRA training') +
       grantBtn('render', 'Allow rendering', 'Revoke rendering') +
+      grantBtn('caption', 'Allow LoRA captions', 'Revoke LoRA captions') +
       btn('reset', 'Reset password', 'ghost') +
       btn('remove', 'Remove user', 'danger');
   }
@@ -11875,6 +12145,11 @@ function accountRow(user, context) {
       ${
         (user.grants ?? []).includes('render')
           ? '<div class="account-meta">Can render pictures in ComfyUI</div>'
+          : ''
+      }
+      ${
+        (user.grants ?? []).includes('caption')
+          ? '<div class="account-meta">Can caption LoRA datasets</div>'
           : ''
       }
       ${user.referral ? `<div class="account-referral">${escHtml(user.referral)}</div>` : ''}
@@ -12148,6 +12423,7 @@ function applyAppearance({ theme, font, text_size: textSize } = {}) {
   // Safe when the tab has never been opened: the frame is empty and the
   // function returns without touching anything.
   paintBenchmarkFrame();
+  paintThemeInto($('#layout-frame iframe'));
   try {
     localStorage.setItem('promptforge-appearance', JSON.stringify({ theme, font, text_size: textSize }));
   } catch { /* private mode */ }
@@ -14115,16 +14391,455 @@ function initFeatureSetup() {
   initWizard();
 }
 
-// The LoRA Training tab only exists where TrainFlow is connected: an install
-// that skipped it should not show a tab that can only say so.
+// The tab itself is always there since 17 Oct 2026: its Caption half needs no
+// TrainFlow, and the people most likely to want captions are the ones who
+// train somewhere else. Only the Train half depends on TrainFlow being
+// connected and on the "train" grant, so that is what hides.
 let TRAINING_ON = null;
-let LORA_SIGNED_IN = false;
-function paintLoraTab(enabled, user) {
+function paintLoraTab(enabled) {
   if (typeof enabled === 'boolean') TRAINING_ON = enabled;
-  if (user !== undefined) LORA_SIGNED_IN = Boolean(user);
+  const train = $('#lora-mode button[data-mode="train"]');
+  const caption = $('#lora-mode button[data-mode="caption"]');
+  if (!train || !caption) return;
+  // CAN_TRAIN, not just "signed in": the Train half is empty without it,
+  // because the TrainFlow panel itself stays hidden (loadLoraTab). Caption
+  // has its own grant since 17 Oct 2026; the server checks it on every call.
+  const canTrain = TRAINING_ON !== false && CAN_TRAIN;
+  const canCaption = CAN_CAPTION;
+  train.hidden = !canTrain;
+  caption.hidden = !canCaption;
+  // A switch with one side is just a label; drop it and that side is the tab.
+  $('#lora-mode').hidden = !(canTrain && canCaption);
+  // Neither half: no tab, rather than a tab that can only say no.
   const tab = $('.main-tab[data-tab="lora"]');
-  if (!tab) return;
-  tab.hidden = TRAINING_ON === false || (LORA_SIGNED_IN && !CAN_TRAIN);
+  if (tab) tab.hidden = !canTrain && !canCaption;
+  if (!canTrain && loraMode === 'train' && canCaption) setLoraMode('caption');
+  if (!canCaption && loraMode === 'caption' && canTrain) setLoraMode('train');
+}
+
+// ── Caption / Train switch ──
+// Train is hidden, never unloaded: changing the frame's src, or taking it out
+// of the page, drops TrainFlow's WebSocket and the progress view with it.
+let loraMode = 'caption';
+function setLoraMode(mode) {
+  loraMode = mode;
+  try { localStorage.setItem('pf.loraMode', mode); } catch {}
+  $$('#lora-mode button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+  $('#lora-caption').hidden = mode !== 'caption';
+  $('#lora-train').hidden = mode !== 'train';
+  // The style picker belongs to Caption only.
+  $('.lora-cap-style-field').hidden = mode !== 'caption';
+  $('#lora-cap-format').hidden = mode !== 'caption';
+  if (mode === 'train') loadLoraTab();
+}
+
+function openLoraTab() {
+  loadCaptionStyles();
+  let saved = null;
+  try { saved = localStorage.getItem('pf.loraMode'); } catch {}
+  const trainHidden = $('#lora-mode button[data-mode="train"]').hidden;
+  const captionHidden = $('#lora-mode button[data-mode="caption"]').hidden;
+  const want = loraMode === 'train' || saved === 'train' ? 'train' : 'caption';
+  setLoraMode((want === 'train' && !trainHidden) || captionHidden ? 'train' : 'caption');
+}
+
+// ── Caption view (17-18 Oct 2026) ──
+// A dataset zip goes in; every picture in it is sent, downscaled, to
+// /api/caption one at a time, and the same zip comes back with a .txt beside
+// each picture. The owner's shape (18 Oct): no folder picking and no review
+// grid, the model does the whole set. Nothing is stored on the server.
+const CAP = {
+  styles: [],
+  style: null,
+  zipName: '',
+  items: [], // { path, stem, file }  every picture in the zip
+  others: [], // { name, data }      everything else, passed through
+  captions: new Map(), // stem -> caption written for the current style
+  problems: [], // { path, message } for the list under the button
+  abort: null, // the running batch
+};
+// Anything the browser can decode: each picture is re-encoded to JPEG here
+// before it goes to the model, so the server never sees the original format.
+const CAP_IMAGE_TYPE = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', jfif: 'image/jpeg', webp: 'image/webp',
+  avif: 'image/avif', gif: 'image/gif', bmp: 'image/bmp',
+};
+const CAP_IMAGE_EXT = new RegExp(`\\.(${Object.keys(CAP_IMAGE_TYPE).join('|')})$`, 'i');
+
+let capStylesLoaded = false;
+async function loadCaptionStyles() {
+  if (capStylesLoaded) return;
+  const sel = $('#lora-cap-style');
+  try {
+    const r = await fetch('/api/caption/styles');
+    const body = await r.json();
+    if (!r.ok) throw new Error(body?.message ?? `HTTP ${r.status}`);
+    CAP.styles = body.styles ?? [];
+  } catch (err) {
+    sel.innerHTML = '<option>Styles unavailable</option>';
+    sel.disabled = true;
+    $('#lora-cap-style-note').textContent = `Caption styles could not be loaded: ${err.message}`;
+    $('#lora-cap-style-note').classList.add('warn');
+    return;
+  }
+  capStylesLoaded = true;
+  // The LoRA types ride on the same response: id, label, and the hint the
+  // type puts under Don't include.
+  CAP.types = body.types ?? [];
+  const typeSel = $('#lora-cap-type');
+  typeSel.replaceChildren(...CAP.types.map((t) => new Option(t.label, t.id)));
+  let savedType = null;
+  try { savedType = localStorage.getItem('pf.loraType'); } catch {}
+  if (CAP.types.some((t) => t.id === savedType)) typeSel.value = savedType;
+  paintLoraTypeNote();
+  sel.innerHTML = '';
+  for (const s of CAP.styles) sel.add(new Option(s.label, s.id));
+  let saved = null;
+  try { saved = localStorage.getItem('pf.captionStyle'); } catch {}
+  selectCaptionStyle(CAP.styles.some((s) => s.id === saved) ? saved : CAP.styles[0]?.id);
+}
+
+function paintLoraTypeNote() {
+  const t = (CAP.types ?? []).find((x) => x.id === $('#lora-cap-type').value);
+  $('#lora-cap-type-note').textContent = t?.exclude ?? '';
+}
+
+function selectCaptionStyle(id) {
+  const style = CAP.styles.find((s) => s.id === id) ?? null;
+  CAP.style = style;
+  $('#lora-cap-style').value = id ?? '';
+  $('#lora-cap-format').textContent = style?.format ?? '—';
+  $('#lora-cap-style-note').textContent = style?.note ?? '';
+  try { if (id) localStorage.setItem('pf.captionStyle', id); } catch {}
+  const lengthField = $('#lora-cap-length-field');
+  lengthField.hidden = !style?.lengths;
+  if (style?.lengths) {
+    const sel = $('#lora-cap-length');
+    sel.replaceChildren(...style.lengths.map((l) => new Option(l[0].toUpperCase() + l.slice(1), l)));
+    sel.value = style.default_length ?? style.lengths[0];
+  }
+  // One style's captions must never go out under another style's name, and a
+  // batch still running for the old style stops.
+  CAP.abort?.abort();
+  resetCaptions(CAP.items.length ? 'Style changed. Press Caption the dataset to start again.' : 'Drop a zip to start.');
+}
+
+function resetCaptions(status) {
+  CAP.captions.clear();
+  CAP.problems = [];
+  $('#lora-cap-status').textContent = status;
+  $('#lora-cap-bar').hidden = true;
+  paintCaptionButtons();
+  paintCaptionResult();
+}
+
+async function loadCaptionZip(file) {
+  CAP.abort?.abort();
+  CAP.items = [];
+  CAP.others = [];
+  const summary = $('#lora-cap-summary');
+  summary.hidden = false;
+  summary.textContent = `Reading ${file.name}…`;
+  let entries;
+  try {
+    entries = await readZip(file);
+  } catch (err) {
+    summary.textContent = `Could not read ${file.name}: ${err.message}`;
+    resetCaptions('Drop a zip to start.');
+    return;
+  }
+  // Mac zips carry __MACOSX/ shadow copies of every file; they are not pictures.
+  entries = entries.filter((e) => !e.name.startsWith('__MACOSX/') && !/(^|\/)\._/.test(e.name));
+  const stemOf = (p) => p.replace(/\.[^./]+$/, '');
+  const pictures = entries.filter((e) => CAP_IMAGE_EXT.test(e.name));
+  const stems = new Set(pictures.map((e) => stemOf(e.name)));
+  // A caption already in the zip for a picture is replaced, not kept beside
+  // the new one; anything else in the zip goes back out untouched.
+  const isOldCaption = (e) => /\.txt$/i.test(e.name) && stems.has(stemOf(e.name));
+  const replaced = entries.filter(isOldCaption).length;
+  CAP.others = entries.filter((e) => !CAP_IMAGE_EXT.test(e.name) && !isOldCaption(e));
+  CAP.items = pictures
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+    .map((e) => {
+      const ext = e.name.split('.').pop().toLowerCase();
+      return { path: e.name, stem: stemOf(e.name), file: new Blob([e.data], { type: CAP_IMAGE_TYPE[ext] ?? 'application/octet-stream' }) };
+    });
+  CAP.zipName = file.name.replace(/\.zip$/i, '');
+  summary.innerHTML = '';
+  const strong = document.createElement('strong');
+  strong.textContent = file.name;
+  summary.append(strong, document.createTextNode(
+    ` · ${CAP.items.length} picture${CAP.items.length === 1 ? '' : 's'}` +
+    (replaced ? ` · ${replaced} old caption${replaced === 1 ? '' : 's'} will be replaced` : '')
+  ));
+  resetCaptions(CAP.items.length ? 'Ready.' : 'No pictures in that zip (PNG, JPG, WEBP, AVIF, GIF or BMP).');
+}
+
+// Caption's own "Written by" (17 Oct 2026), the same shape as Describe's:
+// vision models only, empty = whatever writes my prompts.
+let captionModel = '';
+let captionModelSignature = null;
+function renderCaptionLlm(llm) {
+  const sel = $('#lora-cap-model');
+  if (!sel || !llm) return;
+  const groups = chatModelGroups(llm);
+  const rows = [...groups.loaded, ...groups.available].filter((r) => r.vision);
+  const signature = rows.map((r) => r.model).join(',');
+  if (signature === captionModelSignature) return;
+  captionModelSignature = signature;
+  sel.replaceChildren(new Option('Same as Written by', ''));
+  for (const r of rows) sel.appendChild(new Option(r.model, r.model));
+  sel.value = rows.some((r) => r.model === captionModel) ? captionModel : '';
+  captionModel = sel.value;
+}
+
+/**
+ * A downscaled JPEG of a dataset picture for the model and the tagger. The
+ * originals can be 20 MB PNGs; the model reads at well under 1536px anyway,
+ * and sending the full file 40 times over the tailnet is the slow part. The
+ * picture that goes back in the zip is always the original.
+ */
+async function captionBytes(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 1536 / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close?.();
+    return await new Promise((ok) => canvas.toBlob((b) => ok(b ?? file), 'image/jpeg', 0.92));
+  } catch {
+    return file;
+  }
+}
+
+/** Read an SSE response, calling on(event, payload) per frame. */
+async function readSSE(res, on) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) {
+      let event = 'message';
+      let data = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) data += line.slice(5).trim();
+      }
+      if (!data) continue;
+      try { on(event, JSON.parse(data)); } catch { /* skip a bad frame */ }
+    }
+  }
+}
+
+/** Caption one picture. Resolves to the done payload, or throws with a message. */
+async function captionOne(it, signal, onWait) {
+  const bytes = await captionBytes(it.file);
+  let tags = '';
+  let hintNote = '';
+  if ($('#lora-cap-tagger').checked) {
+    // The CPU tagger first, as hints. A failure here is not fatal - the model
+    // can caption without them - but it is reported, because a whole dataset
+    // quietly captioned without hints looks exactly like one with.
+    try {
+      const r = await fetch('/api/analyze', { method: 'POST', headers: { 'content-type': bytes.type }, body: bytes, signal });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok) tags = [...(data.character ?? []), ...(data.general ?? [])].map((t) => t.tag).join(',');
+      else hintNote = `no tagger hints (${data.message ?? data.error ?? `HTTP ${r.status}`})`;
+    } catch (err) {
+      if (signal.aborted) throw err;
+      hintNote = `no tagger hints (${err.message})`;
+    }
+  }
+  const query = new URLSearchParams({
+    style: CAP.style.id,
+    type: $('#lora-cap-type').value,
+    trigger: $('#lora-cap-trigger').value.trim(),
+    exclude: $('#lora-cap-exclude').value,
+    tags,
+    ...(captionModel ? { model: captionModel } : {}),
+    ...(CAP.style.lengths ? { length: $('#lora-cap-length').value } : {}),
+  });
+  const res = await fetch(`/api/caption?${query}`, {
+    method: 'POST',
+    // USER_HEADER for an install with accounts off, like the other gated
+    // routes; with accounts on the server ignores it.
+    headers: { 'content-type': bytes.type, ...USER_HEADER },
+    body: bytes,
+    signal,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+    // Refusals that would refuse every picture end the batch, not just this one.
+    err.fatal = res.status === 403 || res.status === 503 || res.status === 400;
+    throw err;
+  }
+  let result = null;
+  let failure = null;
+  await readSSE(res, (event, payload) => {
+    if (event === 'queued') onWait?.(payload.position);
+    else if (event === 'done') result = payload;
+    else if (event === 'error') failure = payload.message ?? payload.error;
+  });
+  if (failure) throw new Error(failure);
+  if (!result) throw new Error('The model returned nothing.');
+  return { ...result, hintNote };
+}
+
+async function runCaptions() {
+  if (CAP.abort || !CAP.style || !CAP.items.length) return;
+  const abort = new AbortController();
+  CAP.abort = abort;
+  const styleId = CAP.style.id;
+  CAP.captions.clear();
+  CAP.problems = [];
+  paintCaptionButtons();
+  paintCaptionResult();
+  const status = $('#lora-cap-status');
+  const bar = $('#lora-cap-bar');
+  const fill = $('#lora-cap-fill');
+  bar.hidden = false;
+  fill.style.width = '0%';
+  const total = CAP.items.length;
+  const started = Date.now();
+  let n = 0;
+  let stopReason = '';
+  for (const it of CAP.items) {
+    if (abort.signal.aborted || CAP.style?.id !== styleId) break;
+    // A rough time left from the pictures done so far, once there are any.
+    const each = n ? (Date.now() - started) / n : 0;
+    const left = each ? ` · about ${Math.max(1, Math.round((each * (total - n)) / 60000))} min left` : '';
+    status.textContent = `Captioning ${n + 1} of ${total}${left}`;
+    try {
+      const r = await captionOne(it, abort.signal, (pos) => {
+        status.textContent = `Captioning ${n + 1} of ${total} · waiting for the card, ${pos} ahead`;
+      });
+      if (CAP.style?.id !== styleId) break;
+      CAP.captions.set(it.stem, r.caption);
+      const notes = [];
+      if (r.watermark) notes.push('has a watermark; crop or drop it');
+      if (r.replaced?.length) notes.push(`swapped for real tags: ${r.replaced.map((x) => `${x.from} → ${x.to}`).join(', ')}`);
+      if (r.unknown?.length) notes.push(`not danbooru tags: ${r.unknown.join(', ')}`);
+      if (r.hintNote) notes.push(r.hintNote);
+      if (notes.length) CAP.problems.push({ path: it.path, message: notes.join('; ') });
+    } catch (err) {
+      if (abort.signal.aborted) break;
+      CAP.problems.push({ path: it.path, message: `no caption: ${err.message}` });
+      if (err.fatal) { stopReason = err.message; break; }
+    }
+    n += 1;
+    fill.style.width = `${Math.round((n / total) * 100)}%`;
+    paintCaptionResult();
+  }
+  CAP.abort = null;
+  const done = CAP.captions.size;
+  status.textContent = stopReason
+    ? `Stopped: ${stopReason}`
+    : abort.signal.aborted
+      ? `Stopped after ${done} of ${total}. You can download what is done.`
+      : `Done: ${done} of ${total} captioned.`;
+  paintCaptionButtons();
+  paintCaptionResult();
+}
+
+function paintCaptionButtons() {
+  const busy = Boolean(CAP.abort);
+  $('#lora-cap-run').disabled = busy || !CAP.items.length || !CAP.style;
+  $('#lora-cap-stop').hidden = !busy;
+  $('#lora-cap-drop').classList.toggle('disabled', busy);
+}
+
+function paintCaptionResult() {
+  const n = CAP.captions.size;
+  const btn = $('#lora-cap-download');
+  const note = $('#lora-cap-download-note');
+  btn.disabled = n === 0 || Boolean(CAP.abort);
+  const missing = CAP.items.length - n;
+  note.hidden = n === 0;
+  note.textContent = `Your pictures with ${n} caption${n === 1 ? '' : 's'}, each a .txt named after its picture.` +
+    (missing && !CAP.abort ? ` ${missing} picture${missing === 1 ? ' has' : 's have'} no caption.` : '');
+  const list = $('#lora-cap-problems');
+  list.hidden = CAP.problems.length === 0;
+  list.replaceChildren(...CAP.problems.map((p) => {
+    const li = document.createElement('li');
+    const b = document.createElement('strong');
+    b.textContent = p.path;
+    li.append(b, document.createTextNode(`: ${p.message}`));
+    return li;
+  }));
+}
+
+async function downloadCaptions() {
+  if (!CAP.captions.size) return;
+  const files = [];
+  for (const it of CAP.items) {
+    files.push({ name: it.path, data: new Uint8Array(await it.file.arrayBuffer()) });
+    const text = CAP.captions.get(it.stem);
+    if (text) files.push({ name: `${it.stem}.txt`, data: `${text}\n` });
+  }
+  for (const o of CAP.others) files.push(o);
+  const url = URL.createObjectURL(makeZip(files));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${CAP.zipName || 'dataset'}-captioned-${CAP.style?.id ?? 'captions'}.zip`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+function wireCaptionView() {
+  for (const btn of $$('#lora-mode button')) {
+    btn.addEventListener('click', () => setLoraMode(btn.dataset.mode));
+  }
+  $('#lora-cap-style').addEventListener('change', (e) => selectCaptionStyle(e.target.value));
+  $('#lora-cap-model').addEventListener('change', (e) => { captionModel = e.target.value; });
+  // The type changes what every caption leaves out, so captions written for
+  // the old one are cleared, like a style change.
+  $('#lora-cap-type').addEventListener('change', () => {
+    paintLoraTypeNote();
+    try { localStorage.setItem('pf.loraType', $('#lora-cap-type').value); } catch {}
+    CAP.abort?.abort();
+    if (CAP.items.length) resetCaptions('LoRA type changed. Press Caption the dataset to start again.');
+  });
+
+  const drop = $('#lora-cap-drop');
+  const input = $('#lora-cap-zip');
+  const take = (file) => {
+    if (CAP.abort || !file) return;
+    if (!/\.zip$/i.test(file.name)) {
+      $('#lora-cap-summary').hidden = false;
+      $('#lora-cap-summary').textContent = `${file.name} is not a .zip. Zip the pictures and drop the zip.`;
+      return;
+    }
+    loadCaptionZip(file);
+  };
+  drop.addEventListener('click', () => { if (!CAP.abort) input.click(); });
+  drop.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && !CAP.abort) { e.preventDefault(); input.click(); }
+  });
+  input.addEventListener('change', () => {
+    take(input.files[0]);
+    input.value = '';
+  });
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('dragover');
+    take(e.dataTransfer.files[0]);
+  });
+
+  $('#lora-cap-run').addEventListener('click', runCaptions);
+  $('#lora-cap-stop').addEventListener('click', () => CAP.abort?.abort());
+  $('#lora-cap-download').addEventListener('click', downloadCaptions);
 }
 
 // ── The setup wizard (4 Oct 2026) ──
@@ -14489,7 +15204,15 @@ const BENCH_VARS = [
  * that stops the tab handler.
  */
 function paintBenchmarkFrame() {
-  const frame = $('#bench-frame');
+  paintThemeInto($('#bench-frame'));
+}
+
+/**
+ * The palette, font and text size into any same-origin frame: the benchmark
+ * sheet, and the MOSS Layout Studio, whose stylesheet maps these variables
+ * onto its own.
+ */
+function paintThemeInto(frame) {
   const doc = (() => {
     try { return frame?.contentDocument ?? null; } catch { return null; }
   })();
@@ -14499,11 +15222,16 @@ function paintBenchmarkFrame() {
     const value = from.getPropertyValue(name).trim();
     if (value) doc.documentElement.style.setProperty(name, value);
   }
+  // Light or dark, so the frame's own form controls and scrollbars match.
+  doc.documentElement.style.colorScheme = from.colorScheme || 'dark';
   // data-theme as well, so a sheet that keys off it directly — p40-bench has
   // its own [data-theme="dark"] block — agrees with the variables it is given.
-  const theme = document.documentElement.getAttribute('data-theme');
-  if (theme) doc.documentElement.setAttribute('data-theme', theme);
-  else doc.documentElement.removeAttribute('data-theme');
+  // Text size the same way: it is a rule on body, not a variable.
+  for (const attr of ['data-theme', 'data-textsize']) {
+    const value = document.documentElement.getAttribute(attr);
+    if (value) doc.documentElement.setAttribute(attr, value);
+    else doc.documentElement.removeAttribute(attr);
+  }
 }
 
 let benchLoaded = false;
@@ -16255,6 +16983,8 @@ async function init() {
 
   $('#model-select').addEventListener('change', (e) => selectModel(e.target.value));
 
+  wireCaptionView();
+
   for (const btn of $$('#type-toggle button')) {
     btn.addEventListener('click', async () => {
       $$('#type-toggle button').forEach((b) => b.classList.toggle('active', b === btn));
@@ -16275,7 +17005,7 @@ async function init() {
       // else put up since this tab was last opened matters. Re-fetched on every
       // open rather than cached like the sheets, which are files in the repo.
       if (tab.dataset.tab === 'shared') loadSharedImages({ force: true });
-      if (tab.dataset.tab === 'lora') loadLoraTab();
+      if (tab.dataset.tab === 'lora') openLoraTab();
       $$('.main-tab').forEach((t) => t.classList.toggle('active', t === tab));
       $$('.tab-panel').forEach((p) =>
         p.classList.toggle('active', p.id === `panel-${tab.dataset.tab}`)

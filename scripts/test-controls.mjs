@@ -37,6 +37,7 @@ import {
   keyframeMessage,
   usableReading,
 } from '../server/keyframes.mjs';
+import { pastedStyle, pasteStyle } from '../server/style.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STUB_PORT = await freePort(11496);
@@ -363,6 +364,45 @@ const check = (what, ok, detail) => {
   check('an empty body does not throw', strip('', '2:3 Portrait').body === '');
 }
 
+// ── the pasted style, directly ───────────────────────────────
+{
+  const block = 'Charcoal sketch, smudged shading, textured paper.';
+  const krea = {
+    style_placement: 'append',
+    styles: { Charcoal: block, None: '' },
+    default_style: 'None',
+    segments: ['Enhanced prompt', 'What changed'],
+    meta_segments: ['What changed'],
+  };
+  const segs = () => [
+    { label: 'Enhanced prompt', body: 'A man walks his dog in the rain' },
+    { label: 'What changed', body: 'Added rain.' },
+  ];
+
+  const one = segs();
+  check('the block goes on the end of the prompt, word for word',
+    pasteStyle(krea, { style: 'Charcoal' }, one) &&
+      one[0].body === `A man walks his dog in the rain. ${block}`, one[0].body);
+  check('...and never onto the commentary', one[1].body === 'Added rain.');
+
+  pasteStyle(krea, { style: 'Charcoal' }, one);
+  check('pasting again does not double it (Refine hands it back)',
+    one[0].body.split(block).length === 2, one[0].body);
+
+  const echoed = [{ label: 'Enhanced prompt', body: `A man walks his dog. ${block} The rain falls.` }];
+  pasteStyle(krea, { style: 'Charcoal' }, echoed);
+  check('a copy the model wrote mid-prompt moves to the end, once',
+    echoed[0].body === `A man walks his dog. The rain falls. ${block}`, echoed[0].body);
+
+  const none = segs();
+  check('"None" pastes nothing',
+    !pasteStyle(krea, { style: 'None' }, none) && none[0].body === 'A man walks his dog in the rain');
+  check('a model without style_placement pastes nothing',
+    pastedStyle({ ...krea, style_placement: undefined }, { style: 'Charcoal' }) === null);
+  check('a tag list is not a block, so it is not pasted',
+    pastedStyle({ ...krea, styles: { Charcoal: ['charcoal'] } }, { style: 'Charcoal' }) === null);
+}
+
 // ── a backend that records the message it was sent ───────────
 let lastUserMessage = '';
 // How many pictures were attached to the last request, which is the only
@@ -553,12 +593,20 @@ try {
   await generate({ style: 'None' }, 'anima');
   check('"None" injects no Style line at all',
     !/Style:/.test(lastUserMessage), lastUserMessage);
-  // krea2 still declares `styles` as a plain array. It must keep behaving
-  // exactly as it did — the map is opt-in per model, not a migration.
-  await generate({ style: 'Painterly' }, 'krea2');
-  check('a model whose styles are a plain list still sends the bare label',
-    /Style: Painterly/.test(lastUserMessage) && !/include these tags/.test(lastUserMessage),
+  // krea2 pastes its style in code (style_placement: append), so the model is
+  // shown the block as its own line and told it is already there - never sent
+  // it as a setting to rewrite. See server/style.mjs.
+  await generate({ style: 'Chinese Ink' }, 'krea2');
+  check('a pasted style reaches the model as its own line, block and all',
+    /Style: Chinese Ink\. This style block is added to the end of your prompt word for word/.test(lastUserMessage) &&
+      lastUserMessage.includes('Traditional Chinese ink drawing, expressive black ink strokes'),
     lastUserMessage);
+  check('...and not as a setting too',
+    !/Settings \([^\n]*Style:/.test(lastUserMessage) && !/carry this look/.test(lastUserMessage),
+    lastUserMessage);
+  await generate({ style: 'None' }, 'krea2');
+  check('krea2 at "None" sends no style at all',
+    !/Style:/.test(lastUserMessage), lastUserMessage);
 
   // ── the settings line ──
   await generate({ aspect_ratio: '2:3 Portrait', creativity: 'balanced' });

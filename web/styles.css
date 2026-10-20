@@ -3241,3 +3241,72 @@ button.lora-slot.is-active > strong { color: var(--ok, #22c55e); }
 .tour-actions { display: flex; align-items: center; gap: 8px; }
 .tour-spacer { flex: 1; }
 #tour-offer .modal-foot { gap: 8px; }
+
+/* ── Tab 2 Caption view (17-18 Oct 2026) ──────────────────────────────
+   Settings on the left; on the right, the run: one button, a progress bar,
+   the download, and a list of anything that needs a look. */
+.lora-cap-split > .panel:first-child .field { margin-top: 14px; }
+.lora-cap-split > .panel:first-child .dropzone { margin-bottom: 0; }
+.lora-cap-split textarea { width: 100%; resize: vertical; }
+.lora-cap-summary {
+  margin-top: 10px; font-size: 12.5px; color: var(--text-secondary);
+}
+.lora-cap-summary strong { color: var(--text-primary); font-weight: 600; }
+.lora-cap-check {
+  display: flex; gap: 8px; align-items: center; margin-top: 14px;
+  font-size: 12.5px; color: var(--text-secondary); cursor: pointer;
+}
+.lora-cap-split #lora-cap-run,
+.lora-cap-split #lora-cap-download { width: 100%; }
+.lora-cap-split #lora-cap-stop { margin-top: 8px; width: 100%; }
+.lora-cap-split #lora-cap-download { margin-top: 18px; }
+#lora-cap-status { font-size: 13px; color: var(--text-primary); margin-top: 12px; }
+#lora-cap-bar { margin-top: 8px; }
+.dropzone.disabled { opacity: 0.5; cursor: not-allowed; }
+.lora-cap-problems {
+  margin: 14px 0 0; padding-left: 18px; max-height: 320px; overflow-y: auto;
+  font-size: 12px; line-height: 1.5; color: var(--accent-amber);
+}
+.lora-cap-problems strong { color: var(--text-primary); font-weight: 600; word-break: break-all; }
+
+/* MOSS Layout Studio: a user's editor, full screen over the app. */
+.layout-studio-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+/* The Layout panel: full width, under the builder and output. Full screen
+   pins the same element over the page; the iframe never moves, so it never
+   reloads. */
+.layout-panel { grid-column: 1 / -1; }
+.layout-panel .output-head { gap: 12px; }
+.layout-panel-note { flex: 1; color: var(--text-muted); font-size: 12px; }
+.layout-frame { height: min(760px, calc(100vh - 120px)); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg-deep); }
+.layout-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+.layout-panel.full { position: fixed; inset: 0; z-index: 2500; margin: 0; border-radius: 0; display: flex; flex-direction: column; }
+.layout-panel.full .layout-frame { flex: 1; height: auto; border-radius: 0; }
+body.layout-full { overflow: hidden; }
+
+/* The FORMAT row above the system prompt: the template's format select,
+   shown as one click per format. The select itself stays in the form (its
+   value is what Generate sends) but is not drawn. */
+.format-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.format-bar .seg-toggle { flex: 1; min-width: 0; }
+.format-bar .seg-toggle button { flex: 1; padding: 7px 10px; }
+.format-source { display: none; }
+/* Format and System prompt start at the same edge. */
+.format-bar > .prompt-llm-label, .sysprompt-pick > .prompt-llm-label { min-width: 100px; }
+
+/* MOSS Layout JSON: the studio takes the Output panel's place beside the
+   builder (the studio shows the JSON), and sticks while the builder scrolls. */
+body.layout-mode #output-panel { display: none; }
+body.layout-mode #layout-panel:not(.full) { grid-column: 2; grid-row: 1; position: sticky; top: 12px; }
+body.layout-mode #layout-panel:not(.full) .layout-frame { height: calc(100vh - 110px); min-height: 520px; }
+.layout-scene { align-items: end; }
+.layout-rewrite { display: flex; gap: 8px; flex-wrap: wrap; }
+.layout-status:empty { display: none; }
+.layout-status { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 900px) {
+  /* One column on a phone: the studio goes back under the builder. */
+  body.layout-mode #layout-panel:not(.full) { grid-column: 1; grid-row: auto; position: static; }
+}
+/* More of the width to the canvas in Layout JSON: the builder's rows fit in
+   two fifths, and the studio is where the editing happens. */
+body.layout-mode .split { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+@media (max-width: 900px) { body.layout-mode .split { grid-template-columns: minmax(0, 1fr); } }
