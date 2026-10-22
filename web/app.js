@@ -7653,7 +7653,8 @@ function initChat() {
   window.addEventListener('blur', closeChatMenu);
   window.addEventListener('resize', closeChatMenu);
 
-  // Pictures for the next message: the button, or a paste into the box.
+  // Pictures for the next message: the button, a paste into the box, or a
+  // drop anywhere on the chat.
   const pictureFile = $('#chat-picture-file');
   $('#chat-picture')?.addEventListener('click', () => pictureFile?.click());
   pictureFile?.addEventListener('change', () => {
@@ -7665,6 +7666,48 @@ function initChat() {
     if (!files.length) return;
     e.preventDefault();
     addChatPictures(files);
+  });
+
+  // A file from the desktop arrives as a file. A picture dragged out of a web
+  // page, or out of this chat, often arrives only as its address, so that is
+  // fetched - which works for this app's own pictures and for sites that
+  // allow it, and says so when a site does not.
+  const chatMain = $('.chat-main');
+  const carriesPicture = (dt) => [...(dt?.types ?? [])].some((t) => t === 'Files' || t === 'text/uri-list');
+  let dragDepth = 0;
+  chatMain?.addEventListener('dragenter', (e) => {
+    if (!carriesPicture(e.dataTransfer)) return;
+    e.preventDefault();
+    dragDepth += 1;
+    chatMain.classList.add('dragover');
+  });
+  chatMain?.addEventListener('dragover', (e) => {
+    if (!carriesPicture(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  chatMain?.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) chatMain.classList.remove('dragover');
+  });
+  chatMain?.addEventListener('drop', async (e) => {
+    if (!carriesPicture(e.dataTransfer)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    chatMain.classList.remove('dragover');
+    const files = [...(e.dataTransfer.files ?? [])].filter((f) => f.type.startsWith('image/'));
+    if (files.length) return addChatPictures(files);
+    const url = (e.dataTransfer.getData('text/uri-list') || '').split(/\r?\n/).find((l) => l && !l.startsWith('#'));
+    if (!url) return;
+    const note = $('#chat-note');
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      if (!res.ok || !blob.type.startsWith('image/')) throw new Error('not a picture');
+      await addChatPictures([new File([blob], 'dropped', { type: blob.type })]);
+    } catch {
+      if (note) note.textContent = 'That site does not let pictures be taken from it — save it first, then drop the file.';
+    }
   });
 
   // Search on or off for the next message, and it stays where you put it.

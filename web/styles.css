@@ -1713,6 +1713,7 @@ button.whoami:hover strong { color: var(--accent); }
 .chat-request-btn { flex: none; }
 
 .chat-main { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.chat-main.dragover { outline: 2px dashed var(--accent); outline-offset: -6px; background: var(--accent-glow); }
 .chat-thread {
   flex: 1; min-height: 0; overflow-y: auto;
   display: flex; flex-direction: column; gap: 14px;
