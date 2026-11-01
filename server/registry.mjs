@@ -13,6 +13,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { optionalSegments } from './segments.mjs';
+import { nativeSizeFor } from './comfyui.mjs';
 import YAML from 'yaml';
 
 export const TEMPLATES = [
@@ -75,7 +76,34 @@ function sameList(a, b) {
  * variant that quietly drops a segment fails at boot rather than halfway
  * through a measurement. Set by PROMPTFORGE_PROMPTS — see server.mjs.
  */
-export function loadRegistry(rootDir, { warn = console.warn, prompts = new Map() } = {}) {
+/**
+ * Width x height per aspect, for the size printed on the Aspect tiles (22 Oct
+ * 2026). A model with a layout canvas (MOSS) measures on that; otherwise the
+ * size its starter workflow renders, reshaped to each ratio by the same rule
+ * renders use (nativeSizeFor). Null when there is nothing to measure from.
+ */
+function aspectSizes(rootDir, model, render) {
+  if (!model.aspect_ratios?.length) return null;
+  if (model.layout_canvas) {
+    return Object.fromEntries(Object.entries(model.layout_canvas).map(([a, [w, h]]) => [a, { width: w, height: h }]));
+  }
+  let base = null;
+  try {
+    const wf = JSON.parse(readFileSync(path.join(rootDir, render?.workflow ?? ''), 'utf8'));
+    for (const node of Object.values(wf)) {
+      const { width, height } = node?.inputs ?? {};
+      if (Number.isInteger(width) && Number.isInteger(height)) { base = { width, height }; break; }
+    }
+  } catch {
+    return null;
+  }
+  if (!base) return null;
+  return Object.fromEntries(
+    model.aspect_ratios.map((a) => [a, nativeSizeFor(a, base.width, base.height)]).filter(([, s]) => s)
+  );
+}
+
+export function loadRegistry(rootDir,{ warn = console.warn, prompts = new Map() } = {}) {
   const file = path.join(rootDir, 'config', 'models.yaml');
   if (!existsSync(file)) {
     throw new RegistryError([`config/models.yaml not found at ${file}`]);
@@ -421,6 +449,10 @@ export function loadRegistry(rootDir, { warn = console.warn, prompts = new Map()
       default_aspect_ratio:
         raw.default_aspect_ratio ??
         (raw.type === 'image' ? defaults.default_image_aspect_ratio : undefined),
+      // The Camera section, image models only; `{}` on a model opts it out.
+      camera_angles: raw.camera_angles ?? (raw.type === 'image' ? defaults.camera_angles : undefined),
+      camera_shots: raw.camera_shots ?? (raw.type === 'image' ? defaults.camera_shots : undefined),
+      camera_lights: raw.camera_lights ?? (raw.type === 'image' ? defaults.camera_lights : undefined),
       reference_files: referenceFiles,
       missing_reference_files: missingRequired,
       reference_files_by_mode: referenceFilesByMode,
@@ -521,6 +553,7 @@ export function loadRegistry(rootDir, { warn = console.warn, prompts = new Map()
           }) => ({
             ...m,
             can_render: Boolean(render?.workflow),
+            aspect_sizes: aspectSizes(rootDir, m, render),
             // Which files are missing stays here; THAT some are goes out, so
             // the page can say it is running reduced (h3 without MiniMax's
             // guides, 20 Oct 2026) instead of quietly being worse.

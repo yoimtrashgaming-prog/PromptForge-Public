@@ -35,7 +35,8 @@ import {
 } from './server/references.mjs';
 import { musicOnlyWhenAsked } from './server/music.mjs';
 import { loadCaptionStyles, loadLoraTypes, publicStyles, publicLoraTypes, captionInstructions, parseExclude, finishCaption, captionRequest, closestTag } from './server/captions.mjs';
-import { shotsLine, shotCountWarning, repairCutTimes, foldShotBriefs } from './server/shots.mjs';
+import { shotsLine, shotCountWarning, repairCutTimes, foldShotBriefs, detailShare } from './server/shots.mjs';
+import { cameraPicks, keepAsWritten } from './server/verbatim.mjs';
 import { applyPictureLabels, promptMode, usesLabels, labelledCast, labelledBrief, labelledLines, labelledSegments, keepReferenceLook, describeUnits, describeMessage, framedBrief, givenCast, castDescriptions, unitsToRead, castUnit, sceneUnit, castLook, framedCastLines, characterCards } from './server/picture-labels.mjs';
 import { cropImage, pictureSize, parsePeople, FIND_PEOPLE_PROMPT } from './server/people-boxes.mjs';
 // Reference images on the image models. A separate formatter from the one
@@ -1510,7 +1511,8 @@ function buildUserMessage(model, brief, controls = {}, characterText = '', stand
 
   const detail = detailFor(model, controls);
   if (detail) {
-    lines.push(`Detail level ${detail.level} of ${detail.of} - ${detail.label}. ${detail.rule}`);
+    // With a shot count picked, each shot's share too. See server/shots.mjs.
+    lines.push(`Detail level ${detail.level} of ${detail.of} - ${detail.label}. ${detail.rule}${detailShare(detail.rule, controls)}`);
   }
 
   // Audio off, as an instruction of its own. In the Settings list alone it was
@@ -1629,7 +1631,19 @@ function buildUserMessage(model, brief, controls = {}, characterText = '', stand
     lines.push(`Must appear in the positive prompt, exactly as written: ${controls.positive}`);
   }
 
-  if (controls.negative) lines.push(`Negative additions: ${controls.negative}`);
+  // Code puts both back if the model leaves them out: server/verbatim.mjs.
+  // Not sent with Negative prompt switched off - the model is writing none,
+  // and code makes the custom negative the whole negative instead.
+  if (controls.negative && !omit.some((l) => /negative/i.test(l))) lines.push(`Must appear in the negative prompt, exactly as written: ${controls.negative}`);
+
+  // The Camera section: tags on a tag model, a phrase on a prose one. See
+  // defaults.camera_angles in config/models.yaml.
+  const camera = cameraPicks(model, controls);
+  if (camera.length) {
+    lines.push(model.tag_style
+      ? `Camera: include these tags: ${camera.join(', ')}`
+      : `Camera: frame the picture as ${camera.join(', and ')}.`);
+  }
 
   // Image-to-video. Stated as a fact, not as an instruction: wan.md already
   // says what to do about a first frame — don't re-describe it, spend the
@@ -2374,6 +2388,16 @@ async function handlePeople(req, res) {
 }
 
 /**
+ * Which model reads h3's pictures - Cast cards, Scan, and the reads at
+ * Generate: the person's `picture_llm` when they saved one, else the model
+ * writing their prompts, which is the one usually already loaded (28 Oct
+ * 2026, the owner's call). Find people keeps people_boxes.model.
+ */
+function pictureModel(target, prefs) {
+  return String(prefs?.picture_llm ?? '').trim() || (chooseModel(target, prefs) ?? llm.model);
+}
+
+/**
  * POST /api/cast — one character's card on the Cast list, read from all
  * their pictures (each from their people box, where they have one). Or,
  * with `subject` ("place", "style", "pose@N"), the card of the place, the
@@ -2383,8 +2407,7 @@ async function handlePeople(req, res) {
  * number to read; `redo` reads again rather than answering from the cache.
  * The reader is the same one Generate runs for that character, with the same
  * message, so a card says what Generate would have read. Read by
- * people_boxes.model when it names one: about a second a person on the 4B,
- * where a 27B takes a minute and more. Answers { number, text, model, ms },
+ * pictureModel, as Generate's reads are. Answers { number, text, model, ms },
  * the look only: Retention's kept list is made from the card's text.
  */
 async function handleCast(req, res) {
@@ -2399,11 +2422,12 @@ async function handleCast(req, res) {
   const system = prompts.pictureDescription();
   if (!system) return sendJSON(res, 503, { error: 'describe_off', message: 'Picture descriptions are switched off on this server.' });
   // A character by number, or since 14 Oct 2026 the place, the style or the
-  // pose in a picture: `subject` "place", "style" or "pose@N".
+  // pose in a picture: `subject` "place", "style" or "pose@N"; since 28 Oct
+  // a General picture, "general@N".
   const subject = typeof body.subject === 'string' ? body.subject : null;
   const number = Number(body.character);
   if (!subject && (!Number.isInteger(number) || number < 1)) return sendJSON(res, 400, { error: 'bad_character', message: 'Say which character to read.' });
-  const what = !subject ? `Character ${number}` : subject === 'place' ? 'the place' : subject === 'style' ? 'the style' : 'the pose';
+  const what = !subject ? `Character ${number}` : subject === 'place' ? 'the place' : subject === 'style' ? 'the style' : subject.startsWith('general@') ? 'the reference' : 'the pose';
   const brief = foldShotBriefs(String(body.brief ?? ''), body.controls ?? {});
   const controls = resolveAutoControls(applyPictureLabels({ ...(body.controls ?? {}), picture_labels: true }));
   const cast = labelledCast(controls.references ?? []);
@@ -2413,8 +2437,10 @@ async function handleCast(req, res) {
       ? `No picture shows ${what} to read. Write its description yourself.`
       : `No picture shows Character ${number} so that they can be read on their own. Write their description yourself.` });
   }
-  const named = String(config.people_boxes?.model ?? '').trim();
-  const llmModel = named || (chooseModel(target, storage.getPrefs(whoIs(req))) ?? llm.model);
+  // See pictureModel. Until 28 Oct 2026 this borrowed people_boxes.model,
+  // the 4B that Find people boxes on: fast, but a 4B trained to write h3
+  // prompts, not to read pictures.
+  const llmModel = pictureModel(target, storage.getPrefs(whoIs(req)));
   if (!llmModel) return sendJSON(res, 503, { error: 'no_model', message: 'No model is selected.' });
   if ((await visionTags.canSee(llmModel)) === false) {
     return sendJSON(res, 503, { error: 'no_vision', message: `${llmModel} cannot see pictures. Write the description yourself.` });
@@ -3923,6 +3949,9 @@ ${toolGuide}` : system;
         : referenceImageParts(body.controls?.image_references ?? [], registry.defaults ?? {});
     const lookModel = llmModel ?? llm.model;
     const canLook = refImages.parts.length > 0 && (await visionTags.canSee(lookModel)) !== false;
+    // The reads below go to the picture reader, which may not be the writer.
+    const pictureLlm = pictureModel(model, storage.getPrefs(whoIs(req)));
+    const canRead = refImages.parts.length > 0 && (pictureLlm === lookModel ? canLook : (await visionTags.canSee(pictureLlm)) !== false);
     if (refImages.dropped) {
       sse.send('warning', {
         message: `${refImages.dropped} reference picture${refImages.dropped === 1 ? '' : 's'} could not be sent to the model. Its notes still travel.`,
@@ -3985,13 +4014,13 @@ ${toolGuide}` : system;
     // then stay off the writer call; in "both" they go too, labelled.
     let pictureUnits = [];
     let pictureReadings = new Map();
-    if (canLook && !labelledRun && model.type === 'video' && body.controls?.mode === 'REF2VA' && prompts.referencePicture()) {
+    if (canRead && !labelledRun && model.type === 'video' && body.controls?.mode === 'REF2VA' && prompts.referencePicture()) {
       const units = readingUnits(body.controls.references ?? [], 'REF2VA');
       if (units.reduce((n, u) => n + u.refs.length, 0) >= 2) {
         pictureUnits = units;
         pictureReadings = await readPictures({
           model,
-          llmModel,
+          llmModel: pictureLlm,
           units,
           system: prompts.referencePicture(),
           signal: abort.signal,
@@ -4019,7 +4048,7 @@ ${toolGuide}` : system;
     // below, so a writer that cannot see lost every card.
     const given = givenCast(body.controls);
     if (cast) for (const [tag, entry] of castDescriptions(cast, given)) labelDescriptions.set(tag, entry);
-    if (cast && canLook && prompts.pictureDescription()) {
+    if (cast && canRead && prompts.pictureDescription()) {
       // The instruction's own hash rides in the role, which is in the cache key:
       // an edited instruction must not be answered from descriptions written
       // under the old one.
@@ -4034,7 +4063,7 @@ ${toolGuide}` : system;
       if (units.length) {
         const read = await readPictures({
           model,
-          llmModel,
+          llmModel: pictureLlm,
           units,
           system: prompts.pictureDescription(),
           signal: abort.signal,
@@ -4574,7 +4603,10 @@ ${toolGuide}` : system;
       // entirely on 6 of 6 runs, and rewriting pony.md's wording only moved
       // that to 2 of 6. It is a constant sitting in config; asking a small
       // model to transcribe it is a job it can only lose at.
-      const restored = ensureDefaults(cleaned.text, model.negative_defaults ?? '', positives);
+      // The person's own negative counts as floor too, here and in the cap
+      // below - until 22 Oct 2026 it was cut as one of the model's extras.
+      const floor = [model.negative_defaults, body.controls?.negative].filter(Boolean).join(', ');
+      const restored = ensureDefaults(cleaned.text, floor, positives);
       if (restored.added.length) {
         console.warn(
           `[negative] ${model.key}: restored ${restored.added.length} registry default(s) (${restored.added.join(', ')})`
@@ -4587,7 +4619,7 @@ ${toolGuide}` : system;
       // invented on top of them. See capExtras in server/negative.mjs for the
       // 1,652-character negative that produced this setting.
       const allowance = model.negative_extra_max ?? config.negative?.extra_max ?? 0;
-      const capped = capExtras(seg.body, model.negative_defaults ?? '', allowance);
+      const capped = capExtras(seg.body, floor, allowance);
       if (capped.dropped.length) {
         console.warn(
           `[negative] ${model.key}: dropped ${capped.dropped.length} tag(s) past the allowance of ${allowance}`
@@ -4634,6 +4666,12 @@ ${toolGuide}` : system;
     // text, so none of them touches it. See server/style.mjs.
     if (!result.refused && pasteStyle(model, body.controls ?? {}, result.segments)) {
       console.log(`[style] ${model.key}: pasted "${body.controls?.style}" onto the prompt`);
+    }
+    // Custom positive, Custom negative and Camera tags, as typed. After the
+    // style, last of all. See server/verbatim.mjs.
+    if (!result.refused) {
+      const kept = keepAsWritten(model, body.controls ?? {}, result.segments);
+      if (kept.length) console.log(`[verbatim] ${model.key}: put back ${kept.join(' | ')}`);
     }
 
     // What the model looked up, on the done event as well as the live `tool`
@@ -5768,11 +5806,11 @@ async function handleReferenceScan(req, res) {
   if (!chosen.length) {
     return sendJSON(res, 400, { error: 'no_pictures', message: 'There are no pictures to scan.' });
   }
-  const llmModel = chooseModel(model, storage.getPrefs(whoIs(req)));
+  const llmModel = pictureModel(model, storage.getPrefs(whoIs(req)));
   if ((await visionTags.canSee(llmModel ?? llm.model)) === false) {
     return sendJSON(res, 503, {
       error: 'no_vision',
-      message: `${llmModel ?? llm.model} cannot see images. Pick one marked vision in Written by.`,
+      message: `${llmModel ?? llm.model} cannot see images. Pick one marked vision in Written by, or a picture reader in your account.`,
     });
   }
 

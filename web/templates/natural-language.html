@@ -13,6 +13,12 @@
       placeholder="Describe the scene as you would to someone drawing it without seeing it."></textarea>
   </label>
 
+  <!-- Details + Creativity, always on screen under the brief (owner, 22 Oct
+       2026: not folded). Rendered by renderSliders() in app.js from
+       defaults.detail_levels and the model's creativity_presets. The
+       Lighting slider goes to the Lighting fold instead. -->
+  <div class="sliders" data-bind="slider_block"></div>
+
   <label class="field" data-layout-only hidden>
     <span>Global prompt <span class="field-optional">the scene inside the JSON — Generate prompt writes it, edit freely</span></span>
     <textarea data-bind="layout_caption" rows="5"
@@ -36,31 +42,67 @@
       <input type="text" data-bind="layout_meta_other" autocomplete="off" placeholder="e.g. comic, 3d render"></label>
   </div>
 
-  <div class="row">
-    <!-- The prompt format, on a model that writes more than one (MOSS). The
-         select holds the value Generate sends; what the person clicks is the
-         FORMAT row at the top of the builder, which app.js builds from it.
-         Hidden by class, not [hidden]: collectControls skips [hidden]. -->
-    <label class="field format-source" data-show="modes"><span>Format</span>
-      <select data-bind="mode"></select></label>
-    <label class="field"><span>Style guidance</span>
-      <select data-bind="style"></select></label>
-    <label class="field"><span>Aspect</span>
-      <select data-bind="aspect_ratio"></select></label>
-    <!-- Details + Creativity. Rendered by renderSliders() in app.js from
-         defaults.detail_levels and the model's creativity_presets, because
-         both the notch count and the notch labels are config. -->
-    <div class="sliders" data-bind="slider_block"></div>
-  </div>
+  <!-- Folding sections (22 Oct 2026): see booru.html. -->
+  <section class="fold" data-fold="presets" data-fold-open>
+    <button type="button" class="fold-head"><span class="fold-title">Setting presets</span><span class="fold-summary"></span></button>
+    <div class="fold-body">
+      <div class="row">
+        <!-- The prompt format, on a model that writes more than one (MOSS). The
+             select holds the value Generate sends; what the person clicks is the
+             FORMAT row at the top of the builder, which app.js builds from it.
+             Hidden by class, not [hidden]: collectControls skips [hidden]. -->
+        <label class="field format-source" data-show="modes"><span>Format</span>
+          <select data-bind="mode"></select></label>
+        <label class="field"><span>Style guidance</span>
+          <select data-bind="style"></select></label>
+      </div>
+      <!-- Tiles drawn from the select, which stays the value that is sent. -->
+      <div class="field"><span>Aspect</span>
+        <select data-bind="aspect_ratio" class="tile-source"></select>
+        <div class="tiles aspect-tiles" data-bind="aspect_tiles"></div></div>
+    </div>
+  </section>
 
-  <aside class="tips" data-bind="tips" data-layout-hide></aside>
+  <section class="fold" data-fold="output">
+    <button type="button" class="fold-head"><span class="fold-title">Output</span><span class="fold-summary"></span></button>
+    <!-- Length and Include land here (renderLength, renderSegmentToggles). -->
+    <div class="fold-body"><div class="row" data-bind="output_block"></div></div>
+  </section>
 
-  <!-- What Generate will do with the studio's canvas. Boxes drawn there go
-       with Generate and are kept exactly; with none drawn, the generated
-       layout is loaded into it. -->
-  <div class="layout-studio-bar" data-bind="layout_studio" hidden>
-    <span class="field-note" data-bind="studio_summary"></span>
-  </div>
+  <section class="fold" data-fold="verbatim">
+    <button type="button" class="fold-head"><span class="fold-title">Kept as written</span><span class="fold-summary"></span></button>
+    <div class="fold-body">
+  <!-- Anything that must survive into the prompt exactly as typed: a LoRA
+       trigger word, an artist tag, a phrase that works. The brief is
+       rewritten by the LLM; these are not - server/verbatim.mjs puts back
+       whatever the model leaves out. -->
+  <label class="field" data-layout-hide>
+    <span>Custom positive <span class="field-optional">kept verbatim</span></span>
+    <textarea data-bind="positive" rows="2"
+      placeholder="Trigger words, artist tags, anything that must appear as written."></textarea>
+  </label>
+
+  <label class="field" data-show="has_negative">
+    <span>Custom negative <span class="field-optional">kept verbatim</span></span>
+    <textarea data-bind="negative" rows="2"
+      placeholder="Anything that must be in the negative prompt, as written."></textarea>
+  </label>
+    </div>
+  </section>
+
+  <section class="fold" data-fold="camera">
+    <button type="button" class="fold-head"><span class="fold-title">Camera</span><span class="fold-summary"></span></button>
+    <div class="fold-body" data-bind="camera_block"></div>
+  </section>
+
+  <!-- How bright (the Lighting slider) and where the light comes from. -->
+  <section class="fold" data-fold="lighting">
+    <button type="button" class="fold-head"><span class="fold-title">Lighting</span><span class="fold-summary"></span></button>
+    <div class="fold-body">
+      <div class="sliders" data-bind="lighting_block"></div>
+      <div data-bind="light_block"></div>
+    </div>
+  </section>
 
   <!-- The tag builder, identical to the booru template's. Tags are an INPUT
        here, not the output format: the LLM rewrites them into whatever
@@ -70,6 +112,39 @@
 
        Nothing here is conditional on a model. tagForModel() already serves
        each one the spelling its registry entry asks for. -->
+  <section class="fold" data-fold="tags" data-layout-hide>
+    <button type="button" class="fold-head"><span class="fold-title">Tags</span><span class="fold-summary"></span></button>
+    <div class="fold-body">
+  <div class="tagbuilder">
+    <input type="text" data-bind="tag_search" placeholder="Search tags..." autocomplete="off">
+    <ul class="autocomplete" data-bind="tag_suggestions" hidden></ul>
+    <p class="pills-head" data-bind="pills_head" hidden>
+      <span data-bind="pills_count"></span>
+      <button type="button" class="ghost" data-bind="clear_tags">Clear all</button>
+    </p>
+    <div class="pills" data-bind="tag_pills"></div>
+
+    <!-- Appears when a character tag is picked. The model does not reliably
+         know what a character looks like - measured, it put black hair on a
+         redhead - so the traits come from danbooru and get clicked into the
+         pills above rather than being guessed at generation time. -->
+    <div class="traits" data-bind="trait_block" hidden>
+      <p class="trait-head">
+        <span data-bind="trait_title"></span>
+        <button type="button" class="ghost" data-bind="trait_add_all">Add all</button>
+      </p>
+      <div class="pills" data-bind="trait_chips"></div>
+    </div>
+    <!-- Hidden on a model with no weight_range: Krea2 and MOSS are prose and
+         ignore (tag:1.2), so the slider had no range to read and moved nothing. -->
+    <label class="field weight" data-show="weight_range">
+      <span>Weight <output data-bind="weight_value"></output></span>
+      <input type="range" data-bind="weight">
+    </label>
+  </div>
+    </div>
+  </section>
+
   <!-- Reference images, tagged on this machine and turned into instructions.
        The picture itself never leaves the box and never reaches the LLM —
        only what is written under it does, which is the same contract H3's
@@ -85,8 +160,10 @@
        Present in the three image templates and nowhere else. Its presence is
        the switch, exactly as reference_upload's is in video-h3.html; app.js
        returns early when the block is absent and names no model to decide it. -->
-  <div class="imgref" data-bind="image_reference" data-layout-hide>
-    <h4>Reference images <span class="field-optional">optional</span></h4>
+  <section class="fold" data-fold="refs" data-layout-hide>
+    <button type="button" class="fold-head"><span class="fold-title">Reference images</span><span class="fold-summary"></span></button>
+    <div class="fold-body">
+  <div class="imgref" data-bind="image_reference">
     <div data-bind="imgref_list"></div>
     <template data-bind="imgref_row">
       <div class="imgref-card">
@@ -141,48 +218,17 @@
     <input type="file" data-bind="imgref_upload" multiple>
     <p class="field-note" data-bind="imgref_status"></p>
   </div>
-
-  <div class="tagbuilder" data-layout-hide>
-    <input type="text" data-bind="tag_search" placeholder="Search tags..." autocomplete="off">
-    <ul class="autocomplete" data-bind="tag_suggestions" hidden></ul>
-    <p class="pills-head" data-bind="pills_head" hidden>
-      <span data-bind="pills_count"></span>
-      <button type="button" class="ghost" data-bind="clear_tags">Clear all</button>
-    </p>
-    <div class="pills" data-bind="tag_pills"></div>
-
-    <!-- Appears when a character tag is picked. The model does not reliably
-         know what a character looks like - measured, it put black hair on a
-         redhead - so the traits come from danbooru and get clicked into the
-         pills above rather than being guessed at generation time. -->
-    <div class="traits" data-bind="trait_block" hidden>
-      <p class="trait-head">
-        <span data-bind="trait_title"></span>
-        <button type="button" class="ghost" data-bind="trait_add_all">Add all</button>
-      </p>
-      <div class="pills" data-bind="trait_chips"></div>
     </div>
-    <!-- Hidden on a model with no weight_range: Krea2 and MOSS are prose and
-         ignore (tag:1.2), so the slider had no range to read and moved nothing. -->
-    <label class="field weight" data-show="weight_range">
-      <span>Weight <output data-bind="weight_value"></output></span>
-      <input type="range" data-bind="weight">
-    </label>
+  </section>
+
+  <aside class="tips" data-bind="tips" data-layout-hide></aside>
+
+  <!-- What Generate will do with the studio's canvas. Boxes drawn there go
+       with Generate and are kept exactly; with none drawn, the generated
+       layout is loaded into it. -->
+  <div class="layout-studio-bar" data-bind="layout_studio" hidden>
+    <span class="field-note" data-bind="studio_summary"></span>
   </div>
-
-  <!-- Anything that must survive into the positive prompt exactly as typed:
-       a LoRA trigger word, an artist tag, a phrase that works. The brief is
-       rewritten by the LLM; this is not. -->
-  <label class="field" data-layout-hide>
-    <span>Custom positive <span class="field-optional">kept verbatim</span></span>
-    <textarea data-bind="positive" rows="2"
-      placeholder="Trigger words, artist tags, anything that must appear as written."></textarea>
-  </label>
-
-  <label class="field" data-show="has_negative">
-    <span>Negative prompt</span>
-    <textarea data-bind="negative" rows="2"></textarea>
-  </label>
 
   <button type="button" data-bind="generate" data-layout-hide></button>
 

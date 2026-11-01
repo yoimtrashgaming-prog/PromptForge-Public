@@ -204,6 +204,63 @@ defaults:
       rule: "Extremely bright high-key exposure. The entire scene is flooded with light and nearly shadowless while preserving highlight detail and avoiding blown-out whites."
   default_lighting: 0
 
+  # The Camera section on the image builders (22 Oct 2026, the owner's ask
+  # from a user's mockup): where the camera stands and how close it is, as two
+  # rows of icon tiles. Nothing picked sends nothing.
+  #
+  # Each option carries its payload per dialect, the same way styles do:
+  # `tags` on a model with a tag_style (Illustrious, Anima), checked against
+  # the tag database and put into the positive prompt in code if the model
+  # leaves them out; `prose` everywhere else (Krea2, MOSS), written in by the
+  # model. An option with no payload for a model's dialect is not offered on
+  # it - Danbooru has no tag for an over-the-shoulder shot (`over_shoulder` is
+  # carrying something) or an insert. `icon` picks the drawing in app.js.
+  # A model opts out with `camera_angles: {}` / `camera_shots: {}`, the same
+  # way the video models opt out of lighting. Image models only.
+  camera_angles:
+    eye_level:   { label: "Eye level",     icon: "eye",      tags: "straight-on",               prose: "shot at eye level, the camera level with the subject" }
+    high:        { label: "High",          icon: "high",     tags: "from above",                prose: "a high angle, the camera looking down on the subject" }
+    low:         { label: "Low",           icon: "low",      tags: "from below",                prose: "a low angle, the camera looking up at the subject" }
+    birds_eye:   { label: "Bird's eye",    icon: "birds",    tags: "from above, foreshortening", prose: "a bird's-eye view from directly overhead" }
+    worms_eye:   { label: "Worm's eye",    icon: "worms",    tags: "from below, foreshortening", prose: "a worm's-eye view from the ground, looking steeply up" }
+    dutch:       { label: "Dutch",         icon: "dutch",    tags: "dutch angle",               prose: "a tilted dutch angle" }
+    over_shoulder: { label: "Over shoulder", icon: "shoulder",                                  prose: "an over-the-shoulder shot from behind one figure" }
+    pov:         { label: "Through eyes",  icon: "pov",      tags: "pov",                       prose: "a first-person view through the subject's own eyes" }
+  camera_shots:
+    extreme_wide: { label: "Extreme wide",  icon: "xwide",   tags: "very wide shot",            prose: "an extreme wide shot, the subject small in a large setting" }
+    wide:         { label: "Wide",          icon: "wide",    tags: "wide shot",                 prose: "a wide shot showing the subject and their surroundings" }
+    full:         { label: "Full",          icon: "full",    tags: "full body",                 prose: "a full-body shot, head to feet in frame" }
+    medium:       { label: "Medium",        icon: "medium",  tags: "cowboy shot",               prose: "a medium shot, framed from the thighs up" }
+    medium_close: { label: "Med. close",    icon: "mclose",  tags: "upper body",                prose: "a medium close-up, framed from the chest up" }
+    close_up:     { label: "Close-up",      icon: "close",   tags: "portrait",                  prose: "a close-up of the face and shoulders" }
+    extreme_close: { label: "Extreme close", icon: "xclose", tags: "close-up",                  prose: "an extreme close-up on the face" }
+    insert:       { label: "Insert",        icon: "insert",                                     prose: "an insert shot: a tight detail of a hand or an object" }
+  # Where the light comes from, a third Camera row (22 Oct 2026, the owner's
+  # ask). Not the Lighting slider, which is exposure only. Danbooru has a tag
+  # for back, side, under and silhouette and nothing for front, top, rim or
+  # which side, so a tag model gets the real tag plus the direction in plain
+  # words - his call that Illustrious can follow "light from the left" if it
+  # is said. Left and right are of the frame, as the picture is seen.
+  #
+  # Checked on real renders the same day (Illustrious XL v0.1, one seed):
+  # "sidelighting, light from the left" and "... from the right" came out
+  # the same picture, lit from the left both times - it reads sidelighting
+  # and not the side. Tag models got one Side tile for that, and then Left
+  # and Right back on the owner's call: "we got the prompt its the models
+  # fault if it doesnt understand". So they get all three; Side is the one
+  # Illustrious is known to follow. underlighting changed the light (darker,
+  # a glow) without reading clearly as from below; kept.
+  camera_lights:
+    front:      { label: "Front",       icon: "l_front",  tags: "light from the front",            prose: "lit from the front, the light falling evenly across the face" }
+    side:       { label: "Side",        icon: "l_side",   tags: "sidelighting" }
+    left:       { label: "Left",        icon: "l_left",   tags: "sidelighting, light from the left",  prose: "lit from the left of the frame, shadows falling to the right" }
+    right:      { label: "Right",       icon: "l_right",  tags: "sidelighting, light from the right", prose: "lit from the right of the frame, shadows falling to the left" }
+    back:       { label: "Back",        icon: "l_back",   tags: "backlighting",                     prose: "backlit, the light behind the subject outlining them" }
+    top:        { label: "Top",         icon: "l_top",    tags: "light from above",                 prose: "lit from directly above, shadows under the brow and chin" }
+    below:      { label: "Below",       icon: "l_below",  tags: "underlighting, light from below",  prose: "lit from below, the light rising up the face" }
+    rim:        { label: "Rim",         icon: "l_rim",    tags: "backlighting, rim lighting",       prose: "a rim light tracing the edges of the subject against a darker background" }
+    silhouette: { label: "Silhouette",  icon: "l_sil",    tags: "silhouette, backlighting",         prose: "a dark silhouette against a bright background" }
+
   # Whether the switchable segments start ON or OFF for somebody who has never
   # touched them. "off" from 5 Sep 2026, on the owner's call.
   #
@@ -941,6 +998,35 @@ models:
       # thing to want and was already offered on sdxl.
       none:         []
     default_quality_preset: "none"
+    # Styles, 22 Oct 2026 (the owner's ask: "we should include style in
+    # illustrious"). Anima's names, but only tags the Danbooru database has
+    # (post counts checked that day): Anima reads English modifiers such as
+    # `soft shading` and `cinematic lighting`, which are not Danbooru tags and
+    # mean little to an SDXL checkpoint, so each style here takes the nearest
+    # real tags - his call, "if you can find ones that are close enough we
+    # can use those". Cel shaded and Semi-realistic have no tag of their own
+    # and are the loosest matches. Sent as tags to include, like Anima's.
+    styles:
+      "Painterly":          ["painterly", "faux traditional media"]
+      "Anime":              ["anime coloring"]
+      "Cel shaded":         ["anime coloring", "flat color", "outline"]
+      "Flat color":         ["flat color", "limited palette"]
+      "Lineless":           ["no lineart", "painterly"]
+      "Soft painting":      ["painterly", "pastel colors"]
+      "Watercolor":         ["watercolor (medium)", "traditional media"]
+      "Gouache":            ["gouache (medium)", "traditional media"]
+      "Sketch":             ["sketch", "unfinished", "graphite (medium)"]
+      "Ink lineart":        ["lineart", "monochrome"]
+      "Manga":              ["monochrome", "greyscale", "screentones", "halftone", "comic"]
+      "Chibi":              ["chibi"]
+      "Pixel art":          ["pixel art"]
+      "90s anime":          ["1990s (style)", "retro artstyle", "anime screenshot"]
+      "Concept art":        ["concept art", "key visual"]
+      "Cinematic lighting": ["backlighting", "light rays", "lens flare", "depth of field"]
+      "Semi-realistic":     ["realistic", "depth of field"]
+      "Realistic":          ["realistic", "photorealistic"]
+      "None":               []
+    default_style: "None"
     negative_defaults: "worst quality, low quality, normal quality, lowres, bad anatomy, bad hands, extra fingers, fewer fingers, blurry, watermark, text, signature"
     # Render from PromptForge (docs/render-plan.md; off unless comfyui.enabled).
     # `workflow` is ComfyUI's Export (API) file, the one that runs;

@@ -3315,3 +3315,63 @@ body.layout-mode #layout-panel:not(.full) .layout-frame { height: calc(100vh - 1
    two fifths, and the studio is where the editing happens. */
 body.layout-mode .split { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
 @media (max-width: 900px) { body.layout-mode .split { grid-template-columns: minmax(0, 1fr); } }
+
+/* Folding sections and tiles (22 Oct 2026). A fold's header is a slim row
+   with a chevron, like a Discord category; closed, it says what is set
+   inside. Closed is display:none by class, never [hidden], so the controls
+   inside are still sent. See setupFolds in app.js. */
+.fold:not(.panel) { border-top: 1px solid var(--border); padding-top: 8px; }
+.fold-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: 0; padding: 4px 0; margin: 0;
+  color: var(--text-secondary); font-family: var(--sans); text-align: left; cursor: pointer;
+}
+.fold-head::before {
+  content: ''; flex: none; width: 6px; height: 6px; margin: 0 2px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); transition: transform 0.15s ease;
+}
+.fold.open > .fold-head::before { transform: rotate(45deg); }
+.fold-title {
+  flex: none; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600;
+}
+.fold-head:hover, .fold-head:focus-visible { color: var(--text-primary); }
+.fold-head:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.fold-summary {
+  margin-left: auto; min-width: 0; font-size: 12px; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fold.open > .fold-head .fold-summary { display: none; }
+.fold:not(.open) > .fold-body { display: none; }
+.fold-body { display: flex; flex-direction: column; gap: 12px; padding: 10px 0 4px; }
+.fold .imgref { margin-top: 0; padding-top: 0; border-top: 0; }
+
+.history-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.history-bar .seg-toggle button { padding: 6px 14px; }
+
+/* A select drawn as tiles stays in the page as the value that is sent. */
+.tile-source { display: none !important; }
+/* Rows sized by fitColumns in app.js; a short last row sits in the middle. */
+.tiles { --cols: var(--n-cols, 4); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.tiles > .tile { flex: 0 0 calc((100% - (var(--cols) - 1) * 8px) / var(--cols)); }
+@media (max-width: 520px) { .tiles { --cols: min(var(--n-cols, 3), 3); } }
+.tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-width: 0; padding: 8px 4px 7px;
+  background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text-secondary); font-family: var(--sans); font-size: 12px; line-height: 1.2;
+  text-align: center; cursor: pointer;
+}
+.tile:hover { border-color: var(--border-light); color: var(--text-primary); }
+.tile[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
+.tile-icon svg {
+  display: block; width: 44px; height: 33px;
+  fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+}
+.tile-icon svg * { vector-effect: non-scaling-stroke; }
+.tile-icon .sight { stroke-dasharray: 2 2; opacity: 0.7; }
+.tile-icon .dot { fill: currentColor; }
+.tile-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-sub { font-family: var(--mono); font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+.tile[aria-pressed="true"] .tile-sub { color: inherit; opacity: 0.8; }
+.tile-icon .fill { fill: currentColor; }

@@ -225,7 +225,7 @@ eq('shots split by number', [...shotsOf('Style.\n\n[Shot 1] a <Subject 1>.\n[Sho
     [['<Subject 1>', 'character', ['<Picture 2>', '<Picture 4>']], ['<Subject 2>', 'place', ['<Picture 3>']], ['<Picture 1>', 'frame', ['<Picture 1>']]]);
   check('units carry their kind in the role, apart from full readings', units.every((u) => u.role.startsWith('describe-')));
   const msg = describeMessage(units[0]);
-  check('the reader is told what it is, what to keep, and the length', msg.includes('a character') && msg.includes('From the first picture, take only: Reference for her haircut.') && msg.includes('One or two sentences.'), msg);
+  check('the reader is told what it is, what to keep, and the length', msg.includes('a character') && msg.includes('The second picture shows how they look') && msg.includes('The first picture is a reference for her haircut only.') && msg.includes('One or two sentences.'), msg);
   eq('no image, no unit', describeUnits(labelledCast(labelled([pic('character-1', { image: undefined })], 'REF2VA').references)), []);
 
   eq('two sentences kept', twoSentences('Brown hair in a braided bun. Green cardigan over a white blouse. Holding a cup.'), 'Brown hair in a braided bun. Green cardigan over a white blouse.');
@@ -426,6 +426,33 @@ eq('shots split by number', [...shotsOf('Style.\n\n[Shot 1] a <Subject 1>.\n[Sho
   check('the hint is in the Subject definitions line', labelledLines(hinted).join('\n').includes('in <Picture 1> (red hair, guitar)'), labelledLines(hinted).join('\n'));
   check('the hint wins over a position picked as well', describeMessage(describeUnits(band({ who_axis: 'y' }))[0]).includes('describes as "blue hair, bass"'));
   eq('a blank hint is no hint', band({ who_hints: { 1: '  ', 2: 'red hair' } }).subjects.map((s) => s.placements[0].hint ?? null), [null, 'red hair', null, null]);
+
+  // General (28 Oct 2026): a picture that is whatever the brief says it is.
+  // A character picture plus a hand, used for its gesture: marked Character,
+  // the hand was kept as a whole person and <Picture 2> became Character 1.
+  {
+    const gRefs = labelled([
+      pic('character-1', { picture_kinds: ['character'], who: [1], image: 'her' }),
+      pic('general', { picture_kinds: ['general', 'character'], who: [1], image: 'hand', keep: 'the hand gesture' }),
+    ], 'REF2VA').references;
+    eq('General stands alone, role general, nobody in it', [gRefs[1].picture_kinds, gRefs[1].role, gRefs[1].subject_group, gRefs[1].who], [['general'], 'general', undefined, [1]]);
+    eq('Auto detect sends General to REF2VA', resolveAutoMode('Auto detect', labelled([pic('general', { picture_kinds: ['general'], image: 'g' })]).references), 'REF2VA');
+    const gc = labelledCast(gRefs);
+    eq('General is its own subject, and nobody in it is a character', gc.subjects.map((s) => `${s.tag}:${s.kind}:${s.pictures}`), ['<Subject 1>:character:1', '<Subject 2>:general:2']);
+    eq('its card key is general@N', [...givenCast({ cast: { 'general@2': 'a hand making a peace sign' } })], [['general@2', 'a hand making a peace sign']]);
+    eq('its card is found for a read', sceneUnit(gc, describeUnits(gc), 'general@2')?.kind, 'general');
+    check('the reader is told it may be a body part, not a character', describeMessage(describeUnits(gc).find((u) => u.kind === 'general')).includes('not a whole character unless the brief says'));
+    check('the writer is told it is not a character', labelledLines(gc).some((l) => l.startsWith('- <Subject 2> is a general reference, from <Picture 2>') && l.includes('not as a character')));
+    const out = labelledSegments({ segments: ['Subject definitions', 'Detailed description', 'Retention analysis'] }, gc,
+      [{ label: 'Detailed description', body: '[Shot 1] <Subject 1> raises a hand in the gesture from <Picture 2>.' }], new Map());
+    const body = (label) => out.segments.find((x) => x.label === label).body;
+    check('<Picture 2> becomes the General subject, not the character', body('Detailed description').includes('gesture from <Subject 2>'), body('Detailed description'));
+    const defs = body('Subject definitions');
+    const gDef = defs.slice(defs.indexOf('<Subject 2> is'));
+    check('Subject definitions say what it is used for, no whole person', gDef.startsWith('<Subject 2> is the reference in <Picture 2>, used for what') && !/face, hair/.test(gDef), gDef);
+    check('Retention keeps only the typed note', body('Retention analysis').includes('<Subject 2> (appears in [Shot 1]): partially_preserved — from <Picture 2>, keep: the hand gesture.'), body('Retention analysis'));
+    check('a <Picture N> citation counts as naming it', !out.warnings.some((w) => w.includes('never named')), out.warnings.join(' | '));
+  }
 
   // Pose (12 Oct 2026): a subject that lends only a stance, as MiniMax's guide
   // lists "poses" under <Subject N>, transferred onto whoever takes it.
@@ -818,7 +845,7 @@ eq('shots split by number', [...shotsOf('Style.\n\n[Shot 1] a <Subject 1>.\n[Sho
     { kind: 'image', role: 'subject', picture_kinds: ['character'], who: [1], keep: 'her face', image: 'data:image/png;base64,BB' },
   ] }).references);
   const am = describeMessage(describeUnits(across)[0]);
-  check('a note on one picture is said for that picture', /From the second picture, take only: her face\./.test(am) && /Take everything else from the other pictures/.test(am) && !/The person wants to keep/.test(am), am);
+  check('a note on one picture is said for that picture', am.includes('The first picture shows how they look') && am.includes('The second picture is a reference for her face only.') && am.includes('stay as in the first') && !/The person wants to keep/.test(am), am);
   const same = labelledCast(applyPictureLabels({ mode: 'REF2VA', picture_labels: true, references: [
     { kind: 'image', role: 'subject', picture_kinds: ['character'], who: [1], keep: 'her hair', image: 'data:image/png;base64,AA' },
     { kind: 'image', role: 'subject', picture_kinds: ['character'], who: [1], keep: 'her hair', image: 'data:image/png;base64,BB' },

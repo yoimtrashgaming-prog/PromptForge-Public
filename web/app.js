@@ -1427,6 +1427,8 @@ async function renderBuilder(model) {
   fillSelect($('[data-bind="model_size"]', mount), model.model_sizes ?? [], model.default_model_size);
   fillSelect($('[data-bind="frame_count"]', mount), model.frame_counts ?? [], model.default_frame_count);
   renderSliders(mount, model);
+  // Before restoreControls, so a Camera pick comes back with the rest.
+  setupTiles(mount, model);
   // Template fields the registry switches on and off. Hidden is enough to
   // stop them being sent: collectControls skips anything inside [hidden].
   const audioField = $('[data-bind="audio"]', mount)?.closest('label');
@@ -1436,8 +1438,9 @@ async function renderBuilder(model) {
     if (field) field.hidden = !(model.reference_traits ?? []).includes(trait);
   }
 
-  const neg = $('[data-bind="negative"]', mount);
-  if (neg) neg.value = model.negative_defaults ?? '';
+  // Custom negative starts empty, like Custom positive (22 Oct 2026). It held
+  // negative_defaults until then, but the server puts those back itself
+  // (ensureDefaults), and a box that is full on arrival never reads as yours.
 
   const thinking = $('[data-bind="thinking"]', mount);
   if (thinking) thinking.checked = Boolean(model.thinking);
@@ -1569,6 +1572,8 @@ async function renderBuilder(model) {
 
   // Last, so every control is filled and wired before its old value lands.
   restoreControls(mount, stash);
+  setupFolds(mount, model);
+  watchFolds(mount);
 
   setGenerateEnabled(true);
   refreshStatus();
@@ -1693,7 +1698,12 @@ function laneForFile(file, limits) {
 // for the server's older path. See kindsOf in server/picture-labels.mjs.
 // Pose (12 Oct 2026) stands alone and is not offered in a frame mode, where
 // every picture is a frame. See server/picture-labels.mjs.
-const KIND_ORDER = ['character', 'place', 'style', 'first-frame', 'last-frame', 'pose'];
+// General (28 Oct 2026) stands alone the same way: a picture that is whatever
+// the brief says it is, with nobody in it to number.
+const KIND_ORDER = ['character', 'place', 'style', 'first-frame', 'last-frame', 'pose', 'general'];
+// The kinds that are a picture's only kind, each with a card of its own.
+const ALONE = ['pose', 'general'];
+const aloneKind = (tile) => ALONE.find((k) => kindsOf(tile).includes(k)) ?? null;
 const isFrame = (kind) => kind === 'first-frame' || kind === 'last-frame';
 // The frame modes label their pictures too (9 Oct 2026), and every picture
 // there is a frame whatever else it is: I2VA's is the first, L2VA's the
@@ -1730,9 +1740,9 @@ function kindsOf(tile) {
   const kinds = (tile.dataset.kinds || 'character').split(',');
   if (tile.dataset.frameMode) {
     const ends = frameEndsOf(tile);
-    return KIND_ORDER.filter((k) => k !== 'pose' && (isFrame(k) ? ends.includes(k) : kinds.includes(k)));
+    return KIND_ORDER.filter((k) => !ALONE.includes(k) && (isFrame(k) ? ends.includes(k) : kinds.includes(k)));
   }
-  if (kinds.includes('pose')) return ['pose'];
+  for (const k of ALONE) if (kinds.includes(k)) return [k];
   const known = KIND_ORDER.filter((k) => kinds.includes(k));
   return known.length ? known : ['character'];
 }
@@ -2028,7 +2038,7 @@ function setupReferences(mount, model, restore = []) {
   const whoHints = $('[data-bind="picture_who_hints"]', editor);
   const keepLabel = $('[data-bind="keep_label"]', editor);
   const dropField = $('[data-bind="drop_field"]', editor);
-  const KIND_TEXT = { place: 'Place', style: 'Style', 'first-frame': 'First frame', 'last-frame': 'Last frame', pose: 'Pose' };
+  const KIND_TEXT = { place: 'Place', style: 'Style', 'first-frame': 'First frame', 'last-frame': 'Last frame', pose: 'Pose', general: 'General' };
   function syncLabel(tile) {
     const [first] = kindsOf(tile);
     const who = whoOf(tile);
@@ -2398,39 +2408,47 @@ function setupReferences(mount, model, restore = []) {
     if (!labelsOn() || !sceneOn()) return keys;
     const shown = pictureTiles();
     for (const kind of ['place', 'style']) if (shown.some((t) => !kindsOf(t).includes('pose') && kindsOf(t).includes(kind))) keys.push(kind);
-    for (const t of shown) if (kindsOf(t).includes('pose')) keys.push(`pose:${t.dataset.castId}`);
+    for (const t of shown) if (aloneKind(t)) keys.push(`${aloneKind(t)}:${t.dataset.castId}`);
     return keys;
   }
   /** The pictures a card is read from. */
   function cardTiles(key) {
     if (!isScene(key)) return castTiles(key);
-    if (key.startsWith('pose:')) return pictureTiles().filter((t) => t.dataset.castId === key.slice(5) && kindsOf(t).includes('pose'));
+    const alone = aloneOfKey(key);
+    if (alone) return pictureTiles().filter((t) => t.dataset.castId === key.slice(alone.length + 1) && kindsOf(t).includes(alone));
     return pictureTiles().filter((t) => !kindsOf(t).includes('pose') && kindsOf(t).includes(key));
   }
-  /** What the server calls a card: 2, "place", "style", "pose@3". */
+  /** "pose" for "pose:<castId>", "general" for "general:<castId>", else null. */
+  function aloneOfKey(key) {
+    return isScene(key) ? ALONE.find((k) => key.startsWith(`${k}:`)) ?? null : null;
+  }
+  /** What the server calls a card: 2, "place", "style", "pose@3", "general@3". */
   function requestKey(key) {
-    if (!isScene(key) || !key.startsWith('pose:')) return key;
+    const alone = aloneOfKey(key);
+    if (!alone) return key;
     const tile = cardTiles(key)[0];
-    return tile ? `pose@${pictureTiles().indexOf(tile) + 1}` : null;
+    return tile ? `${alone}@${pictureTiles().indexOf(tile) + 1}` : null;
   }
   function cardLabel(key) {
     if (!isScene(key)) return `Character ${key}`;
-    if (key.startsWith('pose:')) {
+    const alone = aloneOfKey(key);
+    if (alone) {
       const r = requestKey(key);
-      return `Pose (Picture ${r ? r.slice(5) : '?'})`;
+      return `${alone === 'pose' ? 'Pose' : 'General'} (Picture ${r ? r.slice(alone.length + 1) : '?'})`;
     }
     return key === 'place' ? 'The place' : 'The style';
   }
-  const kindOfKey = (key) => (!isScene(key) ? 'character' : key.startsWith('pose:') ? 'pose' : key);
+  const kindOfKey = (key) => (!isScene(key) ? 'character' : aloneOfKey(key) ?? key);
   const CARD_PLACEHOLDER = {
     character: 'What they look like: hair, eyes, build, clothes. Read from their pictures, or write it yourself.',
     place: 'The setting: where it is, its landmarks, the light and the time of day.',
     style: 'The medium (photo, semi-real, anime, oil painting…), then the linework, shading and colours.',
     pose: 'The pose only: the stance, where the arms and legs are, the gesture, which way they face. Looks and clothes are left out.',
+    general: 'What this picture is for: a body part, an object, an action, a detail. Read from the picture and your brief, or write it yourself.',
   };
   /** A picture's scene cards, for Scan picture: its pose, or its place and style. */
   function sceneKeysOf(tile) {
-    if (kindsOf(tile).includes('pose')) return [`pose:${tile.dataset.castId}`];
+    if (aloneKind(tile)) return [`${aloneKind(tile)}:${tile.dataset.castId}`];
     return ['place', 'style'].filter((k) => kindsOf(tile).includes(k));
   }
   /** Read cards again, edited ones included: pressing the button is the ask. */
@@ -2702,7 +2720,7 @@ function setupReferences(mount, model, restore = []) {
       const kinds = kindsOf(tile);
       for (const b of $$('button', kindSeg)) {
         // A frame mode decides the ends itself (FL2VA by position), so no frame buttons.
-        b.hidden = Boolean(frameMode) && (isFrame(b.dataset.kind) || b.dataset.kind === 'pose');
+        b.hidden = Boolean(frameMode) && (isFrame(b.dataset.kind) || ALONE.includes(b.dataset.kind));
         b.setAttribute('aria-pressed', String(kinds.includes(b.dataset.kind)));
       }
       // Place and style alone have nobody to pick.
@@ -2804,16 +2822,17 @@ function setupReferences(mount, model, restore = []) {
       renumber();
       return;
     }
-    // Pose stands alone: picking it clears the rest, picking anything else
-    // clears it. Its numbers mean who takes it, so the old ones go.
+    // Pose and General stand alone: picking one clears the rest, picking
+    // anything else clears it. A pose's numbers mean who takes it, and a
+    // General picture has none, so the old ones go.
     let kindsNext = next;
-    if (kind === 'pose' && next.includes('pose')) {
-      kindsNext = ['pose'];
+    if (ALONE.includes(kind) && next.includes(kind)) {
+      kindsNext = [kind];
       delete selected.dataset.who;
       delete selected.dataset.whoAxis;
       delete selected.dataset.whoHints;
-    } else if (kind !== 'pose' && kinds.includes('pose')) {
-      kindsNext = next.filter((k) => k !== 'pose');
+    } else if (!ALONE.includes(kind) && kinds.some((k) => ALONE.includes(k))) {
+      kindsNext = next.filter((k) => !ALONE.includes(k));
       delete selected.dataset.who;
     }
     // Character picks a number no other picture uses, unless people are
@@ -5596,6 +5615,10 @@ function renderSliders(mount, model) {
   const block = $('[data-bind="slider_block"]', mount);
   if (!block) return;
   block.innerHTML = '';
+  // On a builder with a Lighting fold (the image models, 22 Oct 2026) the
+  // Lighting slider lives there, beside where the light comes from.
+  const lightingHost = $('[data-bind="lighting_block"]', mount);
+  if (lightingHost) lightingHost.innerHTML = '';
   // The Length field is rendered into the SELECT row rather than into this
   // block — see renderLength — so emptying the block does not take a previous
   // render's copy with it, and a model switch would otherwise leave two.
@@ -5745,11 +5768,281 @@ function renderSliders(mount, model) {
     input.addEventListener('input', paint);
     paint();
 
-    block.appendChild(wrap);
+    (spec.name === 'lighting' && lightingHost ? lightingHost : block).appendChild(wrap);
   }
 
   renderLength(block, model);
   renderSegmentToggles(mount, model);
+}
+
+// ── folds, tiles, Camera (22 Oct 2026) ──────────────────────
+//
+// The owner's ask, from a user's mockup: the image builders fold into
+// sections the way Discord folds a category, and Aspect and Camera are rows
+// of tiles rather than dropdowns. A closed fold is display:none by class and
+// never [hidden], because collectControls skips anything inside [hidden] and
+// a setting must not stop being sent because its section is folded away. So
+// each header says what is set inside it.
+
+const FOLD_KEY = 'pf.folds';
+function foldState() {
+  try { return JSON.parse(localStorage.getItem(FOLD_KEY) ?? '{}') ?? {}; } catch { return {}; }
+}
+function saveFold(name, open) {
+  const s = foldState();
+  s[name] = open;
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(s)); } catch { /* private window: per-visit only */ }
+}
+function setFoldOpen(fold, open) {
+  fold.classList.toggle('open', Boolean(open));
+  $('.fold-head', fold)?.setAttribute('aria-expanded', String(Boolean(open)));
+}
+
+/** Open or close each fold as this person left it, else its default. */
+function setupFolds(root, model) {
+  for (const fold of root.matches('.fold') ? [root] : $$('.fold', root)) {
+    const name = fold.dataset.fold;
+    // Tags start open where tags are the main input (a tag_style model).
+    const fallback = fold.hasAttribute('data-fold-open') || (name === 'tags' && Boolean(model?.tag_style));
+    setFoldOpen(fold, foldState()[name] ?? fallback);
+    const head = $('.fold-head', fold);
+    if (!head || head.dataset.bound) continue;
+    head.dataset.bound = '1';
+    head.addEventListener('click', () => {
+      const open = !fold.classList.contains('open');
+      setFoldOpen(fold, open);
+      saveFold(name, open);
+    });
+  }
+}
+
+// The drawings on the tiles. Camera angles: a small figure and where the
+// camera stands; distances: one figure in one frame, the frame closing in.
+const FIG = '<circle cx="16" cy="4" r="2.6"/><path d="M11.5 15V9.5Q11.5 7.5 13.5 7.5H18.5Q20.5 7.5 20.5 9.5V15M13.5 15V22M18.5 15V22M13.5 11V15H18.5V11"/>';
+const CAM = (x, y, rot) =>
+  `<g transform="translate(${x} ${y}) rotate(${rot})"><rect x="-3" y="-2" width="5" height="4" rx="0.8"/><path d="M2 -1.3L4.2 -2.4V2.4L2 1.3"/></g>`;
+const sight = (x1, y1, x2, y2) => `<path class="sight" d="M${x1} ${y1}L${x2} ${y2}"/>`;
+const SMALL_FIG = (x, y, s) => `<g transform="translate(${x} ${y}) scale(${s}) translate(-16 -12)">${FIG}</g>`;
+const framed = (vb, inner = FIG) =>
+  `<rect x="1.5" y="1.5" width="29" height="21" rx="2"/><svg x="2" y="2" width="28" height="20" viewBox="${vb}">${inner}</svg>`;
+const ICONS = {
+  any: '<rect class="sight" x="4" y="4" width="24" height="16" rx="2"/>',
+  eye: SMALL_FIG(23, 12, 0.75) + CAM(5, 9, 0) + sight(10, 9, 18, 9),
+  high: SMALL_FIG(23, 14, 0.68) + CAM(5, 4, 35) + sight(9, 7, 18, 10),
+  low: SMALL_FIG(23, 10, 0.68) + CAM(5, 20, -35) + sight(9, 17, 18, 14),
+  birds: SMALL_FIG(16, 14.5, 0.6) + CAM(16, 2.5, 90) + sight(16, 6.5, 16, 8.5),
+  worms: SMALL_FIG(16, 9, 0.6) + CAM(16, 21.5, -90) + sight(16, 17.5, 16, 15.5),
+  dutch: `<g transform="rotate(-14 16 12)"><rect x="5" y="3" width="22" height="18" rx="2"/>${SMALL_FIG(16, 12, 0.7)}</g>`,
+  shoulder: SMALL_FIG(23, 12, 0.7) + '<circle cx="7" cy="9" r="4"/><path d="M0 24Q1 15 7 15Q13 15 14 24"/>',
+  pov: '<path d="M4 12Q16 2 28 12Q16 22 4 12Z"/><circle cx="16" cy="12" r="3.2"/>',
+  xwide: framed('-26 -18 84 60'),
+  wide: framed('-9.2 -6 50.4 36'),
+  full: framed('-0.8 0 33.6 24'),
+  medium: framed('4.1 0.5 23.8 17'),
+  mclose: framed('8.3 0.5 15.4 11'),
+  close: framed('10.4 0.6 11.2 8'),
+  xclose: framed('13.9 2.2 4.2 3', '<circle cx="16" cy="4" r="2.6"/><circle class="dot" cx="15.1" cy="3.6" r="0.35"/><circle class="dot" cx="16.9" cy="3.6" r="0.35"/>'),
+  insert: '<rect x="1.5" y="1.5" width="29" height="21" rx="2"/><path d="M9 17V10Q9 8.5 10.5 8.5Q12 8.5 12 10V8Q12 6.5 13.5 6.5Q15 6.5 15 8V8.5Q15 7 16.5 7Q18 7 18 8.5V9.5Q18 8 19.5 8Q21 8 21 9.5V15Q21 19 17 19H12Q9 19 9 17Z"/>',
+};
+// Light from: a small sun where the light is, the figure it falls on.
+const SUN = (x, y) =>
+  `<g transform="translate(${x} ${y})"><circle r="1.8"/><path d="M0 -3.4V-2.6M0 2.6V3.4M-3.4 0H-2.6M2.6 0H3.4M-2.4 -2.4L-1.9 -1.9M1.9 1.9L2.4 2.4M-2.4 2.4L-1.9 1.9M1.9 -1.9L2.4 -2.4"/></g>`;
+Object.assign(ICONS, {
+  l_front: SMALL_FIG(16, 12, 0.72) + SUN(27, 19) + sight(24, 17, 19.5, 14),
+  l_left: SMALL_FIG(19, 12, 0.72) + SUN(5, 12) + sight(9, 12, 14, 12),
+  l_right: SMALL_FIG(13, 12, 0.72) + SUN(27, 12) + sight(23, 12, 18, 12),
+  l_side: SMALL_FIG(16, 12, 0.72) + SUN(4, 12) + SUN(28, 12),
+  l_back: '<circle class="sight" cx="16" cy="11" r="8"/>' + SMALL_FIG(16, 12, 0.72),
+  l_top: SMALL_FIG(16, 14, 0.62) + SUN(16, 3.5) + sight(16, 7, 16, 8),
+  l_below: SMALL_FIG(16, 10, 0.62) + SUN(16, 20.5) + sight(16, 17, 16, 16.5),
+  l_rim: `<g class="sight">${SMALL_FIG(16, 12, 0.82)}</g>` + SMALL_FIG(16, 12, 0.72),
+  l_sil: '<rect x="5" y="3" width="22" height="18" rx="2"/>' + `<g class="fill">${SMALL_FIG(16, 13, 0.62)}</g>`,
+});
+const svgIcon = (body) => `<svg viewBox="0 0 32 24" aria-hidden="true">${body}</svg>`;
+
+/** Columns that split n tiles into even rows (8 -> 4 + 4, 9 -> 5 + 4), so a
+ *  row is never left looking like tiles are missing. Short rows centre. */
+function fitColumns(host) {
+  const n = host.children.length;
+  const cols = n <= 5 ? n : [4, 5].find((c) => n % c === 0) ?? (n === 6 ? 3 : n === 9 ? 5 : 4);
+  host.style.setProperty('--n-cols', String(cols));
+}
+
+function tileButton(label, icon, sub) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'tile';
+  b.setAttribute('aria-pressed', 'false');
+  b.innerHTML = `<span class="tile-icon">${icon}</span><span class="tile-label"></span>${sub != null ? '<span class="tile-sub"></span>' : ''}`;
+  $('.tile-label', b).textContent = label;
+  if (sub != null) $('.tile-sub', b).textContent = sub;
+  return b;
+}
+
+/** A box in the aspect's own shape, fitted into the tile's drawing area. */
+function aspectIcon(aspect) {
+  const m = /(\d+)\s*:\s*(\d+)/.exec(aspect);
+  if (!m) return svgIcon(ICONS.any);
+  const r = Number(m[1]) / Number(m[2]);
+  const w = r >= 28 / 20 ? 28 : 20 * r;
+  const h = r >= 28 / 20 ? 28 / r : 20;
+  return svgIcon(`<rect x="${(32 - w) / 2}" y="${(24 - h) / 2}" width="${w}" height="${h}" rx="1.5"/>`);
+}
+
+/**
+ * Aspect and Camera as tiles. The Aspect select stays the value that is sent
+ * and restored; the Camera picks live in two hidden inputs for the same
+ * reason. Tiles are only ever drawn from those, in paintFolds.
+ */
+function setupTiles(mount, model) {
+  const aspect = $('[data-bind="aspect_ratio"]', mount);
+  const aspectHost = $('[data-bind="aspect_tiles"]', mount);
+  if (aspect && aspectHost) {
+    aspectHost.replaceChildren();
+    for (const opt of aspect.options) {
+      const size = model.aspect_sizes?.[opt.value];
+      const ratio = /(\d+\s*:\s*\d+)/.exec(opt.value)?.[1];
+      const tile = tileButton(ratio ? opt.value.replace(ratio, '').trim() || ratio : 'Any', aspectIcon(opt.value),
+        ratio ? `${ratio}${size ? ` · ${size.width}×${size.height}` : ''}` : 'not decided');
+      tile.dataset.value = opt.value;
+      tile.title = opt.value === 'N/A' ? 'No ratio decided: nothing about shape is sent.' : opt.value;
+      tile.addEventListener('click', () => {
+        aspect.value = opt.value;
+        aspect.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      aspectHost.append(tile);
+    }
+    fitColumns(aspectHost);
+  }
+
+  const cameraHost = $('[data-bind="camera_block"]', mount);
+  if (!cameraHost) return;
+  // Light from sits in the Lighting fold where there is one.
+  const lightHost = $('[data-bind="light_block"]', mount) ?? cameraHost;
+  for (const h of new Set([cameraHost, lightHost])) h.replaceChildren();
+  const dialect = model.tag_style ? 'tags' : 'prose';
+  const rows = [
+    ['camera_angle', 'Angle', model.camera_angles, cameraHost],
+    ['camera_shot', 'How close', model.camera_shots, cameraHost],
+    ['camera_light', 'Light from', model.camera_lights, lightHost],
+  ];
+  for (const [bind, title, options, host] of rows) {
+    // Only what this model's dialect has a payload for - see camera_angles
+    // in config/models.yaml.
+    const offered = Object.entries(options ?? {}).filter(([, o]) => o?.[dialect]);
+    if (!offered.length) continue;
+    const group = document.createElement('div');
+    group.className = 'field camera-group';
+    const head = document.createElement('span');
+    head.textContent = title;
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.dataset.bind = bind;
+    const tiles = document.createElement('div');
+    tiles.className = 'tiles camera-tiles';
+    for (const [key, o] of [['', { label: 'Any', icon: 'any' }], ...offered]) {
+      const tile = tileButton(o.label, svgIcon(ICONS[o.icon] ?? ICONS.any));
+      tile.dataset.value = key;
+      if (key) tile.title = model.tag_style ? o.tags : o.prose;
+      tile.addEventListener('click', () => {
+        input.value = key;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      tiles.append(tile);
+    }
+    fitColumns(tiles);
+    group.append(head, input, tiles);
+    host.append(group);
+  }
+  cameraHost.closest('.fold').hidden = !cameraHost.children.length;
+  // The Lighting fold holds the slider too, so it shows if either is there.
+  const lightingFold = lightHost.closest('.fold');
+  if (lightHost !== cameraHost) lightingFold.hidden = !lightHost.children.length && !$('[data-bind="lighting_block"]', mount)?.children.length;
+}
+
+const optionText = (sel) => sel?.selectedOptions?.[0]?.textContent?.trim() ?? '';
+
+/** Open all / Close all in the Build header: Close all once every section
+ *  is open, Open all otherwise. Hidden on a builder that does not fold. */
+function paintFoldsButton(mount) {
+  const btn = $('#btn-folds');
+  if (!btn) return;
+  const folds = $$('.fold', mount).filter((f) => !f.hidden && !f.closest('[hidden]'));
+  btn.hidden = !folds.length;
+  btn.textContent = folds.length && folds.every((f) => f.classList.contains('open')) ? 'Close all' : 'Open all';
+  if (btn.dataset.bound) return;
+  btn.dataset.bound = '1';
+  btn.addEventListener('click', () => {
+    const m = $('#builder-mount');
+    const open = btn.textContent === 'Open all';
+    for (const f of $$('.fold', m)) { setFoldOpen(f, open); saveFold(f.dataset.fold, open); }
+    paintFoldsButton(m);
+  });
+}
+
+/** What each closed header says, and which tile is lit. Cheap; run often. */
+function paintFolds(mount) {
+  paintFoldsButton(mount);
+  for (const host of $$('.tiles', mount)) {
+    const source = host.dataset.bind === 'aspect_tiles'
+      ? $('[data-bind="aspect_ratio"]', mount)
+      : $('input[type="hidden"]', host.parentElement);
+    for (const tile of $$('.tile', host)) tile.setAttribute('aria-pressed', String(tile.dataset.value === (source?.value ?? '')));
+  }
+  const say = (name, text) => {
+    const el = $(`.fold[data-fold="${name}"] .fold-summary`, mount);
+    if (el && el.textContent !== text) el.textContent = text;
+  };
+  const presets = $('.fold[data-fold="presets"]', mount);
+  if (presets) {
+    const parts = $$('select', presets)
+      .filter((s) => !s.closest('[hidden], .format-source') && s.value && s.value !== 'N/A' && optionText(s) !== 'None')
+      .map(optionText);
+    say('presets', parts.join(' · ') || 'Nothing set');
+  }
+  const picked = (sel) => $$(`${sel} .tile[aria-pressed="true"]`, mount)
+    .filter((t) => t.dataset.value)
+    .map((t) => $('.tile-label', t).textContent);
+  say('camera', picked('[data-bind="camera_block"]').join(' · ') || 'Any');
+  const level = ($('[data-bind="lighting_block"] .slider-readout', mount)?.textContent ?? '').replace(/^\d+\s*-\s*/, '');
+  const from = picked('[data-bind="light_block"]');
+  say('lighting', [level && level !== 'Off' ? level : 'Any brightness', from.length ? `from ${from.join(', ').toLowerCase()}` : 'any direction'].join(' · '));
+  const unit = $('[data-bind="max_length_unit"]', mount);
+  const len = unit?.value ? `${$('[data-bind="max_length_value"]', mount)?.value} ${unit.value}` : 'Default length';
+  const on = $$('.field.segments input[type="checkbox"]', mount).filter((b) => b.checked).map((b) => b.dataset.segment);
+  say('output', $('.field.segments', mount) ? `${len} · ${on.length ? on.join(', ') : 'prompt only'}` : len);
+  const tagCount = $$('[data-bind="tag_pills"] > *', mount).length;
+  say('tags', tagCount ? `${tagCount} tag${tagCount === 1 ? '' : 's'}` : 'None picked');
+  const refs = $$('[data-bind="imgref_list"] .imgref-card', mount).length;
+  say('refs', refs ? `${refs} picture${refs === 1 ? '' : 's'}` : 'None');
+  // A picture just added opens its section, so it is never attached unseen.
+  const refsFold = $('.fold[data-fold="refs"]', mount);
+  if (refsFold && refs > Number(refsFold.dataset.count ?? refs)) { setFoldOpen(refsFold, true); saveFold('refs', true); }
+  if (refsFold) refsFold.dataset.count = String(refs);
+  const kept = [
+    $('[data-bind="positive"]', mount)?.value.trim() && !$('[data-bind="positive"]', mount).closest('[hidden]') ? 'Positive' : '',
+    $('[data-bind="negative"]', mount)?.value.trim() && !$('[data-bind="negative"]', mount).closest('[hidden]') ? 'Negative' : '',
+  ].filter(Boolean);
+  say('verbatim', kept.length ? `${kept.join(' + ')} set` : 'Empty');
+}
+
+/** Repaint on anything that could change a summary, batched per task. A
+ *  timer and not requestAnimationFrame, which never fires in a hidden tab. */
+function watchFolds(mount) {
+  let queued = false;
+  const schedule = () => {
+    if (queued) return;
+    queued = true;
+    setTimeout(() => { queued = false; paintFolds(mount); }, 0);
+  };
+  if (!mount.dataset.foldsWatched) {
+    mount.dataset.foldsWatched = '1';
+    for (const ev of ['input', 'change', 'click']) mount.addEventListener(ev, schedule);
+    new MutationObserver((list) => {
+      if (list.some((m) => !m.target.closest?.('.fold-summary'))) schedule();
+    }).observe(mount, { childList: true, subtree: true });
+  }
+  schedule();
 }
 
 // ── the manual length control ────────────────────────────────
@@ -5886,8 +6179,11 @@ function renderLength(block, model) {
 
   // Before the slider block, so it takes a cell in the select grid rather
   // than a cell in the slider band. The block is always the last child of its
-  // row, so "before it" is "last among the selects".
-  block.parentElement.insertBefore(wrap, block);
+  // row, so "before it" is "last among the selects". On a builder with an
+  // Output fold (the image models, 22 Oct 2026) it goes there instead.
+  const out = block.closest('.builder')?.querySelector('[data-bind="output_block"]');
+  if (out) out.prepend(wrap);
+  else block.parentElement.insertBefore(wrap, block);
 }
 
 function collectControls() {
@@ -5900,7 +6196,7 @@ function collectControls() {
   // read below.
   for (const key of ['quality_preset', 'source_tag', 'style', 'aspect_ratio',
                      'mode', 'duration', 'shots', 'quality_mode', 'model_size', 'frame_count',
-                     'negative', 'positive']) {
+                     'negative', 'positive', 'camera_angle', 'camera_shot', 'camera_light']) {
     const el = read(key);
     if (el && !el.closest('[hidden]') && el.value !== '') controls[key] = el.value;
   }
@@ -6131,9 +6427,10 @@ function collectControls() {
     const keyOf = (k) => {
       if (typeof k === 'number') return shownNumbers.has(k) ? k : null;
       if (k === 'place' || k === 'style') return pictures.some((t) => !kindsOf(t).includes('pose') && kindsOf(t).includes(k)) ? k : null;
-      if (!k.startsWith('pose:')) return null;
-      const at = pictures.findIndex((t) => t.dataset.castId === k.slice(5) && kindsOf(t).includes('pose'));
-      return at >= 0 ? `pose@${at + 1}` : null;
+      const alone = ALONE.find((a) => k.startsWith(`${a}:`));
+      if (!alone) return null;
+      const at = pictures.findIndex((t) => t.dataset.castId === k.slice(alone.length + 1) && kindsOf(t).includes(alone));
+      return at >= 0 ? `${alone}@${at + 1}` : null;
     };
     const cards = [...castStateFor(currentModel.key)].filter(([, c]) => c.text.trim()).map(([k, c]) => [keyOf(k), c.text.trim()]).filter(([k]) => k != null);
     if (cards.length) controls.cast = Object.fromEntries(cards);
@@ -7166,6 +7463,9 @@ async function sendChat() {
 // configured for", which is what a fresh page shows until the first poll
 // names it.
 let chatModel = null;
+// The server default chatModel last took, so a change of default (the setup
+// wizard's, at first) moves anyone who has not picked a model of their own.
+let chatModelDefault = null;
 let CHAT_MODEL_GROUPS = null;
 // What the selector was last built from. Rebuilding a <select> every ten
 // seconds would close it under anyone who had it open, so the options are
@@ -7251,7 +7551,8 @@ function renderChatModels(llm) {
   // Default to what the server is configured for until someone chooses. Named
   // explicitly rather than left blank: "which model am I talking to" is the
   // question this control exists to answer, and "Default" does not answer it.
-  if (!chatModel) chatModel = groups.configured;
+  if (!chatModel || chatModel === chatModelDefault) chatModel = groups.configured;
+  chatModelDefault = groups.configured;
 
   const rows = [...groups.loaded, ...groups.available];
   // A model that is gone — removed, or renamed by a pull — stays in the list
@@ -8105,7 +8406,8 @@ function renderSessionHistory() {
   if (!host) return;
   const entries = readSessionHistory();
   const clear = $('#btn-session-clear');
-  if (clear) clear.hidden = entries.length === 0;
+  if (clear) clear.hidden = entries.length === 0 || historyList !== 'session';
+  paintHistory();
 
   if (!entries.length) {
     host.innerHTML =
@@ -9933,11 +10235,41 @@ function wireRenderModels() {
 // whole point, since anyone could set it.
 const USER_HEADER = { 'x-promptforge-user': 'owner' };
 
+// ── History: This session and Library in one folding panel (22 Oct 2026) ──
+let historyList = 'session';
+let libraryCount = null;
+
+function paintHistory() {
+  const summary = $('#history-panel .fold-summary');
+  if (!summary) return;
+  const n = readSessionHistory().length;
+  summary.textContent = `${n} this session · ${libraryCount ?? '…'} saved`;
+}
+
+function setupHistory() {
+  const panel = $('#history-panel');
+  if (!panel) return;
+  setupFolds(panel, null);
+  const show = (which) => {
+    historyList = which;
+    for (const b of $$('#history-toggle button')) b.classList.toggle('active', b.dataset.list === which);
+    $('#session-panel').hidden = which !== 'session';
+    $('#library-panel').hidden = which !== 'library';
+    $('#btn-library-refresh').hidden = which !== 'library';
+    $('#btn-session-clear').hidden = which !== 'session' || !readSessionHistory().length;
+  };
+  for (const b of $$('#history-toggle button')) b.addEventListener('click', () => show(b.dataset.list));
+  show('session');
+  paintHistory();
+}
+
 async function refreshLibrary() {
   const host = $('#library-list');
   if (!host) return;
   try {
     const data = await fetch('/api/library', { headers: USER_HEADER }).then((r) => r.json());
+    libraryCount = data.entries?.length ?? 0;
+    paintHistory();
     if (!data.entries?.length) {
       host.innerHTML =
         '<div class="empty-state"><strong>Nothing saved yet</strong>Generate a prompt and press Save.</div>';
@@ -11882,8 +12214,8 @@ async function initAnalysis() {
       analysisError(
         'tagger_unavailable',
         why
-          ? `No tagger is usable on this machine. ${why}. Check the paths in config/taggers.yaml.`
-          : 'No tagger is configured. See config/taggers.yaml.'
+          ? `Image taggers are not set up yet. The owner of this server can add them from Setup, in the top bar. (${why})`
+          : 'Image taggers are not set up yet. The owner of this server can add them from Setup, in the top bar.'
       )
     );
   } else {
@@ -12623,7 +12955,9 @@ function renderSegmentToggles(mount, model) {
   note.textContent = 'Unticked is not asked for, so it is not written.';
   wrap.appendChild(note);
 
-  block.parentElement.insertBefore(wrap, block);
+  const out = $('[data-bind="output_block"]', mount);
+  if (out) out.appendChild(wrap);
+  else block.parentElement.insertBefore(wrap, block);
   applySegmentPrefs(mount, model);
 }
 
@@ -12673,15 +13007,14 @@ async function saveSegmentToggles(mount, model) {
  * for one — the same mechanism the i2v frame fields rely on.
  */
 function applySegmentPrefs(mount, model) {
-  const omitted = omittedSegments(model);
   const field = $('[data-bind="negative"]', mount)?.closest('.field');
   if (!field) return;
-  const off = omitted.some((l) => /negative/i.test(l));
-  // Only ever hides on this path. A model with has_negative:false has already
-  // been hidden by data-show, and un-hiding here would show a box for a model
-  // that has no negative prompt at all.
-  if (off) field.hidden = true;
-  else if (model?.has_negative !== false) field.hidden = false;
+  // The box is the Custom negative now (22 Oct 2026) and stays whether or not
+  // Negative prompt is ticked: unticked, what is typed in it is the whole
+  // negative (server/verbatim.mjs). It hid with the switch until then, so
+  // with segments off by default nobody saw it. Only a model with no negative
+  // prompt at all hides it, as data-show already has.
+  field.hidden = model?.has_negative === false;
 }
 
 async function fillAppearance() {
@@ -12899,6 +13232,8 @@ async function fillPromptLlm() {
   // Targets that pin their own LLM, named from the registry rather than
   // hardcoded, because a personal setting must not quietly override a measured
   // requirement without saying so.
+  fillPictureLlm(status);
+
   const pinned = REGISTRY.models.filter((m) => m.llm_model).map((m) => m.label);
   if (note) {
     note.textContent =
@@ -12909,6 +13244,39 @@ async function fillPromptLlm() {
           `${pinned.length > 1 ? 'them' : 'it'} in the registry, whatever you choose here.`
         : '');
   }
+}
+
+/**
+ * Which model reads pictures on h3: Cast cards, Scan, and the reads at
+ * Generate (28 Oct 2026, the owner's call). Empty is the model writing your
+ * prompts, usually the one already loaded, so nothing else has to load. Only
+ * models that can see are offered; one that is unknown either way is left
+ * in, as Written by does.
+ */
+function fillPictureLlm(status) {
+  const sel = $('#acct-picture-llm');
+  if (!sel) return;
+  const groups = chatModelGroups(status?.llm);
+  const rows = [...groups.loaded, ...groups.available].filter((r) => r.vision !== false);
+  sel.innerHTML = '';
+  const same = document.createElement('option');
+  same.value = '';
+  same.textContent = 'Same as prompt assistance';
+  sel.appendChild(same);
+  for (const r of rows) {
+    const opt = document.createElement('option');
+    opt.value = r.model;
+    opt.textContent = `${r.model}${r.loaded ? ' · in VRAM' : ''}${r.vision ? ` · ${VISION_MARK}` : ''}`;
+    sel.appendChild(opt);
+  }
+  const chosen = PREFS?.picture_llm ?? '';
+  if (chosen && !rows.some((r) => r.model === chosen)) {
+    const missing = document.createElement('option');
+    missing.value = chosen;
+    missing.textContent = `${chosen} — not installed`;
+    sel.appendChild(missing);
+  }
+  sel.value = chosen;
 }
 
 // ── Guided tour ──────────────────────────────────────────────
@@ -13014,6 +13382,7 @@ function initPasswordPanel() {
               ? { reference_analysis: $('#acct-reference-analysis').value }
               : {}),
             prompt_llm: $('#acct-prompt-llm')?.value ?? '',
+            ...($('#acct-picture-llm') ? { picture_llm: $('#acct-picture-llm').value } : {}),
             // Number, not the string the input carries: the validator checks
             // typeof and would drop a string without saying why.
             ...($('#acct-chat-temp')
@@ -14623,9 +14992,10 @@ let capStylesLoaded = false;
 async function loadCaptionStyles() {
   if (capStylesLoaded) return;
   const sel = $('#lora-cap-style');
+  let body;
   try {
     const r = await fetch('/api/caption/styles');
-    const body = await r.json();
+    body = await r.json();
     if (!r.ok) throw new Error(body?.message ?? `HTTP ${r.status}`);
     CAP.styles = body.styles ?? [];
   } catch (err) {
@@ -17232,6 +17602,7 @@ async function init() {
   });
 
   $('#btn-library-refresh').addEventListener('click', refreshLibrary);
+  setupHistory();
 
   // ── system prompts ──
   $('#btn-sysprompt-new')?.addEventListener('click', () => openSysPrompt(null, true));

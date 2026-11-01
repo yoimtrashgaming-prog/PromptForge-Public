@@ -48,6 +48,23 @@ export function foldShotBriefs(brief = '', controls = {}) {
   return [text, ...lines].filter(Boolean).join('\n');
 }
 
+/**
+ * Each shot's share of the detail level's word range, or '' (22 Oct 2026).
+ *
+ * Reported by a user: at Detail 8 with several shots, every shot stayed a
+ * sentence or two. The ladder gives one range for the whole clip ("About
+ * 420-500 words") and nothing says how to split it, so the model wrote ~65
+ * words a shot and stopped. Measured on the 27B Q4_K_P, Detail 8 x 4 shots:
+ * 274 and 234 words without this, 388 and 393 with it, every shot ~90-105.
+ * Arithmetic is code's job, so the share is worked out here from the rule.
+ */
+export function detailShare(rule, controls = {}) {
+  const range = /About (\d+)-(\d+) words/.exec(String(rule ?? ''));
+  const n = shotCount(controls);
+  if (!range || !n || n < 2) return '';
+  return ` With ${n} shots that is about ${Math.round(range[1] / n)}-${Math.round(range[2] / n)} words in each shot: every shot gets its full share, the last as much as the first.`;
+}
+
 /** The settings line for the user message, or null when nothing was picked. */
 export function shotsLine(controls = {}) {
   const n = shotCount(controls);

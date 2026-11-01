@@ -41,6 +41,7 @@ export const PICTURE_LABELS = [
   { key: 'first-frame', label: 'First frame' },
   { key: 'last-frame', label: 'Last frame' },
   { key: 'pose', label: 'Pose' },
+  { key: 'general', label: 'General' },
   // A picture with several characters in it. The writer never sees it, so
   // position is what tells them apart: digits are the characters, left to
   // right. H3 sees the picture and is told who stands where.
@@ -122,7 +123,13 @@ export function promptMode(controls = {}) {
 // pose is a subject like the place, transferred onto whoever takes it. It
 // stands alone: a pose picture is nothing else. Its number buttons say who
 // takes the pose, not who is in the picture.
-const KINDS = ['character', 'place', 'style', 'first-frame', 'last-frame', 'pose'];
+// General (28 Oct 2026, a user's ask, the owner's call): a picture that is
+// whatever the brief says it is - a body part, an object, an action, a
+// haircut - with none of a character's rules. Marked Character, such a
+// picture was kept as a whole person, and a writer that used it for its
+// detail had its <Picture N> swapped for that person's tag. It stands alone,
+// like a pose, and has nobody in it to number.
+const KINDS = ['character', 'place', 'style', 'first-frame', 'last-frame', 'pose', 'general'];
 
 /** What a picture is, as a list of kinds in KINDS order. */
 export function kindsOf(ref) {
@@ -131,6 +138,7 @@ export function kindsOf(ref) {
   const kinds = new Set(given.length ? given
     : [label.startsWith('character-') || label.startsWith('group-') ? 'character' : label]);
   if (kinds.has('pose')) return ['pose'];
+  if (kinds.has('general')) return ['general'];
   if (ref?.also_place && kinds.has('character')) kinds.add('place');
   return KINDS.filter((k) => kinds.has(k));
 }
@@ -198,6 +206,7 @@ export function applyPictureLabels(controls = {}) {
     const framed = frame && kinds[0] !== 'first-frame' && kinds[0] !== 'last-frame' ? { frame } : {};
     // Its own subject, one per pose picture; `who` says who takes it.
     if (kinds[0] === 'pose') return { ...base, role: 'pose' };
+    if (kinds[0] === 'general') return { ...base, role: 'general' };
     if (kinds[0] === 'character') {
       const who = tappedOf(ref);
       // Several subjects in one picture: no group, it belongs to each of them.
@@ -227,6 +236,7 @@ export function labelledCast(references = []) {
   const style = { pictures: [], refs: [], refPictures: [] };
   const frames = [];
   const poses = [];
+  const generals = [];
   const char = (num) => {
     if (!chars.has(num)) chars.set(num, { pictures: [], placements: [], refs: [], refPictures: [], inFrames: [] });
     return chars.get(num);
@@ -240,6 +250,10 @@ export function labelledCast(references = []) {
     if (kinds[0] === 'pose') {
       // Who takes the pose, not who is in the picture: nobody in it is a subject.
       poses.push({ pictures: [n], refs: [ref], refPictures: [n], takers: tapped });
+      continue;
+    }
+    if (kinds[0] === 'general') {
+      generals.push({ pictures: [n], refs: [ref], refPictures: [n] });
       continue;
     }
     // The "Use it for" note belongs to the first kind: on Characters 1 + 2
@@ -310,6 +324,7 @@ export function labelledCast(references = []) {
   if (place.pictures.length) subjects.push({ kind: 'place', name: 'the place', ...place });
   // "the pose" in the brief only when there is one; with several, "picture 3".
   for (const p of poses) subjects.push({ kind: 'pose', name: poses.length === 1 ? 'the pose' : null, ...p });
+  for (const g of generals) subjects.push({ kind: 'general', name: generals.length === 1 ? 'the reference' : null, ...g });
   if (style.pictures.length) subjects.push({ kind: 'style', name: 'the style', ...style });
   subjects.forEach((s, i) => { s.tag = `<Subject ${i + 1}>`; });
   return { subjects, frames };
@@ -400,8 +415,8 @@ export const CARD_PRIORITY = 'where the brief explicitly changes a trait (an out
 /** How long a card's text may be. Not cut by sentences: the person wrote it. */
 export const CAST_TEXT_MAX = 600;
 
-/** A scene card's key: "place", "style", or "pose@3" for the pose in <Picture 3>. */
-export const SCENE_KEY = /^(?:place|style|pose@([1-9]\d?))$/;
+/** A scene card's key: "place", "style", "pose@3" for the pose in <Picture 3>, "general@3" for a General picture. */
+export const SCENE_KEY = /^(?:place|style|(?:pose|general)@([1-9]\d?))$/;
 
 /**
  * The cards the page sent: Map(character number -> text), and since 14 Oct
@@ -434,7 +449,7 @@ export function characterCards(given = new Map()) {
 /** The card key a scene subject goes by: "place", "style", "pose@N"; null for a character. */
 export function sceneKeyOf(s) {
   if (s.kind === 'place' || s.kind === 'style') return s.kind;
-  if (s.kind === 'pose') return `pose@${s.pictures[0]}`;
+  if (s.kind === 'pose' || s.kind === 'general') return `${s.kind}@${s.pictures[0]}`;
   return null;
 }
 
@@ -526,7 +541,7 @@ export function castLook(text, found) {
   if (found?.index != null) return unnamed(groupLines(text, found.people)?.[found.index] ?? '');
   if (found?.kind === 'pose') return poseOnly(splitDescription(text, 4).look);
   const look = splitDescription(text).look;
-  return found?.kind === 'place' || found?.kind === 'style' ? look : unnamed(look);
+  return found?.kind === 'place' || found?.kind === 'style' || found?.kind === 'general' ? look : unnamed(look);
 }
 
 // "Character 2 is a young woman with…", "The character on the left has…":
@@ -626,7 +641,7 @@ function picturesWithRefs(s) {
 
 // ── descriptions: two sentences per subject or frame (5 Oct 2026) ─────────
 
-const DESCRIBE_KIND = { character: 'a character', place: 'the place', style: 'a style', pose: 'a pose', frame: 'a frame of the video' };
+const DESCRIBE_KIND = { character: 'a character', place: 'the place', style: 'a style', pose: 'a pose', general: 'a reference the person picked', frame: 'a frame of the video' };
 
 /**
  * What to describe: one unit per subject (all its pictures together) and per
@@ -832,7 +847,7 @@ export function describeMessage(unit, brief = '') {
   // and what changes: "the male has orange hair" was ignored, because the
   // description said the picture's hair and Retention kept it.
   const told = String(brief ?? '').trim().slice(0, 1500);
-  const it = unit.name ? `"${unit.name}"` : unit.kind === 'pose' ? 'this pose' : unit.kind === 'group' ? 'these characters' : 'this frame';
+  const it = unit.name ? `"${unit.name}"` : unit.kind === 'pose' ? 'this pose' : unit.kind === 'general' ? 'this reference' : unit.kind === 'group' ? 'these characters' : 'this frame';
   const briefLines = told ? [
     `The person's brief for the video${unit.name ? `, where this is ${it}` : ''}:\n"""\n${told}\n"""`,
     `Use the brief to know what you are looking at, and call things what it calls them. Where it changes how ${it} looks, such as hair, eyes or clothes, describe it the way the brief says, not as the picture shows, and leave the changed traits out of Kept. Anything the brief does not mention, describe as the picture shows.`,
@@ -930,6 +945,11 @@ export function describeMessage(unit, brief = '') {
     if (n > 1) lines.push(`It shows ${n} people posing together. Give each one's pose, calling them only "the one on the left", "the one on the right" and so on, and say how they stand to each other.`);
     lines.push('Never their hair, eyes, face, skin, body, clothes, colours or the background, not even to tell them apart: other characters take this pose. The Kept line lists the stance and gesture only.');
   }
+  if (unit.kind === 'general') {
+    // Whatever the brief and the notes say it is: told nothing, a reader
+    // describes a close-up of a hand as a person.
+    lines.push('It may be a body part, an object, an action, a detail of clothing or anything else. Describe what the brief and the notes use it for, in their words, and not a whole character unless the brief says it is one.');
+  }
   // A place picture that also shows the characters, by its kinds. Until 14
   // Oct 2026 this looked only at also_place, which the page stopped sending
   // on 6 Oct, so the setting-only line never went out.
@@ -943,7 +963,24 @@ export function describeMessage(unit, brief = '') {
   // lost (14 Oct 2026, a Cast card read from two pictures).
   const notes = own.map((r) => ({ keep: String(r.keep ?? '').trim(), drop: String(r.drop ?? '').trim() }));
   const perPicture = own.length > 1 && new Set(notes.map((x) => `${x.keep}\0${x.drop}`)).size > 1;
-  if (perPicture) {
+  // Some pictures with a note and some with none: the ones with none are how
+  // they look, and the others lend one thing each. Said the way a frame and
+  // its reference pictures are (28 Oct 2026, a user's report: a first frame
+  // and a second picture "for her halo, hairpin" came back in the second
+  // picture's clothes; told "from the second picture, take only: her
+  // hairstyle", a 27B still took its shirt, shorts and bare feet).
+  const whole = notes.map((x, i) => (!x.keep && !x.drop ? i : null)).filter((i) => i != null);
+  const lent = notes.map((x, i) => (x.keep ? i : null)).filter((i) => i != null);
+  if (perPicture && whole.length && lent.length && unit.kind === 'character') {
+    const names = (list) => joinAnd(list.map((i) => ordinal[i] ?? `number ${i + 1}`));
+    lines.push(`The ${names(whole)} ${whole.length === 1 ? 'picture shows' : 'pictures show'} how they look: describe them from ${whole.length === 1 ? 'it' : 'them'}.`);
+    for (const i of lent) {
+      // "Reference for her haircut" / "use it for her halo" said once, not twice.
+      const what = notes[i].keep.replace(/^(?:a\s+)?(?:reference|use(?:d)?(?:\s+it)?|only|just)\s+for\s+/i, '');
+      lines.push(`The ${ordinal[i] ?? `number ${i + 1}`} picture is a reference for ${what} only. Take that from it, in place of what the ${names(whole)} ${whole.length === 1 ? 'picture shows' : 'pictures show'}; their clothes, body and everything else stay as in the ${names(whole)}.`);
+    }
+    notes.forEach((x, i) => { if (x.drop) lines.push(`From the ${ordinal[i] ?? `number ${i + 1}`} picture, leave out: ${x.drop}.`); });
+  } else if (perPicture) {
     notes.forEach((x, i) => {
       const which = ordinal[i] ?? `number ${i + 1}`;
       if (x.keep) lines.push(`From the ${which} picture, take only: ${x.keep}.`);
@@ -1105,6 +1142,8 @@ export function labelledLines(cast, descriptions = new Map()) {
       const who = takersOf(s, cast);
       lines.push(`- ${s.tag} is a pose, from ${pictureList(s.pictures)}: only the stance, limb positions and gesture, never who is in that picture, their clothes or its background. `
         + `${who ? `${cap(who)} ${s.takers.length > 1 ? 'take' : 'takes'} this pose` : 'Whoever the brief says takes this pose'}, as themselves${notes ? ` · ${notes}` : ''}`);
+    } else if (s.kind === 'general') {
+      lines.push(`- ${s.tag} is a general reference, from ${pictureList(s.pictures)}: use it for what the brief says it is (a body part, an object, an action, a detail), not as a character of its own${tail}`);
     } else {
       lines.push(`- ${s.tag} is the rendering style, from ${pictureList(s.pictures)}: how the video looks, not what is in it${tail}`);
     }
@@ -1295,6 +1334,17 @@ export function labelledSegments(model, cast, segments = [], descriptions = new 
       const where = span(posed) ?? (lastShot ? span(allShots) : 'every shot');
       const what = poseKept(keptOf(s.tag)) || 'the stance, limb positions and gesture';
       retention.push(`${s.tag} (appears in ${where}): transferred — ${what} ${who ? `applied to ${who}` : 'applied'}; nobody else from ${pics} is carried over.`);
+    } else if (s.kind === 'general') {
+      // What the brief takes from it, and nothing about a whole person.
+      definitions.push(define(`${s.tag} is the reference in ${pics}, used for what the detailed description takes from it`, '.'));
+      // A shot that cites its <Picture N> names it too: that is swapped for
+      // this tag below, after these are written.
+      const used = allShots.filter((k) => shots.get(k).includes(s.tag) || s.pictures.some((p) => shots.get(k).includes(`<Picture ${p}>`)));
+      const where = span(used) ?? (lastShot ? span(allShots) : 'every shot');
+      retention.push(`${s.tag} (appears in ${where}): ${kept(`what the detailed description takes from ${pics} is retained.`)}`);
+      if (allShots.length && !used.length) {
+        warnings.push(`${s.tag}, the General picture ${pics}, is never named in a shot. Say in the brief what it is for.`);
+      }
     } else {
       definitions.push(define(`${s.tag} is the rendering style of ${pics}, applied to the whole video and not its content`, '.'));
       retention.push(`${s.tag} (applies to every shot): ${kept('its rendering is retained throughout.')}`);

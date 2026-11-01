@@ -144,6 +144,18 @@ export async function validatePreferences(input, { registry, taggers, llm }) {
     }
   }
 
+  // Which model reads h3's pictures (28 Oct 2026). '' means the model that
+  // writes prompts; anything else is checked the way prompt_llm is.
+  if (typeof input.picture_llm === 'string') {
+    const wanted = input.picture_llm.trim();
+    if (!wanted) {
+      out.picture_llm = '';
+    } else {
+      const installed = (await llm.health())?.installed ?? [];
+      if (!installed.length || installed.includes(wanted)) out.picture_llm = wanted;
+    }
+  }
+
   // One default, not one per type. The image/video split is a grouping over
   // ten targets, and you only ever land on one of them — currentType starts
   // at 'image', so a separate video default could never affect what opens.

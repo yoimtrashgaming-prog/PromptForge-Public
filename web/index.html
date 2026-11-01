@@ -167,6 +167,9 @@
            hidden by app.js off `type` in the registry, never by name. -->
       <div class="builder-head">
         <div class="panel-title" id="builder-title" style="margin:0">Build</div>
+        <!-- Opens or closes every section at once; shown only on a builder
+             that folds (the image models). See setupFolds. -->
+        <button class="ghost" id="btn-folds" type="button" hidden>Open all</button>
         <button class="ghost" id="btn-randomizer" type="button" hidden
                 title="Fill the brief with random ideas — no model involved">Randomizer</button>
       </div>
@@ -315,19 +318,23 @@
          survives a refresh, dies when the tab closes, and is wiped on sign
          out. Nothing here is ever written to disk, which is what makes it
          safe on a box five people share. -->
-    <section class="panel" id="session-panel">
-      <div class="output-head">
-        <div class="panel-title" style="margin:0">This session</div>
-        <button class="ghost" id="btn-session-clear" hidden>Clear</button>
+    <!-- This session and Library as one folding History panel, a switch
+         between the two lists (22 Oct 2026, the owner's call: one category,
+         less scrolling). Same on every model. See setupHistory. -->
+    <section class="panel fold history-panel" id="history-panel" data-fold="history">
+      <button type="button" class="fold-head"><span class="fold-title">History</span><span class="fold-summary"></span></button>
+      <div class="fold-body">
+        <div class="history-bar">
+          <div class="seg-toggle" id="history-toggle" role="group" aria-label="Which list">
+            <button type="button" data-list="session" class="active">This session</button>
+            <button type="button" data-list="library">Library</button>
+          </div>
+          <button class="ghost" id="btn-session-clear" hidden>Clear</button>
+          <button class="ghost" id="btn-library-refresh" hidden>Refresh</button>
+        </div>
+        <div id="session-panel"><div id="session-list"></div></div>
+        <div id="library-panel" hidden><div id="library-list"></div></div>
       </div>
-      <div id="session-list"></div>
-    </section>
-    <section class="panel" id="library-panel">
-      <div class="output-head">
-        <div class="panel-title" style="margin:0">Library</div>
-        <button class="ghost" id="btn-library-refresh">Refresh</button>
-      </div>
-      <div id="library-list"></div>
     </section>
   </div>
 </main>
@@ -1230,6 +1237,13 @@
         <span class="field-label">Model for prompt assistance</span>
         <select id="acct-prompt-llm"></select>
         <span class="field-note" id="acct-prompt-llm-note"></span>
+      </label>
+      <!-- Which model reads h3's pictures (28 Oct 2026). Empty is the model
+           above, usually the one already loaded. -->
+      <label class="field">
+        <span class="field-label">Model for reading pictures</span>
+        <select id="acct-picture-llm"></select>
+        <span class="field-note">Reads the Cast cards and the pictures on MiniMax H3. "Same as prompt assistance" uses the model already loaded, so nothing else has to load. A smaller one reads faster but sees less.</span>
       </label>
       <!-- Chat has read this preference since Tab 5 was built; this is the
            first control for it. Bounds come from /api/status so they match

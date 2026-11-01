@@ -38,6 +38,14 @@ export class SegmentParseError extends Error {
   }
 }
 
+// Two things a model copies into a prompt that are never part of one: a bare
+// `===` line left over from the delimiters, and the `[retired by danbooru]`
+// flag from a tag search result (server/tools.mjs). Both reached the Positive
+// prompt on 1 Nov 2026, on one Illustrious generation.
+function tidyBody(text) {
+  return text.replace(/\s*\[retired by danbooru\]\s*/gi, ' ').replace(/^\s*={3,}\s*$/gm, '').trim();
+}
+
 /**
  * Parse a complete model response into ordered segments.
  * @param {string} text  raw model output
@@ -69,7 +77,7 @@ export function parseSegments(text, expected, { discard = [], aliases = {} } = {
   const segments = matches.map((m, i) => {
     const start = m.index + m[0].length;
     const end = i + 1 < matches.length ? matches[i + 1].index : raw.length;
-    return { label: labelOf(m[1].trim()), body: raw.slice(start, end).trim() };
+    return { label: labelOf(m[1].trim()), body: tidyBody(raw.slice(start, end)) };
   });
 
   const found = segments.map((s) => s.label);
