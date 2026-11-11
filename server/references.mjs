@@ -382,6 +382,11 @@ export function formatReferences(references = [], mode = null) {
       if (length) bits.push(`length: ${length}`);
       if (carriesTraits && ref?.keep) bits.push(`keep: ${ref.keep}`);
       if (carriesTraits && ref?.drop) bits.push(`drop: ${ref.drop}`);
+      // What a reader saw in the clip's frames (11 Nov 2026, readClips in
+      // server.mjs). Set by the server only; a browser cannot send it.
+      if (carriesTraits && label === 'Video' && typeof ref?.clip_reading === 'string' && ref.clip_reading.trim()) {
+        bits.push(`what the clip shows: ${ref.clip_reading.trim().replace(/\s+/g, ' ')}`);
+      }
       lines.push(`- ${bits.join(' · ')}`);
     }
   }

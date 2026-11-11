@@ -237,7 +237,13 @@ export async function transcodeImage(bytes, { suffix = '' } = {}) {
   }
 }
 
-export async function sampleFrames(bytes, { count = 3, duration = null, suffix = '' } = {}) {
+/**
+ * `maxSide` shrinks each frame so its longer side is at most that many
+ * pixels (never enlarged). The h3 reference frames go back to the browser and
+ * on to a vision model (11 Nov 2026), so a 4K clip must not become three 4K
+ * JPEGs riding every generate request.
+ */
+export async function sampleFrames(bytes, { count = 3, duration = null, suffix = '', maxSide = null } = {}) {
   const tools = await mediaTools();
   if (!tools.available) return { ok: false, code: 'no_ffmpeg', message: tools.reason, frames: [] };
 
@@ -261,6 +267,7 @@ export async function sampleFrames(bytes, { count = 3, duration = null, suffix =
         '-ss', String(at.toFixed(3)),
         '-i', input,
         '-frames:v', '1',
+        ...(maxSide ? ['-vf', `scale='if(gt(iw,ih),min(${maxSide},iw),-2)':'if(gt(iw,ih),-2,min(${maxSide},ih))'`] : []),
         '-q:v', '3',
         '-y',
         out,

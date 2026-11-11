@@ -111,6 +111,24 @@ export function createRandomizer(rootDir, config) {
     return result;
   }
 
+  /** The $names a brief can use, with what each menu offers. */
+  let variableCache = { at: 0, value: null };
+  async function variables() {
+    if (variableCache.value && Date.now() - variableCache.at < CACHE_MS) return variableCache.value;
+    const result = await run(['--variables']);
+    if (result.ok) variableCache = { at: Date.now(), value: result };
+    return result;
+  }
+
+  /** A brief with its variables filled. The same seed gives the same text. */
+  function fill(brief, picks, seed) {
+    return run(['--fill', JSON.stringify({
+      brief: String(brief ?? ''),
+      picks: Array.isArray(picks) ? picks : [],
+      seed: Number.isInteger(seed) ? seed : 0,
+    })]);
+  }
+
   /**
    * One roll.
    *
@@ -163,5 +181,5 @@ export function createRandomizer(rootDir, config) {
     return run(args);
   }
 
-  return { categories, roll };
+  return { categories, roll, variables, fill };
 }

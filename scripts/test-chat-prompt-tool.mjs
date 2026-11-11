@@ -5,7 +5,7 @@
 //
 // No server, no model.
 
-import { promptToolFor, promptToolArgs, promptReply, renderToolFor, renderToolArgs, renderSizeArgs, renderReply } from '../server/chat-prompt-tool.mjs';
+import { promptToolFor, promptToolArgs, promptReply, renderToolFor, renderToolArgs, renderSizeArgs, renderReply, chatLanguageLine } from '../server/chat-prompt-tool.mjs';
 import { architectureOf } from '../server/sysmon.mjs';
 
 let passed = 0;
@@ -25,7 +25,7 @@ const def = promptToolFor(MODELS);
 check('named write_prompt', def.function.name === 'write_prompt');
 check('every model is offered by key', JSON.stringify(def.function.parameters.properties.model.enum) === '["krea2","wan"]');
 check('the description names each model and its format', /krea2 = Krea2 \(Natural language format\)/.test(def.function.description));
-check('model and brief are required', JSON.stringify(def.function.parameters.required) === '["model","brief"]');
+check('only the brief is required: no model means the app asks', JSON.stringify(def.function.parameters.required) === '["brief"]');
 check('no models, no tool', promptToolFor([]) === null);
 
 // ── the arguments ────────────────────────────────────────────
@@ -51,7 +51,8 @@ check('what the chat model said first comes first', promptReply(MODELS[0], [{ la
 // ── render_picture ───────────────────────────────────────────
 const rdef = renderToolFor(MODELS.slice(0, 1));
 check('render_picture is named and offers only the models given', rdef.function.name === 'render_picture' && JSON.stringify(rdef.function.parameters.properties.model.enum) === '["krea2"]');
-check('...says to ask when no model was named', /ask them first/.test(rdef.function.description));
+check('...says to leave the model out when none was named', /model left out: the app asks/.test(rdef.function.description));
+check('...and never to choose one', /Never choose a model/.test(rdef.function.description) && /Never choose a model/.test(def.function.description));
 check('no renderable models, no tool', renderToolFor([]) === null);
 check('same_prompt is read as a boolean', renderToolArgs({ model: 'krea2', brief: 'x', same_prompt: true }, MODELS).same === true);
 check('...and as the string a backend may send', renderToolArgs('{"model":"krea2","brief":"x","same_prompt":"true"}', MODELS).same === true);
@@ -76,6 +77,29 @@ check('a named aspect beats a pixel size', sz({ aspect: '1:1', resolution: '1920
 check('a tier snaps to the nearest offered', sz({ resolution: '1024' }) === '{"aspect":null,"tier":1080}');
 check('4k snaps to the top tier', sz({ resolution: '4K' }) === '{"aspect":null,"tier":1440}');
 check('nothing asked, nothing set', sz({}) === '{"aspect":null,"tier":null}');
+
+// ── format, detail, language (11 Nov 2026) ──────────────────
+const MOSS = { key: 'moss', name: 'MOSS', modes: ['Natural language', 'Hybrid', 'Layout JSON'] };
+const H3 = { key: 'h3', name: 'MiniMax H3', modes: ['REF2VA', 'Auto detect', 'T2VA', 'I2VA'] };
+const withModes = promptToolFor([...MODELS, MOSS, H3]).function.parameters.properties;
+check('format lists each model with its formats', /MOSS: Natural language, Hybrid, Layout JSON/.test(withModes.format?.description ?? ''));
+check('detail is offered, 1 to 10', withModes.detail?.minimum === 1 && withModes.detail?.maximum === 10);
+check('no model with formats, no format argument', !('format' in promptToolFor(MODELS).function.parameters.properties));
+check('render_picture takes them too', 'format' in renderToolFor([MOSS]).function.parameters.properties);
+check('a format is matched case-blind', promptToolArgs({ model: 'moss', brief: 'x', format: 'layout json' }, [MOSS]).mode === 'Layout JSON');
+check('an unknown format is an error naming the real ones', /Natural language, Hybrid, Layout JSON/.test(promptToolArgs({ model: 'moss', brief: 'x', format: 'tags' }, [MOSS]).error ?? ''));
+check('no format, no mode', promptToolArgs({ model: 'moss', brief: 'x' }, [MOSS]).mode === null);
+check('a format on a model without formats is ignored', promptToolArgs({ model: 'krea2', brief: 'x', format: 'Hybrid' }, MODELS).mode === null);
+check('detail is read', promptToolArgs({ model: 'krea2', brief: 'x', detail: 3 }, MODELS).detail === 3);
+check('detail as a string is read', promptToolArgs('{"model":"krea2","brief":"x","detail":"9"}', MODELS).detail === 9);
+check('detail is clamped', promptToolArgs({ model: 'krea2', brief: 'x', detail: 40 }, MODELS).detail === 10);
+check('no detail, null', promptToolArgs({ model: 'krea2', brief: 'x' }, MODELS).detail === null);
+check('English adds no language line', chatLanguageLine('en') === '');
+check('French asks for French', /in French/.test(chatLanguageLine('fr')));
+check('French reply labels', promptReply(MODELS[0], [{ label: 'Enhanced prompt', body: 'p' }], '', 'fr').includes('Prompt Krea2, écrit par'));
+check('French error', /^Pour quel modèle/.test(promptToolArgs({ model: 'nope', brief: 'x' }, MODELS, 'fr').error ?? ''));
+check('French render question', /^Avec quel modèle/.test(renderToolArgs({ model: 'nope', brief: 'x' }, MODELS, 'fr').error ?? ''));
+check('an unknown language falls back to English', promptReply(MODELS[0], [{ label: 'Enhanced prompt', body: 'p' }], '', 'xx').includes('Krea2 prompt, written by'));
 
 // ── architecture names ───────────────────────────────────────
 check('7.0 is Volta (this box\'s V100)', architectureOf('7.0') === 'Volta');

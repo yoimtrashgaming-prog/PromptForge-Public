@@ -44,7 +44,14 @@ const SEPARATOR = '\n\n---\n\n';
 // eaten by a tooling round trip more than once; this cannot be.
 const BLANK = String.fromCharCode(10, 10);
 
-export function runtimeContext(now = new Date()) {
+// **`clock: false` leaves the time out (9 Nov 2026), and chat must pass it.**
+// The system prompt is the first thing in every request, so anything in it
+// that changes between turns throws away llama.cpp's cache of the whole
+// conversation: with the minute in here, every chat turn re-read everything
+// said so far, and long chats got slower with every message (a user's
+// report, 9 Nov). The date changes once a day; the time goes on the latest
+// message instead, through clockLine below.
+export function runtimeContext(now = new Date(), { clock = true } = {}) {
   // Long form with the weekday: "22/08/2026" is ambiguous across the group's
   // locales and a model will read it either way.
   const date = now.toLocaleDateString('en-GB', {
@@ -53,18 +60,23 @@ export function runtimeContext(now = new Date()) {
     month: 'long',
     year: 'numeric',
   });
-  const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  // Whatever the box is set to. Named rather than assumed UTC, because the
-  // times people ask about are the ones on their own clocks.
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'local time';
   return (
     `## Right now${BLANK}` +
-    `Today is ${date}. The time on this machine is ${time} (${zone}).${BLANK}` +
+    `Today is ${date}.${clock ? ` ${clockLine(now)}` : ''}${BLANK}` +
     'Your training data is older than this. Anything you recall as "the ' +
     'latest" version of a model, tool or site may have been superseded - say ' +
     'so rather than answering from memory, and use the Search button for ' +
     'anything that turns on current fact.'
   );
+}
+
+/** "The time on this machine is 14:07 (Europe/London)." */
+export function clockLine(now = new Date()) {
+  const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  // Whatever the box is set to. Named rather than assumed UTC, because the
+  // times people ask about are the ones on their own clocks.
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'local time';
+  return `The time on this machine is ${time} (${zone}).`;
 }
 
 export function createPromptStore(rootDir, config, registry, { warn = console.warn } = {}) {
@@ -300,6 +312,15 @@ export function createPromptStore(rootDir, config, registry, { warn = console.wa
       );
     }
 
+    // Chat's auto-summary instruction (9 Nov 2026, server/chat-compact.mjs).
+    // Missing means long chats are not summarised, never a crash.
+    const compactOwn = readIfPresent('prompts/chat/compact.md');
+    if (compactOwn == null) {
+      warn('[prompts] prompts/chat/compact.md missing - long chats will not be summarised');
+    } else {
+      cache.set('__chat_compact__', compactOwn.trim());
+    }
+
     // The reference vision cross-check (server/visiontags.mjs). Cached under a
     // reserved key like chat is, so POST /api/prompts/reload picks it up too —
     // this one is expected to be tuned by hand more than most, because what a
@@ -455,6 +476,20 @@ export function createPromptStore(rootDir, config, registry, { warn = console.wa
 
     // Two sentences per labelled h3 picture, for Retention analysis (5 Oct
     // 2026, the H3 Forge's "As the pictures show"). Absent means off.
+    // What an h3 video reference shows, read from frames sampled out of it
+    // (11 Nov 2026). Absent means off: the clip goes as its line and tags only.
+    const clipRel = config.prompts?.clip_description;
+    if (clipRel) {
+      const text = readIfPresent(clipRel);
+      if (text == null) {
+        const msg = `clip description prompt not found: ${clipRel} — h3 video references go without a reading`;
+        warn(`[prompts] ${msg}`);
+        warnings.push(msg);
+      } else {
+        cache.set('__clip_description__', text.trim());
+      }
+    }
+
     const describeRel = config.prompts?.picture_description;
     if (describeRel) {
       const text = readIfPresent(describeRel);
@@ -562,6 +597,9 @@ export function createPromptStore(rootDir, config, registry, { warn = console.wa
 
     chat: () => cache.get('__chat__') ?? null,
 
+    /** The instruction for summarising a long chat, or null when absent. */
+    chatCompact: () => cache.get('__chat_compact__') ?? null,
+
     /** Instructions for the reference image cross-check, or null when absent. */
     referenceVision: () => cache.get('__reference_vision__') ?? null,
 
@@ -583,6 +621,7 @@ export function createPromptStore(rootDir, config, registry, { warn = console.wa
     /** How to read one h3 reference picture, or null when it is switched off. */
     referencePicture: () => cache.get('__reference_picture__') ?? null,
     pictureDescription: () => cache.get('__picture_description__') ?? null,
+    clipDescription: () => cache.get('__clip_description__') ?? null,
 
     /** How to use the tag search, appended only when tools were offered. */
     tagSearch: () => cache.get('__tag_search__') ?? null,

@@ -49,6 +49,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DEFAULT_CONFIG = os.path.join(ROOT, "config", "randomizer.json")
+DEFAULT_VARIABLES = os.path.join(ROOT, "config", "variables.json")
 
 # No nesting. `[^{}]` cannot match an inner brace, so a nested group is left
 # alone rather than half-expanded — matching the source workflow's own
@@ -328,6 +329,171 @@ def children_of(cat):
     return [cat]
 
 
+# Variables in the brief: `a $hair_color dress in $location`, filled from the
+# same lists as the panel, so the two can never disagree. config/variables.json
+# holds only the names; the lists stay in config/randomizer.json.
+#
+#   $name  ${name}   a variable; `$$` is a literal dollar sign
+#   {red|blue:3}     a one-off list, written in the same form as the templates
+#
+# Each occurrence has its own pick, and an unknown $name is left as written so
+# a price or a typo reaches nobody as a silently dropped word.
+TOKEN = re.compile(
+    r"\$\$|\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)|\{([^{}|]*(?:\|[^{}|]*)+)\}",
+    re.ASCII,
+)
+FLAT = re.compile(r"\{[^{}]*\}")
+
+
+def load_variable_config(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as exc:
+        die("config/variables.json is not valid JSON: %s" % exc)
+
+
+def variable_name(box_id, cid, spec):
+    """The name a person types for a box or sub-category id."""
+    if cid in spec.get("rename", {}):
+        return spec["rename"][cid]
+    for prefix, short in spec.get("shorten", {}).items():
+        if cid.startswith(prefix):
+            return short + cid[len(prefix):]
+    if box_id and cid.startswith(box_id + "_"):
+        return cid[len(box_id) + 1:]
+    return cid
+
+
+def build_variables(cats, spec):
+    """Every list as a variable, combined names first. name -> variable."""
+    nsfw = set(spec.get("nsfw", []))
+    leaves, boxes = {}, {}
+    for c in cats:
+        kids = [k for k in children_of(c) if k.get("id") and k.get("templates")]
+        for k in kids:
+            leaves[k["id"]] = (k, c)
+        boxes[c.get("id")] = (c, kids)
+
+    def adult(k, c):
+        return k.get("id") in nsfw or c.get("id") in nsfw
+
+    table = {}
+
+    def add(name, label, group, sources, merge, is_nsfw):
+        # A clash keeps the first; the full id is always free, so nothing is
+        # unreachable because two lists were both called Fantasy.
+        if name in table:
+            return False
+        table[name] = {"name": name, "label": label, "group": group,
+                       "sources": sources, "merge": merge, "nsfw": is_nsfw}
+        return True
+
+    for entry in spec.get("combined", []):
+        dropped = set(entry.get("except", []))
+        sources = []
+        for wanted in entry.get("from", []):
+            if wanted in boxes:
+                sources += [k for k in boxes[wanted][1]
+                            if k["id"] not in dropped and not adult(k, boxes[wanted][0])]
+            elif wanted in leaves and wanted not in dropped:
+                sources.append(leaves[wanted][0])
+        if sources:
+            add(entry["name"], entry.get("label", entry["name"]), "Combined",
+                sources, bool(entry.get("merge")), False)
+
+    for c in cats:
+        box_id, kids = c.get("id"), boxes[c.get("id")][1]
+        for k in kids:
+            name = variable_name(box_id, k["id"], spec)
+            if not add(name, k.get("label", name), c.get("label"), [k], True, adult(k, c)):
+                add(k["id"], k.get("label", name), c.get("label"), [k], True, adult(k, c))
+        # A box draws one of its lists, and only an adult box draws adult ones.
+        safe = kids if box_id in nsfw else [k for k in kids if not adult(k, c)]
+        if len(safe) > 1:
+            add(variable_name(None, box_id, spec), "Any " + c.get("label", box_id), c.get("label"),
+                safe, False, box_id in nsfw)
+    return table
+
+
+def source_terms(source):
+    """A pick-one list's terms, or None for a composed template."""
+    templates = source.get("templates") or []
+    if len(templates) != 1 or not FLAT.fullmatch(templates[0].strip()):
+        return None
+    terms = parse_options(templates[0].strip()[1:-1])[0]
+    return [t for t in terms if not NOOP.match(t)]
+
+
+def variable_choices(variable):
+    """What the menu offers: terms, or the lists when they do not flatten."""
+    if variable["merge"]:
+        parts = [source_terms(s) for s in variable["sources"]]
+        if all(p is not None for p in parts):
+            return [{"text": t} for t in dict.fromkeys(t for p in parts for t in p)]
+        if len(parts) == 1:
+            return []
+    return [{"source": s["id"], "label": s.get("label", s["id"])} for s in variable["sources"]]
+
+
+def public_variable(variable):
+    return {k: variable[k] for k in ("name", "label", "group", "nsfw")} | {
+        "choices": variable_choices(variable)}
+
+
+def roll_source(source, rng):
+    return resolve(rng.choice(source["templates"]), rng)
+
+
+def fill_variable(variable, pick, rng):
+    if pick and pick.get("source"):
+        for source in variable["sources"]:
+            if source["id"] == pick["source"]:
+                return roll_source(source, rng)
+    if pick and pick.get("text") and pick["text"] in [c.get("text") for c in variable_choices(variable)]:
+        return pick["text"]
+    return roll_source(rng.choice(variable["sources"]), rng)
+
+
+def fill_brief(brief, picks, seed, table):
+    """Replace every token. The seed makes the preview the text that is sent."""
+    tokens, seen = [], {}
+
+    def replace(match):
+        raw = match.group()
+        if raw == "$$":
+            return "$"
+        name = match.group(1) or match.group(2)
+        key = name or raw
+        nth = seen.get(key, 0)
+        seen[key] = nth + 1
+        # Per token and not one stream: fixing one pick must not reroll the rest.
+        rng = random.Random("%s|%s|%d" % (seed, key, nth))
+        i = len(tokens)
+        pick = picks[i] if i < len(picks) and isinstance(picks[i], dict) else None
+        if name:
+            variable = table.get(name)
+            if variable is None:
+                tokens.append({"raw": raw, "name": name, "known": False, "value": raw})
+                return raw
+            value = fill_variable(variable, pick, rng)
+            tokens.append({"raw": raw, "name": name, "known": True, "value": value})
+            return value
+        terms = parse_options(match.group(3))[0]
+        wanted = pick.get("text") if pick else None
+        value = wanted if wanted in terms else resolve(raw, rng)
+        tokens.append({"raw": raw, "known": True, "inline": True, "value": value, "choices": terms})
+        return value
+
+    text = TOKEN.sub(replace, brief)
+    # An option that means "nothing" leaves its gap behind.
+    if any(not t["value"] for t in tokens):
+        text = re.sub(r"[ \t]{2,}", " ", re.sub(r"\s*,\s*(?=,)", "", text)).strip()
+    return {"text": text, "tokens": tokens}
+
+
 def main():
     ap = argparse.ArgumentParser(add_help=True)
     ap.add_argument("--list", action="store_true")
@@ -340,9 +506,26 @@ def main():
     ap.add_argument("--surprise-count", type=int, default=SURPRISE_COUNT)
     ap.add_argument("--limits", default="")
     ap.add_argument("--config", default=DEFAULT_CONFIG)
+    ap.add_argument("--variables", action="store_true")
+    ap.add_argument("--fill", default=None)
+    ap.add_argument("--variables-config", default=DEFAULT_VARIABLES)
     args = ap.parse_args()
 
     cats = load_config(args.config)
+
+    if args.variables:
+        table = build_variables(cats, load_variable_config(args.variables_config))
+        print(json.dumps({"variables": [public_variable(v) for v in table.values()]}))
+        return
+
+    if args.fill is not None:
+        try:
+            ask = json.loads(args.fill)
+        except json.JSONDecodeError:
+            die("The brief could not be read.")
+        table = build_variables(cats, load_variable_config(args.variables_config))
+        print(json.dumps(fill_brief(str(ask.get("brief", "")), ask.get("picks") or [], ask.get("seed"), table)))
+        return
 
     if args.list:
         out = []

@@ -29,6 +29,9 @@
         if (a.text_size && a.text_size !== 'normal') r.setAttribute('data-textsize', a.text_size);
       } catch (e) { /* private mode, or nothing cached yet */ }
     })();
+    // The small window inside ComfyUI. Set here, before the first paint, so the
+    // full app never flashes up behind it.
+    if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed');
   </script>
 </head>
 <body>
@@ -99,7 +102,7 @@
 <nav class="main-tabs" id="main-tabs">
   <button class="main-tab active" data-tab="prompt">Prompt Assistance</button>
   <button class="main-tab" data-tab="lora">LoRA Training</button>
-  <button class="main-tab" data-tab="analysis">Image Analysis</button>
+  <button class="main-tab" data-tab="analysis">Media Analysis</button>
   <!-- Tag Suggestions (Tab 4) was removed 21 Aug. Everything it was specced to
        do now lives in Tab 1's tag builder — search with autocomplete, category
        filtering, and character traits with Add all — so a whole tab for it was
@@ -584,6 +587,11 @@
     <span class="badge" id="tagger-badge">—</span>
   </div>
 
+  <!-- The frame picker (2 Nov 2026): drop a video on the dropzone below and
+       every frame of it opens here. Filled by web/frame-picker.js; the video
+       is read in the browser and never uploaded. -->
+  <section class="panel frame-picker" id="analysis-frames" hidden></section>
+
   <div class="split">
     <section class="panel">
       <div class="panel-title">Image</div>
@@ -613,9 +621,10 @@
            aria-label="Choose an image to analyse">
         <div class="dropzone-icon">+</div>
         <p>Drop an image here or click to browse</p>
+        <p class="dropzone-sub">or a video, to pick a frame from it</p>
         <p class="dropzone-sub" id="dropzone-limits">PNG, JPG or WEBP</p>
       </div>
-      <input type="file" id="analysis-file" accept="image/png,image/jpeg,image/webp" hidden>
+      <input type="file" id="analysis-file" accept="image/png,image/jpeg,image/webp,video/*" hidden>
 
       <!-- The analysis-mode selector is gone, deliberately. The spec gives this
            tab five modes, four of which need a captioning vision model; that
@@ -780,9 +789,48 @@
              config, rather than offering a button that cannot work. -->
         <button class="chat-search-toggle" id="chat-search" type="button" aria-pressed="false"
                 title="Search the web before answering">Search</button>
+        <!-- How full the model's context is (11 Nov 2026). The card opens on
+             hover or focus; filled in by paintChatMeter in app.js. -->
+        <div class="chat-meter" id="chat-meter" tabindex="0" role="img" aria-label="Context used" hidden>
+          <svg class="chat-meter-ring" viewBox="0 0 20 20" aria-hidden="true">
+            <circle class="chat-meter-track" cx="10" cy="10" r="8"></circle>
+            <circle class="chat-meter-fill" cx="10" cy="10" r="8"></circle>
+          </svg>
+          <div class="chat-meter-card"></div>
+        </div>
         <button class="primary" id="chat-send" type="submit">Send</button>
       </form>
       <p class="chat-note" id="chat-note"></p>
+      <!-- Asked at 70% of the context instead of summarising on its own
+           (11 Nov 2026, the owner's call). See askChatContext in app.js. -->
+      <div class="chat-context-dialog" id="chat-context-dialog" role="dialog" aria-modal="true"
+           aria-labelledby="chat-context-title" hidden>
+        <div class="chat-context-box">
+          <!-- h4, not h3: `h3` is also a model key, and scripts/test-app.mjs
+               rejects model keys in frontend files (see the note further down). -->
+          <h4 id="chat-context-title">This chat is getting long</h4>
+          <p class="chat-context-pct"><strong id="chat-context-pct"></strong> <span>of what the model can hold is used.</span></p>
+          <p>Long chats answer more slowly, and a full one cannot answer at all.</p>
+          <div class="chat-context-choices">
+            <button type="button" class="chat-context-choice" id="chat-context-keep" data-choice="keep">
+              <strong>Keep chatting</strong>
+              <span>Send as it is. You will be asked again once it is full.</span>
+            </button>
+            <button type="button" class="chat-context-choice" id="chat-context-compact" data-choice="compact">
+              <strong>Compact this chat</strong>
+              <span>Older messages become a summary. You stay in this chat.</span>
+            </button>
+            <button type="button" class="chat-context-choice" id="chat-context-new" data-choice="new">
+              <strong>Continue in a new chat</strong>
+              <span>This chat is summarised and a new one starts from it. This one stays as it is.</span>
+            </button>
+          </div>
+          <p class="chat-context-warn">Summarising can lose details: exact wording, small facts, things said only once. The latest prompt for each model is always kept word for word.</p>
+          <div class="chat-context-foot">
+            <button type="button" class="ghost" data-choice="">Cancel</button>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </main>
@@ -1417,7 +1465,7 @@
          files by name, or download the public WD pair. See server/taggersetup.mjs. -->
     <div class="panel-title" style="margin:22px 0 6px">Image taggers</div>
     <p class="field-note">
-      Used by Image Analysis and to read reference pictures. <strong>animetimm</strong>
+      Used by Media Analysis and to read reference pictures. <strong>animetimm</strong>
       is the default and reads characters best; the WD taggers run alongside it.
     </p>
     <div id="tagger-rows"></div>
@@ -1591,7 +1639,7 @@
         </label>
         <label class="wizard-feature">
           <input type="checkbox" id="wizard-want-taggers">
-          <span><strong>Image taggers</strong><br><span class="field-note">Reads pictures into tags for Image Analysis and reference pictures. About 1.6 GB to download.</span></span>
+          <span><strong>Image taggers</strong><br><span class="field-note">Reads pictures into tags for Media Analysis and reference pictures. About 1.6 GB to download.</span></span>
         </label>
         <label class="wizard-feature">
           <input type="checkbox" id="wizard-want-comfyui">

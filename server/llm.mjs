@@ -282,11 +282,25 @@ function streamingPost(url, { headers, body, signal }) {
   });
 }
 
-async function* openAIStream({ baseUrl, body, timeoutMs, signal }) {
+/**
+ * `loadTimeoutMs`, when set, is the clock for the wait before the response
+ * starts - the model loading - and `timeoutMs` restarts once it does. Set
+ * only when the model was not loaded at the start of the call (see
+ * streamInner). One clock for both is what timed out the first request of
+ * every session for two months: model files read at ~80 MB/s off the box's
+ * SSDs once they are weeks old, so a cold 25 GB load alone took over five
+ * minutes and the 300 s generation timeout fired before a token was written.
+ */
+async function* openAIStream({ baseUrl, body, timeoutMs, loadTimeoutMs = null, signal }) {
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort, { once: true });
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let loading = loadTimeoutMs != null;
+  let timer = setTimeout(() => controller.abort(), loading ? loadTimeoutMs : timeoutMs);
+  const timedOut = () =>
+    loading
+      ? new LLMError(ERR.TIMEOUT, `The model did not finish loading within ${Math.round(loadTimeoutMs / 60000)} minutes.`)
+      : new LLMError(ERR.TIMEOUT, `Generation timed out after ${timeoutMs}ms.`);
 
   let res;
   try {
@@ -298,9 +312,7 @@ async function* openAIStream({ baseUrl, body, timeoutMs, signal }) {
   } catch (err) {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
-    if (controller.signal.aborted && !signal?.aborted) {
-      throw new LLMError(ERR.TIMEOUT, `Generation timed out after ${timeoutMs}ms.`);
-    }
+    if (controller.signal.aborted && !signal?.aborted) throw timedOut();
     throw classify(err);
   }
 
@@ -309,6 +321,15 @@ async function* openAIStream({ baseUrl, body, timeoutMs, signal }) {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
     throw classify(new Error(`HTTP ${res.status}`), text);
+  }
+
+  // The response has started, so the model is loaded: from here the
+  // generation gets its own full timeout, not what the load left of one.
+  if (loading) {
+    loading = false;
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+    yield { type: 'loaded' };
   }
 
   const reader = res.body.getReader();
@@ -327,6 +348,14 @@ async function* openAIStream({ baseUrl, body, timeoutMs, signal }) {
     usage || finishReason
       ? { type: 'usage', usage: { ...(usage ?? {}), done_reason: finishReason, truncated: finishReason === 'length' } }
       : null;
+  // A stream that just stops - no [DONE] and no finish reason - was cut off.
+  // Measured 3 Nov 2026: another PromptForge unloaded the model mid-answer,
+  // llama-swap closed the stream, and half a prompt reached the panel as a
+  // finished result. An explicit [DONE] is a clean end even without a reason
+  // (11 Nov 2026): not every OpenAI-shaped server names one, and treating
+  // that as a cut-off failed every answer on such a backend.
+  const cutOff = () =>
+    new LLMError(ERR.BAD_RESPONSE, 'The answer was cut off partway: the model stopped before finishing. Try again.');
 
   try {
     for (;;) {
@@ -376,13 +405,13 @@ async function* openAIStream({ baseUrl, body, timeoutMs, signal }) {
         if (chunk.choices?.[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason;
       }
     }
-    // A backend that closes without [DONE].
+    // A backend that closes without [DONE] is fine if it said why it stopped.
+    if (!finishReason) throw cutOff();
     const last = finalUsage();
     if (last) yield last;
   } catch (err) {
-    if (controller.signal.aborted && !signal?.aborted) {
-      throw new LLMError(ERR.TIMEOUT, `Generation timed out after ${timeoutMs}ms.`);
-    }
+    if (controller.signal.aborted && !signal?.aborted) throw timedOut();
+    if (err instanceof LLMError) throw err;
     throw classify(err);
   } finally {
     clearTimeout(timer);
@@ -617,6 +646,9 @@ export function createLLM(config, { onUsage } = {}) {
   let backend = llm.backend ?? 'mock';
   let baseUrl = llm.base_url ?? 'http://127.0.0.1:11434/v1';
   const timeoutMs = llm.timeout_ms ?? 120000;
+  // How long a model may take to load before the generation clock starts.
+  // Matches llama-swap's healthCheckTimeout (900 s on the box).
+  const loadTimeoutMs = llm.load_timeout_ms ?? 900000;
   // Beside runtime.json in the data directory, so PROMPTFORGE_DATA_DIR moves it
   // too and a test run never rewrites a real install's backend.
   const BACKEND_STATE_FILE = resolve(config.paths?.data ?? 'data', 'backend.json');
@@ -1301,10 +1333,22 @@ export function createLLM(config, { onUsage } = {}) {
       return;
     }
 
+    // llama-swap loads a model on the first request for it and holds the
+    // request until it is ready. Asked first, so a cold model gets the load
+    // clock and the person is told what the wait is.
+    let cold = false;
+    if (backend === 'llamacpp') {
+      const name = model ?? llm.model;
+      const states = await runningStates();
+      cold = Array.isArray(states) && !states.some((m) => m.model === name && m.state === 'ready');
+      if (cold) yield { type: 'loading', model: name };
+    }
+
     // llama.cpp and vLLM take context at server start, not per request.
     yield* openAIStream({
       baseUrl,
       timeoutMs: effectiveTimeout,
+      loadTimeoutMs: cold ? loadTimeoutMs : null,
       signal,
       body: {
         model: model ?? llm.model,

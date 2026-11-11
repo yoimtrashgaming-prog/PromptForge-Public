@@ -1055,37 +1055,23 @@ models:
     badge: "hybrid"
     format_label: "Hybrid — tags + natural language"
     gen_button: "Generate prompt"
-    # v2, 4 Sep 2026: a user's two-pass method folded in - describe the picture
-    # in prose first, then map only what is in that description to tags. His
-    # skill is the better prior on Anima, and the two rules that come with the
-    # method (the prompt may not contain what the draft does not, and may not
-    # broaden it) are the ones that stop tag vocabulary deciding what the image
-    # is. Everything anima-min.md already said is carried over verbatim -
-    # 18 of its 19 blocks byte-for-byte, the exception being the example's
-    # Reasoning line, which now has to demonstrate the pass.
-    #
-    # ROLLBACK: point this back at "prompts/image/anima-min.md", which is
-    # untouched. anima-min-v1-backup.md is a byte copy of it taken before any
-    # of this, in case that file is ever edited by mistake.
-    system_prompt: "prompts/image/anima-min-v2.md"
+    # The one Anima prompt (11 Nov 2026). A user's saved block, run as
+    # everyone's default since 13 Sep, made the base on 5 Nov and then the
+    # only prompt: the older prompt files and the saved v3/v4/v5 blocks are
+    # gone, so nobody sees "v5" beside "Base" for the same thing. Its negative
+    # section and its example's Reasoning live in the segment files below,
+    # added only when that segment is on. The Gemma block stays: Gemma calls
+    # tools differently. Earlier versions are in git history.
+    system_prompt: "prompts/image/anima.md"
     # One file per switchable segment, appended only when it is asked for.
     # The base file above is how this model THINKS; these are what each
     # segment is. See the note on illustrious for the whole argument.
     segment_blocks:
       "Negative prompt": "prompts/image/segments/anima-negative.md"
       "Reasoning": "prompts/image/segments/anima-reasoning.md"
-    # The vendor's own guide, loaded ahead of anima.md the same way h3 loads
-    # its official MiniMax docs. Added 30 Aug 2026 after the owner asked
-    # whether one existed — it does, and anima.md turned out to agree with it
-    # on every point of format, which is worth being able to re-verify rather
-    # than take on trust.
-    #
-    # Composition puts references BEFORE the model's own file, so anima.md
-    # still gets the last word on anything the two frame differently.
-    #
-    # Committed rather than fetched at setup, unlike h3's: this is a short
-    # digest written here, not a copy of a third-party document.
-    reference_files: ["prompts/image/references/anima-official.md"]
+    # None: anima.md carries the model card itself ("The format, from the
+    # model card").
+    reference_files: []
 
     # A user's skill documents, readable on demand rather than loaded.
     #
@@ -1104,7 +1090,7 @@ models:
     # something useless.
     #
     # NOT every Qwen on the box can call a tool. OBLITERATED cannot, and the
-    # gate in toolsFor() means it simply gets none. anima-min.md must therefore
+    # gate in toolsFor() means it simply gets none. anima.md must therefore
     # carry the METHOD and name these only as depth - a prompt that needs a
     # document to function would be broken on that model and fine on the other
     # four, which is the worst way for this to fail.
@@ -1151,8 +1137,8 @@ models:
     # Pony-style score tags this checkpoint also answers to.
     quality_presets:
       # Trimmed to the official four on 30 Aug 2026, on the owner's call, after
-      # reading circlestone-labs' own model card — see
-      # prompts/image/references/anima-official.md. Its recommended positive
+      # reading circlestone-labs' own model card (quoted in anima.md, "The
+      # format, from the model card"). Its recommended positive
       # prefix is exactly "masterpiece, best quality, score_7, safe, ".
       #
       # It used to be twelve: the whole human ladder AND the whole score
@@ -1417,6 +1403,81 @@ models:
     # whether it goes back in.
     negative_defaults: "worst quality, bad anatomy, watermark, jpeg artifact"
     word_target: { min: 80, max: 250 }
+    # A MOSS-shaped detail ladder, DRAFT 3 Nov 2026 for the owner to judge. MOSS
+    # reads up to ~4K tokens (~3,000 words) and was trained on long captions,
+    # but on the shared ladder level 10 wrote 216 words - the shared rules add
+    # categories, not length. With the length box at 2,000 words it wrote
+    # 1,099, and past ~500 it padded: the light and composition restated, and
+    # lines MOSS cannot draw ("a testament to the skill of the artist"). So
+    # the ladder gives word ranges, and the long notches say where the words
+    # go. Ranges are approximate; the model cannot count exactly.
+    detail_levels:
+      1:
+        label: "Bare"
+        rule: "About 20-40 words: the subject, the action and the medium. Nothing the brief did not name."
+      2:
+        label: "Minimal"
+        rule: "About 40-70 words: the subject, the action, where it happens and the medium."
+      3:
+        label: "Light"
+        rule: "About 70-110 words. Add how the picture is framed and where the light comes from."
+      4:
+        label: "Modest"
+        rule: "About 110-160 words. Give the subject's clothing and pose, the setting, the framing and the light, each once."
+      5:
+        label: "Standard"
+        rule: "About 160-220 words. Composition, the subjects and what they are doing, the setting, colours, lighting, and the medium and style."
+      6:
+        label: "Full"
+        rule: "About 220-300 words. Add the palette and the mood - which colours carry the picture and what the light makes it feel like."
+      7:
+        label: "Rich"
+        rule: "About 300-400 words. Add materials and surfaces - fabric, skin, metal, wood, glass, water - and how the light behaves on each."
+      8:
+        label: "Dense"
+        rule: "About 400-550 words. Build out the space: what sits in front of the subject, behind it and beside it, and the smaller objects that fill the frame."
+      9:
+        label: "Very detailed"
+        rule: "About 600-900 words. Go region by region - foreground, subject, background - and object by object within each: shape, material, colour, wear, where it sits and how the light falls on it. Every sentence describes something visible in the picture and says it once. No theme, no feeling the picture evokes, no praise of the work."
+      10:
+        label: "Exhaustive"
+        rule: "About 1,000-1,500 words - long, and that length is wanted. Walk the picture once, in this order, one paragraph per stop, describing only what the frame shows: first the framing - how much of the subject is in view and from where; the main subject within that frame, top to bottom, at the age the brief gives (hair, face, expression, each garment, hands and what they hold) - a waist-up shot stops at the waist and a close-up stays on the face, and nothing cropped out of the frame is described; anyone else the brief puts in the picture, described the same way - a crowd the brief only implies (busy, crowded) stays one soft background mass with no individual faces, hair or clothes, and if the brief puts no one else there, skip this stop and add no one; what the subject stands on or touches, only if it is in frame; the objects around them, one at a time; the middle distance; the far background and the sky or ceiling; each light source and where its light lands; the medium - its materials and technique only. A stop the frame does not contain gets no paragraph and no sentence saying it is missing. Each stop names things the earlier stops did not. When the medium is written the prompt is finished - no summary, no mood, nothing about the viewer, no praise of the work."
+    # Detail 10 written in passes, 4 Nov 2026, the owner's call after a
+    # side-by-side: one call plans what is visible at each stop of the walk
+    # above, then one call writes each stop. Measured on the 27B: 1,350-1,900
+    # words in ~55-75 s with no repeated sentence, against ~800-1,000 for one
+    # pass - one pass runs out of picture and starts restating it, a single
+    # stop with its own list does not. Only for the plain prose format, and
+    # only when the prompt is the one segment asked for: Hybrid's tag line and
+    # an asked-for Negative prompt stay one pass, and so does a length limit
+    # set by hand. The two prompt files are drafts for the owner to judge;
+    # {placeholders} are filled in by server.mjs (writeInPasses).
+    passes:
+      detail: [10]
+      modes: ["Natural language"]
+      segment: "Enhanced prompt"
+      plan_prompt: "prompts/image/moss-passes/plan.md"
+      part_prompt: "prompts/image/moss-passes/part.md"
+      stops:
+        - key: "framing"
+          about: "how much of the subject is in view and from where"
+          length: "At most 60 words: the crop, the viewpoint and the layout only - do not describe any person or object yet."
+        - key: "subject"
+          about: "the main subject within the frame, top to bottom: hair, face, expression, each garment, hands and what they hold, stopping where the frame stops"
+        - key: "others"
+          about: "anyone else the brief puts in the picture, described the same way; a crowd the brief only implies stays one soft mass"
+        - key: "ground"
+          about: "what the subject stands on or touches, if it is in frame"
+        - key: "objects"
+          about: "the objects around the subject, one at a time"
+        - key: "middle"
+          about: "the middle distance"
+        - key: "background"
+          about: "the far background and the sky or ceiling, if visible"
+        - key: "light"
+          about: "each light source, its colour and direction, and the few places its light lands"
+        - key: "medium"
+          about: "the medium - its materials and technique only"
     # The layout's boxes are absolute pixels with the origin at the centre, so
     # they belong to one output size — and the JSON does not carry it. Each
     # aspect maps to the size the boxes are measured on: about 1M pixels (the

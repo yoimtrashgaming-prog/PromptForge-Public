@@ -40,7 +40,7 @@ const DICTIONARIES = {
     // ── chrome ──
     'Prompt Assistance': "Assistance à l'écriture",
     'LoRA Training': 'Entraînement LoRA',
-    'Image Analysis': "Analyse d'image",
+    'Media Analysis': "Analyse de médias",
     // The shared image/prompt board. Not "Bibliothèque" — that is already
     // spoken for by the saved-prompt library on Tab 1, two entries down.
     Pinboard: "Tableau d'affichage",
@@ -157,13 +157,46 @@ const DICTIONARIES = {
     'Character threshold': 'Seuil personnage',
     'Reference image': 'Image de référence',
     optional: 'facultatif',
+    // ── chat context meter and question (11 Nov 2026) ──
+    'of context used': 'du contexte utilisé',
+    Conversation: 'Conversation',
+    Pictures: 'Images',
+    'Summary of earlier messages': 'Résumé des messages précédents',
+    'PromptForge instructions': 'Instructions de PromptForge',
+    Tools: 'Outils',
+    'This chat is full. Compact it or continue in a new chat to keep going.':
+      'Ce chat est plein. Compactez-le ou continuez dans un nouveau chat pour poursuivre.',
+    'Past 70%. Your next message asks whether to keep chatting, compact this chat, or continue in a new one.':
+      'Plus de 70 %. Votre prochain message vous demandera si vous voulez continuer, compacter ce chat ou continuer dans un nouveau.',
+    'At 70% you are asked whether to compact this chat or continue in a new one.':
+      'À 70 %, on vous demande si vous voulez compacter ce chat ou continuer dans un nouveau.',
+    'Estimated, and on the high side on purpose.': 'Estimation, volontairement un peu haute.',
+    'This chat is getting long': 'Ce chat devient long',
+    'This chat is full': 'Ce chat est plein',
+    'of what the model can hold is used.': 'de ce que le modèle peut contenir est utilisé.',
+    'Long chats answer more slowly, and a full one cannot answer at all.':
+      'Les chats longs répondent plus lentement, et un chat plein ne peut plus répondre du tout.',
+    'Keep chatting': 'Continuer à discuter',
+    'Send as it is. You will be asked again once it is full.':
+      'Envoyer tel quel. On vous redemandera une fois le chat plein.',
+    'Compact this chat': 'Compacter ce chat',
+    'Older messages become a summary. You stay in this chat.':
+      'Les anciens messages deviennent un résumé. Vous restez dans ce chat.',
+    'Continue in a new chat': 'Continuer dans un nouveau chat',
+    'This chat is summarised and a new one starts from it. This one stays as it is.':
+      'Ce chat est résumé et un nouveau commence à partir de ce résumé. Celui-ci reste tel quel.',
+    'Summarising can lose details: exact wording, small facts, things said only once. The latest prompt for each model is always kept word for word.':
+      'Le résumé peut perdre des détails : formulations exactes, petits faits, choses dites une seule fois. Le dernier prompt de chaque modèle est toujours conservé mot pour mot.',
+    Cancel: 'Annuler',
+    'Compacting — summarising the earlier part of this chat…': 'Compactage — résumé du début de ce chat…',
+    'Summarising this chat to start the new one…': 'Résumé de ce chat pour démarrer le nouveau…',
   },
 
   de: {
     // ── chrome ──
     'Prompt Assistance': 'Prompt-Assistenz',
     'LoRA Training': 'LoRA-Training',
-    'Image Analysis': 'Bildanalyse',
+    'Media Analysis': 'Medienanalyse',
     Pinboard: 'Pinnwand',
     'Image Models': 'Bildmodelle',
     'Video Models': 'Videomodelle',
@@ -279,6 +312,39 @@ const DICTIONARIES = {
     'Character threshold': 'Charakter-Schwellenwert',
     'Reference image': 'Referenzbild',
     optional: 'optional',
+    // ── chat context meter and question (11 Nov 2026) ──
+    'of context used': 'des Kontexts belegt',
+    Conversation: 'Unterhaltung',
+    Pictures: 'Bilder',
+    'Summary of earlier messages': 'Zusammenfassung früherer Nachrichten',
+    'PromptForge instructions': 'PromptForge-Anweisungen',
+    Tools: 'Werkzeuge',
+    'This chat is full. Compact it or continue in a new chat to keep going.':
+      'Dieser Chat ist voll. Komprimiere ihn oder mach in einem neuen Chat weiter.',
+    'Past 70%. Your next message asks whether to keep chatting, compact this chat, or continue in a new one.':
+      'Über 70 %. Bei deiner nächsten Nachricht wirst du gefragt, ob du weiterschreiben, diesen Chat komprimieren oder in einem neuen weitermachen willst.',
+    'At 70% you are asked whether to compact this chat or continue in a new one.':
+      'Bei 70 % wirst du gefragt, ob du diesen Chat komprimieren oder in einem neuen weitermachen willst.',
+    'Estimated, and on the high side on purpose.': 'Geschätzt, absichtlich eher zu hoch.',
+    'This chat is getting long': 'Dieser Chat wird lang',
+    'This chat is full': 'Dieser Chat ist voll',
+    'of what the model can hold is used.': 'dessen, was das Modell fassen kann, sind belegt.',
+    'Long chats answer more slowly, and a full one cannot answer at all.':
+      'Lange Chats antworten langsamer, und ein voller Chat kann gar nicht mehr antworten.',
+    'Keep chatting': 'Weiterschreiben',
+    'Send as it is. You will be asked again once it is full.':
+      'So senden, wie es ist. Du wirst erneut gefragt, sobald er voll ist.',
+    'Compact this chat': 'Diesen Chat komprimieren',
+    'Older messages become a summary. You stay in this chat.':
+      'Ältere Nachrichten werden zusammengefasst. Du bleibst in diesem Chat.',
+    'Continue in a new chat': 'In einem neuen Chat weitermachen',
+    'This chat is summarised and a new one starts from it. This one stays as it is.':
+      'Dieser Chat wird zusammengefasst, und ein neuer beginnt damit. Dieser bleibt, wie er ist.',
+    'Summarising can lose details: exact wording, small facts, things said only once. The latest prompt for each model is always kept word for word.':
+      'Beim Zusammenfassen können Details verloren gehen: genaue Formulierungen, kleine Fakten, Dinge, die nur einmal gesagt wurden. Der neueste Prompt für jedes Modell bleibt immer wörtlich erhalten.',
+    Cancel: 'Abbrechen',
+    'Compacting — summarising the earlier part of this chat…': 'Komprimieren – der frühere Teil dieses Chats wird zusammengefasst…',
+    'Summarising this chat to start the new one…': 'Dieser Chat wird für den neuen zusammengefasst…',
   },
 };
 

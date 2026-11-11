@@ -1,0 +1,58 @@
+{
+  "_comment": [
+    "The $names a brief can use. The lists themselves live in config/randomizer.json:",
+    "every box and sub-category there is a variable automatically, under a name worked",
+    "out by scripts/randomizer.py. This file only says what that cannot work out:",
+    "",
+    "  shorten   id prefixes swapped for a shorter one, first match wins",
+    "  rename    an exact id to the name people will type",
+    "  combined  one name drawing from several lists. `from` takes box or sub-category",
+    "            ids, `except` drops some. `merge` true puts every term in one menu;",
+    "            otherwise the menu lists the sub-categories and the terms roll inside.",
+    "  nsfw      never drawn by a box or by Surprise-style names, only asked for by name"
+  ],
+  "shorten": {
+    "clothing_female_": "female_",
+    "clothing_male_": "male_",
+    "nsfw_nsfw_": "nsfw_",
+    "nsfw_": "nsfw_"
+  },
+  "rename": {
+    "eyes_color": "eye_color",
+    "eyes_shape": "eye_shape",
+    "eyes_sclera": "sclera",
+    "weapons_fantasy": "magic_weapon",
+    "pose_viewer": "framing",
+    "birds_reptiles_amphibians": "birds_reptiles",
+    "insects_arachnids": "insects",
+    "plants_fungi": "plants",
+    "undead_horror": "undead"
+  },
+  "combined": [
+    { "name": "lighting", "label": "Lighting", "merge": true,
+      "from": ["environment_lighting_showcase", "environment_lighting_training"] },
+    { "name": "background", "label": "Background", "merge": true,
+      "from": ["environment_background_sfw", "environment_background_training"] },
+    { "name": "location", "label": "Location", "merge": true,
+      "from": ["environment_background_sfw"] },
+    { "name": "outfit", "label": "Outfit (women)", "from": ["clothing_female"] },
+    { "name": "outfit_male", "label": "Outfit (men)", "from": ["clothing_male"] },
+    { "name": "species", "label": "Any species",
+      "from": ["mammals", "birds_reptiles_amphibians", "aquatic", "insects_arachnids",
+               "plants_fungi", "mythical", "undead_horror"] },
+    { "name": "animal", "label": "Any animal",
+      "from": ["mammals", "birds_reptiles_amphibians", "aquatic", "insects_arachnids"] },
+    { "name": "weapon", "label": "Any weapon", "from": ["weapons"] },
+    { "name": "accessory", "label": "Any accessory",
+      "from": ["accessories", "hair_hair_accessories"] }
+  ],
+  "nsfw": [
+    "nsfw",
+    "environment_background_nsfw",
+    "body_lewd_nude",
+    "body_exposure_areas",
+    "clothing_female_lingerie_sleepwear",
+    "clothing_female_fetish_bondage",
+    "clothing_male_fetish_bondage"
+  ]
+}

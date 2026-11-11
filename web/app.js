@@ -27,8 +27,14 @@ import { tagClass, tagFacet, isAppearanceTag, isRoleTag, isGarment, isProp, CLAS
 import { createDirectorTimeline } from './director-timeline.js';
 import { startTour } from './tour.js';
 import { makeZip, readZip } from './zip.js';
+import { createFramePicker } from './frame-picker.js';
+import { attachBriefVars, detachBriefVars, fillBriefForSend, hasVariables } from './brief-vars.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
+/** Inside the ComfyUI window: prompting, chat and analysis, nothing else. */
+// Guarded: scripts/test-app.mjs imports this file in Node, where there is no
+// document, and an unguarded read at load fails the whole suite.
+const EMBED = typeof document !== 'undefined' && document.documentElement.classList.contains('embed');
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 let REGISTRY = null;      // { defaults, models: [] }
@@ -1240,7 +1246,7 @@ function stashBuilder(key, mount) {
   const refs = [];
   for (const t of $$('.mmd-tile', mount)) {
     if (t._file) {
-      refs.push({ file: t._file, data: { ...t.dataset }, encoded: t._encoded ?? null });
+      refs.push({ file: t._file, data: { ...t.dataset }, encoded: t._encoded ?? null, frames: t._frames ?? null });
     }
     releasePreviews(t);
   }
@@ -1347,6 +1353,10 @@ async function renderBuilder(model) {
   // Danbooru appearance tags is the wrong shape for.
   const rbtn = $('#btn-randomizer');
   if (rbtn) rbtn.hidden = model.type !== 'image';
+  // Variables come from the same lists, so they follow the same rule.
+  const varsBrief = $('[data-bind="brief"]', mount);
+  if (model.type === 'image' && varsBrief) attachBriefVars(varsBrief);
+  else detachBriefVars();
   const badge = $('#format-badge');
   badge.textContent = model.format_label;
   badge.className = `badge ${model.badge ?? ''}`;
@@ -3199,6 +3209,7 @@ function setupReferences(mount, model, restore = []) {
       tile.dataset.note = 'The model was switched before this was described. Type the traits yourself, or remove it and add it again.';
     }
     tile._encoded = saved.encoded;
+    tile._frames = saved.frames ?? null;
     if (!tile._encoded && kind === 'image') {
       encodeForModel(saved.file).then((e) => { tile._encoded = e; renderCast(); }).catch(() => {});
     }
@@ -3267,6 +3278,10 @@ function setupReferences(mount, model, restore = []) {
         return;
       }
       const data = await res.json();
+
+      // A few frames from inside a video (11 Nov 2026), for the model to look
+      // at on Generate. Off the dataset for the reason _encoded is.
+      if (kind === 'video' && Array.isArray(data.frames)) tile._frames = data.frames;
 
       // Duration and the stream facts ride on the tile and go up with the
       // generate request — the model can use how long a source clip runs when
@@ -6380,7 +6395,8 @@ function collectControls() {
           ? { subject_group: row.dataset.subjectGroup } : {}),
         // What the model saw in this picture, scanned earlier or edited by
         // hand. The server uses it instead of scanning the picture again.
-        ...(kind === 'image' && row.dataset.reading ? { reading: row.dataset.reading } : {}),
+        // A video's too (11 Nov 2026): what the model saw in its frames.
+        ...((kind === 'image' || kind === 'video') && row.dataset.reading ? { reading: row.dataset.reading } : {}),
         // The label for this picture: Character 1, Place, First frame…
         ...(kind === 'image' && controls.picture_labels ? { picture_label: row.dataset.pictureLabel || 'character-1' } : {}),
         // Who stands in a first or last frame, from its number buttons.
@@ -6408,6 +6424,15 @@ function collectControls() {
       // field the server ignores, which reads like it should have done
       // something.
       if (kind === 'video') ref.stream = row.dataset.stream || 'video';
+      // The clip's sampled frames, for the model to look at — only those
+      // inside the crop, and none when only the sound is referenced.
+      if (kind === 'video' && ref.stream !== 'audio' && row._frames?.length) {
+        const from = Number(row.dataset.cropStart);
+        const to = Number(row.dataset.cropEnd);
+        const inCrop = (f) => (!Number.isFinite(from) || f.at_seconds >= from) && (!Number.isFinite(to) || to <= 0 || f.at_seconds <= to);
+        const frames = row._frames.filter(inCrop);
+        if (frames.length) ref.frames = frames;
+      }
       // The CROP duration, not the source's: the crop is what would be sent,
       // so it is what the 2-15s per-clip rule has to be checked against.
       const duration = Number(row.dataset.duration);
@@ -6888,6 +6913,165 @@ function searchedEl(searched) {
   return row;
 }
 
+// Chat's auto-summary (9 Nov 2026): everything above this line reaches the
+// model as a summary, not word for word. Said on the page, because a model
+// that has forgotten a detail with no visible reason looks broken.
+function chatCompactedEl() {
+  const row = document.createElement('div');
+  row.className = 'chat-compacted';
+  row.textContent = 'Earlier messages summarised to make room — the model now works from a summary of everything above this line, plus the latest prompt for each model, word for word.';
+  return row;
+}
+
+// A chat continued from another (11 Nov 2026): at the top, saying where it
+// came from, so the model knowing things this page never showed makes sense.
+function chatContinuedEl(fromTitle, ok = true) {
+  const row = document.createElement('div');
+  row.className = 'chat-compacted';
+  row.textContent = ok
+    ? `Continued from "${fromTitle}" — the model starts from a summary of that chat, plus the latest prompt for each model, word for word. The old chat is still in your list.`
+    : `Continued from "${fromTitle}", but its summary could not be written, so this chat starts fresh. The old chat is still in your list.`;
+  return row;
+}
+
+// ── context meter (11 Nov 2026) ──────────────────────────────
+//
+// The ring by the message box: how full the model's context is, counted by
+// the server exactly as the summary step counts (server/chat-compact.mjs
+// contextReport). Blue while there is room, amber from the point where the
+// next message asks what to do, red when the chat is full.
+
+let chatContextReport = null;
+// Chats where the person answered "keep chatting": not asked again on every
+// message, only once the chat is actually full.
+const chatKeepGoing = new Set();
+
+function formatTokens(n) {
+  const v = Number(n) || 0;
+  return v >= 10000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
+}
+
+function chatContextLevel(report) {
+  if (!report?.limit) return null;
+  const share = report.used / report.limit;
+  return share >= report.full_at ? 'full' : share >= report.compact_at ? 'high' : 'ok';
+}
+
+function paintChatMeter(report) {
+  chatContextReport = report?.limit ? report : null;
+  const el = $('#chat-meter');
+  if (!el) return;
+  if (!chatContextReport) { el.hidden = true; return; }
+  const r = chatContextReport;
+  const share = Math.min(1, r.used / r.limit);
+  const pct = Math.round(share * 100);
+  const level = chatContextLevel(r);
+  el.hidden = false;
+  el.dataset.level = level;
+  const circ = 2 * Math.PI * 8;
+  el.querySelector('.chat-meter-fill').style.strokeDasharray = `${(share * circ).toFixed(2)} ${circ.toFixed(2)}`;
+  el.setAttribute('aria-label', `Context ${pct}% used`);
+
+  const card = el.querySelector('.chat-meter-card');
+  card.innerHTML = '';
+  const add = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    card.appendChild(n);
+    return n;
+  };
+  const head = add('div', 'cm-head');
+  const big = document.createElement('strong');
+  big.textContent = `${pct}%`;
+  head.append(big, document.createTextNode(' '));
+  const of = document.createElement('span');
+  of.textContent = 'of context used';
+  head.appendChild(of);
+  add('div', 'cm-sub', `${formatTokens(r.used)} of ${formatTokens(r.limit)} tokens`);
+  const bar = add('div', 'cm-bar');
+  const fill = document.createElement('span');
+  fill.style.width = `${pct}%`;
+  const mark = document.createElement('i');
+  mark.style.left = `${Math.round(r.compact_at * 100)}%`;
+  bar.append(fill, mark);
+
+  const rows = [
+    ['Conversation', r.parts.conversation],
+    ['Pictures', r.parts.pictures],
+    ['Summary of earlier messages', r.parts.summary],
+    ['PromptForge instructions', r.parts.instructions],
+    ['Tools', r.parts.tools],
+  ].filter(([, n]) => n > 0);
+  const list = add('dl', 'cm-parts');
+  for (const [label, n] of rows) {
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    dd.textContent = formatTokens(n);
+    list.append(dt, dd);
+  }
+  add('p', 'cm-note', level === 'full'
+    ? 'This chat is full. Compact it or continue in a new chat to keep going.'
+    : level === 'high'
+      ? 'Past 70%. Your next message asks whether to keep chatting, compact this chat, or continue in a new one.'
+      : 'At 70% you are asked whether to compact this chat or continue in a new one.');
+  add('p', 'cm-fine', 'Estimated, and on the high side on purpose.');
+}
+
+async function refreshChatMeter() {
+  const q = new URLSearchParams();
+  if (chatId) q.set('id', chatId);
+  if (chatModel) q.set('model', chatModel);
+  try {
+    const res = await fetch(`/api/chat-context?${q}`);
+    paintChatMeter(res.ok ? await res.json() : null);
+  } catch {
+    paintChatMeter(null);
+  }
+}
+
+/**
+ * Ask what to do with a long chat. Resolves 'keep', 'compact', 'new', or null
+ * for Cancel. "Keep chatting" is not offered once the chat is full.
+ */
+function askChatContext(report, { full = false } = {}) {
+  const dlg = $('#chat-context-dialog');
+  if (!dlg) return Promise.resolve(null);
+  const share = report?.limit ? Math.min(100, Math.round((report.used / report.limit) * 100)) : null;
+  $('#chat-context-title').textContent = full ? 'This chat is full' : 'This chat is getting long';
+  $('#chat-context-pct').textContent = share == null ? '' : `${share}%`;
+  dlg.dataset.level = full ? 'full' : 'high';
+  $('#chat-context-keep').hidden = full;
+  dlg.hidden = false;
+  (full ? $('#chat-context-compact') : $('#chat-context-keep')).focus();
+  return new Promise((resolve) => {
+    const done = (answer) => {
+      dlg.hidden = true;
+      dlg.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey, true);
+      resolve(answer);
+    };
+    const onClick = (e) => {
+      const b = e.target.closest('button[data-choice]');
+      if (b) done(b.dataset.choice || null);
+      else if (e.target === dlg) done(null);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); }
+    };
+    dlg.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey, true);
+  });
+}
+
+// Live, during a send: the line goes before the upto-th message on the page.
+function placeChatCompacted(thread, upto) {
+  thread.querySelectorAll('.chat-compacted').forEach((el) => el.remove());
+  const target = thread.querySelectorAll('.chat-msg')[upto];
+  if (target) thread.insertBefore(chatCompactedEl(), target);
+}
+
 function chatScrollToEnd() {
   const thread = $('#chat-thread');
   if (thread) thread.scrollTop = thread.scrollHeight;
@@ -7154,7 +7338,9 @@ async function openChat(id) {
   if (!chat) return;
   chatId = chat.id;
   thread.innerHTML = '';
-  for (const m of chat.messages) {
+  if (chat.compacted?.from_title) thread.appendChild(chatContinuedEl(chat.compacted.from_title));
+  for (const [i, m] of chat.messages.entries()) {
+    if (chat.compacted?.upto && i === chat.compacted.upto) thread.appendChild(chatCompactedEl());
     // A reopened conversation shows what it showed the first time: the search
     // line above the answer, and the citations inside it.
     if (m.searched) thread.appendChild(searchedEl(m.searched));
@@ -7181,6 +7367,7 @@ async function openChat(id) {
   }
   chatScrollToEnd();
   refreshChatHistory();
+  refreshChatMeter();
 }
 
 function startNewChat() {
@@ -7189,6 +7376,7 @@ function startNewChat() {
   const note = $('#chat-note');
   if (note) note.textContent = '';
   refreshChatHistory();
+  refreshChatMeter();
   $('#chat-input')?.focus();
 }
 
@@ -7287,11 +7475,13 @@ function blobToBase64(blob) {
   });
 }
 
-async function sendChat() {
+async function sendChat({ choice = null } = {}) {
   const input = $('#chat-input');
   const thread = $('#chat-thread');
   const note = $('#chat-note');
   if (!input || !thread || chatSending) return;
+  // Answered "keep chatting" earlier in this chat: not asked again until full.
+  if (!choice && chatId && chatKeepGoing.has(chatId)) choice = 'keep';
 
   const text = input.value.trim();
   const sending = chatPictures;
@@ -7314,6 +7504,9 @@ async function sendChat() {
   chatSending = true;
   $('#chat-send').disabled = true;
 
+  // "Continue in a new chat": the page moves to the new one now; the
+  // server's `continued` event puts the line saying where it came from on top.
+  if (choice === 'new') thread.innerHTML = '';
   if (thread.querySelector('.empty-state')) thread.innerHTML = '';
   const mine = chatMessageEl('user', text);
   if (sending.length) mine.insertBefore(chatPicturesEl(sending.map((p) => p.url)), mine.querySelector('.chat-body'));
@@ -7336,8 +7529,30 @@ async function sendChat() {
         // yet, so the server applies its configured default instead of the
         // page inventing one.
         ...(chatModel ? { model: chatModel } : {}),
+        ...(choice ? { context_choice: choice } : {}),
       }),
     });
+    if (res.status === 409) {
+      // The chat is long or full (11 Nov 2026). Nothing was saved: put the
+      // message back exactly as it was, ask, and send again with the answer.
+      const err = await res.json().catch(() => ({}));
+      if (err.error === 'context_high' || err.error === 'context_full') {
+        mine.remove();
+        answer.remove();
+        input.value = text;
+        chatPictures = sending;
+        paintChatPictures();
+        if (err.context) paintChatMeter(err.context);
+        chatSending = false;
+        $('#chat-send').disabled = false;
+        const picked = await askChatContext(err.context, { full: err.error === 'context_full' });
+        if (!picked) { input.focus(); return; }
+        if (picked === 'keep' && chatId) chatKeepGoing.add(chatId);
+        // Awaited, so this call's finally runs after the resend, not during it.
+        return await sendChat({ choice: picked });
+      }
+      throw new Error(err.message ?? 'HTTP 409');
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message ?? `HTTP ${res.status}`);
@@ -7400,10 +7615,19 @@ async function sendChat() {
             edit_waiting: 'Queued in ComfyUI…',
             edit_loading: 'Loading the editor…',
             edit_saving: 'Saving the picture…',
+            compacting: 'Compacting — summarising the earlier part of this chat…',
+            continuing: 'Summarising this chat to start the new one…',
           };
-          note.textContent = payload.state === 'model_loading' ? 'Loading the model…'
+          note.textContent = payload.state === 'model_loading' ? 'Loading the model — after a quiet spell this can take a few minutes…'
             : payload.state === 'writing_prompt' ? `Writing the ${payload.model} prompt…`
             : RENDER[payload.state] ?? '';
+        } else if (ev[1] === 'compacted') {
+          placeChatCompacted(thread, payload.upto);
+        } else if (ev[1] === 'continued') {
+          thread.insertBefore(chatContinuedEl(payload.from_title, payload.ok), thread.firstChild);
+        } else if (ev[1] === 'done') {
+          // The meter as it stands after this reply.
+          if (payload.context) paintChatMeter(payload.context);
         } else if (ev[1] === 'render_node') {
           note.textContent = `Rendering — ${payload.name}…`;
         } else if (ev[1] === 'render_progress') {
@@ -7942,8 +8166,11 @@ function initChat() {
   $('#chat-model')?.addEventListener('change', (e) => {
     chatModel = e.target.value || null;
     paintChatModelNote();
+    // Another model can hold a different amount.
+    refreshChatMeter();
     input.focus();
   });
+  refreshChatMeter();
 
   initModelRequests();
 
@@ -8060,7 +8287,7 @@ function clearOutput(message) {
 
 function updateActionButtons() {
   const has = Boolean(lastResult?.segments?.length);
-  for (const id of ['#btn-copy-all', '#btn-save', '#btn-download', '#btn-clear', '#btn-refine', '#refine-input']) {
+  for (const id of ['#btn-send-comfy', '#btn-copy-all', '#btn-save', '#btn-download', '#btn-clear', '#btn-refine', '#refine-input']) {
     const el = $(id);
     if (el) el.disabled = !has;
   }
@@ -9553,6 +9780,83 @@ async function runEditRequest() {
   }
 }
 
+/**
+ * The frame picker's "send to a builder" buttons, from the registry: a first
+ * (and last) frame for every model with `i2v_modes`, a picture card for
+ * every model with `reference_roles`. Asked each time a clip opens.
+ */
+function frameSends() {
+  const out = [];
+  for (const m of REGISTRY?.models ?? []) {
+    if (m.i2v_modes?.length) {
+      out.push({ label: `${m.label}: first frame`, title: `Open ${m.label} with this frame as its first image`, run: (files) => sendFramesTo(m, 'first', files) });
+      if (m.i2v_modes.some((x) => /last/i.test(x))) {
+        out.push({ label: `${m.label}: last frame`, title: `Open ${m.label} with this frame as its last image`, run: (files) => sendFramesTo(m, 'last', files) });
+      }
+    }
+    if (m.reference_roles?.length) {
+      out.push({ label: `${m.label}: add as picture`, title: `Add the picked frames, or this one, to ${m.label}'s pictures`, many: true, run: (files) => sendFramesTo(m, 'pictures', files) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Open the builder on `model` and put `files` where `where` says: its first
+ * frame, its last frame, or its pictures. Through each field's own change
+ * event, so a sent frame is checked, encoded and described exactly as a
+ * dropped one is.
+ */
+async function sendFramesTo(model, where, files) {
+  $('.main-tab[data-tab="prompt"]')?.click();
+  if (currentModel?.key !== model.key) {
+    // The model menu lists one type at a time, so the type toggle goes first
+    // - the same order loadLibraryEntry switches in.
+    currentType = model.type;
+    $$('#type-toggle button').forEach((b) => b.classList.toggle('active', b.dataset.type === currentType));
+    rebuildModelSelect();
+    $('#model-select').value = model.key;
+    await selectModel(model.key);
+  }
+  const mount = $('#builder-mount');
+  // The file inputs sit hidden inside their panels, so it is the panel that
+  // says whether this mode has the field at all.
+  const available = (input) => input && !input.parentElement?.closest('[hidden]');
+  const put = (input) => {
+    const dt = new DataTransfer();
+    for (const f of files) dt.items.add(f);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  if (where === 'pictures') {
+    const input = $('[data-bind="reference_upload"]', mount);
+    if (!available(input)) {
+      toast(`${model.label}'s current mode takes no pictures. Pick a mode that does, then send the frame again.`);
+      return;
+    }
+    put(input);
+    toast(files.length > 1 ? `${files.length} frames added to ${model.label}'s pictures` : `Frame added to ${model.label}'s pictures`);
+    return;
+  }
+
+  if (where === 'last') {
+    const sel = $('[data-bind="i2v_mode"]', mount);
+    const pair = [...(sel?.options ?? [])].find((o) => /last/i.test(o.value));
+    if (pair && sel.value !== pair.value) {
+      sel.value = pair.value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+  const input = $(`[data-bind="${where === 'last' ? 'i2v_last_image' : 'i2v_image'}"]`, mount);
+  if (!available(input)) {
+    toast(`${model.label} has no ${where} frame field right now.`);
+    return;
+  }
+  put(input);
+  toast(`${files[0].name} is ${model.label}'s ${where} frame`);
+}
+
 /** A picture from somewhere else in the app (a chat edit) becomes the Edit tab's picture. */
 async function openInEditTab(url) {
   try {
@@ -10948,7 +11252,19 @@ async function generate({ layoutStep = null } = {}) {
   // boxes are not touched. 'json': the Global prompt, or the brief while that
   // is empty, into the boxes, and the Global prompt stays as written.
   const layoutOnly = wantsLayout(currentModel);
-  const typed = $('[data-bind="brief"]')?.value ?? '';
+  let typed = $('[data-bind="brief"]')?.value ?? '';
+  // The filled text is what the line under the brief showed, and a brief that
+  // could not be filled stops here: raw $names must not reach the writer.
+  if (currentModel.type === 'image' && hasVariables(typed)) {
+    generating = true;
+    try {
+      typed = await fillBriefForSend();
+    } catch (err) {
+      return toast(err.message);
+    } finally {
+      generating = false;
+    }
+  }
   const globalPrompt = layoutOnly ? layoutStudio()?.getProject().caption ?? '' : '';
   const keepGlobal = layoutStep === 'json' && globalPrompt.trim() ? globalPrompt : null;
   const brief = keepGlobal ?? (layoutOnly && layoutStep !== 'prompt' && !typed.trim() ? globalPrompt : typed);
@@ -11052,7 +11368,7 @@ async function generate({ layoutStep = null } = {}) {
           // an unexplained second — or fifteen, on a cold cache — reads as a
           // stall. See characterCanon in server.mjs.
           const PHASES = {
-            model_loading: 'Loading model…',
+            model_loading: 'Loading the model — after a quiet spell this can take a few minutes…',
             character_lookup: 'Looking up character…',
             // The second pass, which is a whole extra generation. Without a
             // label this is the longest unexplained pause in the app.
@@ -11061,6 +11377,8 @@ async function generate({ layoutStep = null } = {}) {
             // that produces no prompt, so without a label it is a minute of
             // "Generating…" with nothing to show for it.
             reading_references: 'Looking at your references…',
+            // A prompt written in passes (MOSS at Detail 10): the plan first.
+            planning: 'Planning what goes where in the picture…',
           };
           // The Director's keyframes, counted. Unlike every phase above there
           // are N of these and each is a whole vision call, so a static label
@@ -11075,6 +11393,9 @@ async function generate({ layoutStep = null } = {}) {
                 ? `Looking at keyframe ${done + 1} of ${total}…`
                 : 'Looking at your keyframe…'
             );
+          } else if (data.state === 'writing_part') {
+            // The same for a prompt written in passes: one call per part.
+            note.say(`Writing part ${(Number(data.done) || 0) + 1} of ${Number(data.total) || 0}…`);
           } else note.say(PHASES[data.state] ?? 'Generating…');
         } else if (ev[1] === 'warning') {
           // Server-side warnings had nowhere to land until 8 Sep 2026 — the
@@ -11111,6 +11432,16 @@ async function generate({ layoutStep = null } = {}) {
           // h3: what was seen in each reference picture. Onto the tiles, behind
           // their eye buttons, rather than into the output panel.
           for (const r of data.readings ?? []) placeReading(pictureTiles, r?.labels, r?.text);
+        } else if (ev[1] === 'clip_readings') {
+          // h3: what was seen in each video reference's frames, onto its tile
+          // behind the eye button. <Video N> counts the videos whose picture
+          // is referenced, in order, as the server does.
+          const videoTiles = $$('#builder-mount [data-bind="reference_list"] .mmd-tile')
+            .filter((t) => !t.hidden && t.dataset.kind === 'video' && (t.dataset.stream || 'video') !== 'audio');
+          for (const r of data.readings ?? []) {
+            const tile = videoTiles[Number(r?.video) - 1];
+            if (tile && r?.text) setTileReading(tile, r.labels, r.text);
+          }
         } else if (ev[1] === 'tool') {
           // The model looked something up. Named, with what it searched for,
           // for the same reason the web search says what it is searching:
@@ -12248,8 +12579,28 @@ async function initAnalysis() {
   dz.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
   });
+  // A video opens the frame picker instead; a frame chosen there comes back
+  // through analysisSetFile like any dropped picture.
+  const framePicker = createFramePicker({
+    mount: $('#analysis-frames'),
+    onUse: (file) => {
+      analysisSetFile(file);
+      $('#analysis-preview').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast(`${file.name} is the picture now`);
+    },
+    sends: frameSends,
+    makeZip,
+    toast,
+  });
+  const takeFile = (file) => {
+    if (file.type.startsWith('video/')) framePicker.open(file);
+    else analysisSetFile(file);
+  };
+
   input.addEventListener('change', () => {
-    if (input.files?.[0]) analysisSetFile(input.files[0]);
+    if (input.files?.[0]) takeFile(input.files[0]);
+    // So choosing the same video again, after closing it, reopens it.
+    input.value = '';
   });
 
   for (const type of ['dragenter', 'dragover']) {
@@ -12260,7 +12611,7 @@ async function initAnalysis() {
   }
   dz.addEventListener('drop', (e) => {
     const file = e.dataTransfer?.files?.[0];
-    if (file) analysisSetFile(file);
+    if (file) takeFile(file);
   });
 
   $('#analysis-run').addEventListener('click', runAnalysis);
@@ -13305,7 +13656,7 @@ function runTour() {
 
 /** Ask once, after anything else that opens on sign-in has been dealt with. */
 function maybeOfferTour() {
-  if (PREFS?.tour !== 'unasked') return;
+  if (EMBED || PREFS?.tour !== 'unasked') return;
   const box = $('#tour-offer');
   const open = () => {
     $('#tour-offer-ask').hidden = false;
@@ -18011,6 +18362,75 @@ async function init() {
   setInterval(paintOffload, 1000);
 
   maybeOfferTour();
+  setupEmbed();
+}
+
+/** Three short names, and the tab order the window reads left to right. */
+function setupEmbed() {
+  if (!EMBED) return;
+  const names = { prompt: 'Prompt', chat: 'Chat', analysis: 'Analysis' };
+  for (const [tab, name] of Object.entries(names)) {
+    const button = $(`.main-tab[data-tab="${tab}"]`);
+    if (button) button.textContent = name;
+  }
+
+  // The window's page is another origin, so the two talk by message. Only the
+  // ComfyUI page that holds this window is listened to.
+  const home = document.referrer ? new URL(document.referrer).origin : null;
+  const tellHome = (message) => { if (home) window.parent.postMessage(message, home); };
+
+  const send = document.createElement('button');
+  send.className = 'primary';
+  send.id = 'btn-send-comfy';
+  send.textContent = 'Send to ComfyUI';
+  send.disabled = true;
+  $('#btn-copy-all').before(send);
+  send.addEventListener('click', () => {
+    if (!lastResult) return;
+    // The same text Copy all takes, with the negative split off for its node.
+    const kept = promptSegments(shownSegments(lastResult, currentModel, promptStyle), currentModel);
+    const negative = kept.filter((s) => /negative/i.test(s.label));
+    const positive = kept.filter((s) => !negative.includes(s));
+    tellHome({
+      type: 'promptforge-prompt',
+      positive: positive.map((s) => s.body).join('\n\n'),
+      negative: negative.map((s) => s.body).join('\n\n'),
+    });
+  });
+
+  window.addEventListener('message', (e) => {
+    if (e.source !== window.parent || e.origin !== home) return;
+    if (e.data?.type === 'promptforge-sent') toast(e.data.text);
+    if (e.data?.type === 'promptforge-image' && e.data.file instanceof File) takePictures([e.data.file]);
+  });
+
+  // A picture goes to the view that is open: Chat attaches it to the message,
+  // anything else reads it in Analysis.
+  const openView = () => ($('.main-tab.active')?.dataset.tab === 'chat' ? 'chat' : 'analysis');
+  function takePictures(files) {
+    const pictures = files.filter((f) => f.type.startsWith('image/'));
+    if (!pictures.length) return;
+    if (openView() === 'chat') return addChatPictures(pictures);
+    $('.main-tab[data-tab="analysis"]')?.click();
+    analysisSetFile(pictures[0]);
+  }
+
+  // ComfyUI's page cannot see a drag while it is over this one, so say so, and
+  // which view it is for, then take a file here for the moment before its
+  // drop label covers us.
+  for (const type of ['dragenter', 'dragover']) {
+    window.addEventListener(type, (e) => {
+      e.preventDefault();
+      tellHome({ type: 'promptforge-drag', view: openView() });
+    });
+  }
+  window.addEventListener('drop', (e) => {
+    // Chat's own drop handler ran first and has it already.
+    if (e.defaultPrevented && openView() === 'chat') return;
+    e.preventDefault();
+    takePictures([...(e.dataTransfer?.files ?? [])]);
+  });
+  tellHome({ type: 'promptforge-ready' });
 }
 
 boot().catch((err) => {

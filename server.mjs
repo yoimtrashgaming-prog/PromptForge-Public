@@ -14,11 +14,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
-import { promptToolFor, promptToolArgs, promptReply, renderToolFor, renderToolArgs, renderSizeArgs, renderReply, editToolFor, editToolArgs, editReply } from './server/chat-prompt-tool.mjs';
+import { promptToolFor, promptToolArgs, promptReply, renderToolFor, renderToolArgs, renderSizeArgs, renderReply, editToolFor, editToolArgs, editReply, chatText, chatLanguageLine } from './server/chat-prompt-tool.mjs';
 import YAML from 'yaml';
 
 import { loadRegistry, RegistryError } from './server/registry.mjs';
-import { createPromptStore, runtimeContext } from './server/prompts.mjs';
+import { createPromptStore, runtimeContext, clockLine } from './server/prompts.mjs';
+import { planReplay, summaryBlock, summaryRequest, contextReport, carriedPrompts, COMPACT_AT, FULL_AT } from './server/chat-compact.mjs';
 import {
   formatReferences,
   referenceGroundingWarnings,
@@ -2273,7 +2274,11 @@ async function runRenderTool(req, body, { onEvent, signal } = {}) {
  * chat told a person their card was the P40 a fortnight after it left, and
  * with search off it wrote "Searching for..." and then guessed.
  */
-async function chatContext(body) {
+//
+// **Whether search ran is no longer in here (9 Nov 2026)** - see chatTurnNote.
+// The system prompt has to stay the same from turn to turn or llama.cpp
+// re-reads the whole conversation; the Search button changes per message.
+async function chatContext() {
   const lines = [];
   const cards = await sysmon.hardware().catch(() => []);
   if (cards.length) {
@@ -2283,12 +2288,137 @@ async function chatContext(body) {
   }
   if (!config.search?.enabled) {
     lines.push('Web search is not available on this server. You cannot look anything up; when an answer needs current information, say so.');
-  } else if (body.search === true) {
-    lines.push('Web search ran for this message; its results are in front of the question.');
-  } else {
-    lines.push('Web search did not run for this message: the Search button was off, and you cannot search on your own. Never say you are searching. When an answer needs current information, say so and suggest asking again with Search on.');
   }
   return lines.join('\n');
+}
+
+/**
+ * What changes per message: the time, and whether search ran. Put in front
+ * of the latest message for this request only, the way search results are,
+ * so the system prompt and every earlier turn stay byte-identical and
+ * llama.cpp's cache of them holds (9 Nov 2026).
+ */
+function chatTurnNote(body, lang = 'en') {
+  const lines = [clockLine()];
+  // The person's interface language (11 Nov 2026). Here, not in the system
+  // prompt, so the system prompt stays the same for everyone and between turns.
+  const language = chatLanguageLine(lang);
+  if (language) lines.push(language);
+  if (config.search?.enabled) {
+    lines.push(body.search === true
+      ? 'Web search ran for this message; its results are in front of the question.'
+      : 'Web search did not run for this message: the Search button was off, and you cannot search on your own. Never say you are searching. When an answer needs current information, say so and suggest asking again with Search on.');
+  }
+  return `[${lines.join(' ')}]`;
+}
+
+/**
+ * The context size chat is working within, per model. llama-swap is asked
+ * (its /upstream/<model>/props), because the ceiling lives in its config and
+ * differs per model with what fits beside the weights; the answer is cached
+ * per model for the life of the process. Anything else - Ollama, a cloud
+ * API, llama-swap not answering - falls back to llm.chat_context_tokens.
+ */
+const chatContextSizes = new Map();
+async function chatContextTokens(model) {
+  const fallback = Number(config.llm?.chat_context_tokens) || 32768;
+  if (!model) return fallback;
+  if (chatContextSizes.has(model)) return chatContextSizes.get(model);
+  if (llm.backend !== 'llamacpp') return fallback;
+  try {
+    const root = String(llm.baseUrl).replace(/\/v1\/?$/, '').replace(/\/$/, '');
+    // llama-swap answers /running; a bare llama-server does not, and serves
+    // /props itself. Only asked of a model that is already running: /upstream
+    // would start one that is not.
+    const runningRes = await fetch(`${root}/running`, { signal: AbortSignal.timeout(2000) });
+    let propsUrl = `${root}/props`;
+    if (runningRes.ok) {
+      const running = await runningRes.json();
+      if (!running?.running?.some((r) => r.model === model && r.state === 'ready')) return fallback;
+      propsUrl = `${root}/upstream/${model}/props`;
+    }
+    const props = await fetch(propsUrl, { signal: AbortSignal.timeout(3000) }).then((r) => r.json());
+    const n = Number(props?.default_generation_settings?.n_ctx);
+    if (n > 0) {
+      chatContextSizes.set(model, n);
+      return n;
+    }
+  } catch { /* the fallback is the answer */ }
+  return fallback;
+}
+
+/**
+ * Summarise the older part of a conversation, in place of sending all of it
+ * (9 Nov 2026; see server/chat-compact.mjs). Runs inside the chat's own
+ * queue ticket, on the model the person picked. Returns the updated chat,
+ * or the same one if it could not summarise - a failed summary is not a
+ * failed turn; the context error, if it then comes, says what happened.
+ */
+async function compactChat(user, chat, upto, { model, signal }) {
+  const summary = await summariseChat(chat, upto, { model, signal });
+  if (!summary) return chat;
+  return storage.setChatCompaction(user, chat.id, { upto, summary, model });
+}
+
+/** The model's summary of messages before `upto`, or '' when it could not. */
+async function summariseChat(chat, upto, { model, signal }) {
+  const instruction = prompts.chatCompact?.() ?? null;
+  if (!instruction) {
+    console.warn('[chat] no prompts/chat/compact.md - not summarising');
+    return '';
+  }
+  const name = (key) => registry.get(key)?.name ?? key;
+  const out = [];
+  const started = Date.now();
+  for await (const ev of llm.stream({
+    system: instruction,
+    messages: [{ role: 'user', content: summaryRequest(chat, upto, name) }],
+    model: model ?? undefined,
+    temperature: 0.3,
+    thinking: false,
+    maxTokens: 2000,
+    signal,
+    mock: { chat: true, message: 'summarise' },
+  })) {
+    if (ev.type === 'token') out.push(ev.text);
+  }
+  const summary = out.join('').trim();
+  if (summary) console.log(`[chat] summarised messages 0-${upto - 1} of ${chat.id} in ${Math.round((Date.now() - started) / 1000)}s (${summary.length} chars)`);
+  return summary;
+}
+
+/**
+ * The chat system prompt before any summary: the instruction, the date and
+ * the box's own facts. One function for the turn and the meter, so the meter
+ * counts what is actually sent. Null when the chat prompt is not loaded.
+ */
+async function chatSystemBase() {
+  const base = prompts.chat();
+  // The date only: the time rides on the latest message (chatTurnNote), so
+  // this stays identical all day and llama.cpp keeps its cache of the turns.
+  return base ? [base, runtimeContext(new Date(), { clock: false }), await chatContext()].filter(Boolean).join(PROMPT_SEPARATOR) : null;
+}
+
+// The tool definitions ride along with every chat turn; about this many
+// characters. Counted, not sent.
+const CHAT_TOOLS_ALLOWANCE = 'x'.repeat(4500);
+
+/**
+ * How full this chat's context is (11 Nov 2026), for the meter and for the
+ * question at COMPACT_AT: contextReport over what the next turn would send.
+ * `pending` is the message about to be sent, not stored yet.
+ */
+async function chatContextFor(user, chat, model, { systemBase = null, pending = null } = {}) {
+  const base = systemBase ?? (await chatSystemBase()) ?? '';
+  const modelName = (key) => registry.get(key)?.name ?? key;
+  const summary = chat ? summaryBlock(chat, modelName) : '';
+  return contextReport(chat ?? { messages: [] }, {
+    systemText: [base, summary, CHAT_TOOLS_ALLOWANCE].join(PROMPT_SEPARATOR),
+    parts: { instructions: base, summary, tools: CHAT_TOOLS_ALLOWANCE },
+    contextTokens: await chatContextTokens(model),
+    heldPictures: chat ? chatPictures.forChat(user, chat.id) : null,
+    pending,
+  });
 }
 
 /**
@@ -3643,6 +3773,97 @@ async function handleEdit(req, res, pathname) {
   return sendJSON(res, 404, { error: 'not_found', message: `No route for ${pathname}` });
 }
 
+/**
+ * Whether this generation is written in passes - `passes` in the registry
+ * (MOSS at Detail 10, 4 Nov 2026) - and the prompt files it needs, or null for
+ * the ordinary single call. Passes write prose for one segment, so anything
+ * else this request wants - another segment, a tag line, a hand-set length,
+ * a tool round - keeps the single call that knows how to do it.
+ */
+function passesFor(model, controls, required, maxLength, tools) {
+  const p = model.passes;
+  if (!p?.stops?.length || tools || maxLength) return null;
+  if (!(p.detail ?? []).includes(Number(controls?.detail))) return null;
+  if (p.modes?.length && !p.modes.includes(controls?.mode ?? model.default_mode)) return null;
+  if (required.length !== 1 || required[0] !== p.segment) return null;
+  const read = (rel) => {
+    try { return readFileSync(path.join(ROOT, rel), 'utf8'); } catch { return null; }
+  };
+  const plan = read(p.plan_prompt);
+  const part = read(p.part_prompt);
+  if (!plan || !part) {
+    console.warn(`[passes] ${model.key}: prompt file missing (${p.plan_prompt}, ${p.part_prompt}) - one pass instead`);
+    return null;
+  }
+  return { ...p, plan, part };
+}
+
+const fillTemplate = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+
+/**
+ * Write one segment in passes: one call plans what is visible at each stop,
+ * then one call per stop writes its paragraph. Every call carries the same
+ * system prompt and user turn as the single call would - brief, canon,
+ * pictures, controls, the detail rule - with the pass's own instruction
+ * appended, so passes change how the prompt is written, never what it is
+ * written from. Resolves the prose, or null when the plan came back unusable
+ * (the caller then makes the single call).
+ */
+async function writeInPasses(mp, { system, content, run, sse, signal, model }) {
+  let phase = { state: 'planning' };
+  const ask = async (instruction) => {
+    const userContent = Array.isArray(content)
+      ? [...content, { type: 'text', text: instruction }]
+      : `${content}\n\n---\n\n${instruction}`;
+    let out = '';
+    for await (const ev of llm.stream({ ...run, system, messages: [{ role: 'user', content: userContent }], signal })) {
+      if (ev.type === 'token') out += ev.text;
+      else if (ev.type === 'loading') sse.send('status', { state: 'model_loading' });
+      else if (ev.type === 'loaded') sse.send('status', phase);
+    }
+    return out;
+  };
+  // What a paragraph call answers with, minus what the format around it adds:
+  // a segment marker, a code fence, a heading line naming the stop.
+  const clean = (text) =>
+    text
+      .replace(/===SEGMENT:[^=]*===/g, '')
+      .replace(/^```\w*|```$/gm, '')
+      .replace(/^\s*(#+\s.*|\*\*[^*]+\*\*:?)\s*\n/, '')
+      .trim();
+
+  sse.send('status', phase);
+  const route = mp.stops.map((s) => `- ${s.key}: ${s.about}`).join('\n');
+  const raw = await ask(fillTemplate(mp.plan, { route }));
+  let items;
+  try {
+    items = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+  } catch {
+    console.warn(`[passes] ${model.key}: the plan was not JSON - one pass instead`);
+    return null;
+  }
+  const stops = mp.stops.filter((s) => Array.isArray(items?.[s.key]) && items[s.key].length);
+  if (!stops.length) return null;
+  const plan = JSON.stringify(Object.fromEntries(stops.map((s) => [s.key, items[s.key]])), null, 1);
+
+  const parts = [];
+  for (const [i, s] of stops.entries()) {
+    phase = { state: 'writing_part', done: i, total: stops.length };
+    sse.send('status', phase);
+    const text = clean(await ask(fillTemplate(mp.part, {
+      plan,
+      so_far: parts.join('\n\n') || '(nothing yet)',
+      stop: s.key,
+      about: s.about,
+      items: items[s.key].join(', '),
+      length: s.length ?? 'About 150-300 words of continuous present-tense prose: shape, material, colour, wear, placement, and how the light falls on each thing.',
+    })));
+    if (text) parts.push(text);
+  }
+  console.log(`[passes] ${model.key}: ${stops.length} stops, ${parts.join(' ').split(/\s+/).length} words`);
+  return parts.join('\n\n');
+}
+
 async function handleGenerate(req, res) {
   let body;
   try {
@@ -3879,7 +4100,11 @@ async function handleGenerate(req, res) {
     // Registry override first, then the person's own choice, then the
     // configured default — see chooseModel. The registry wins because a
     // target that declares its own LLM does so on measured grounds.
-    const llmModel = chooseModel(model, storage.getPrefs(whoIs(req)));
+    // A generation chat started runs on chat's own model (req.chatLlm, set
+    // only by runPromptTool, never from a request body). It used the prompt
+    // tab's choice until 11 Nov 2026, so a chat on Q6 with the tab on r4
+    // unloaded Q6, loaded r4 for the prompt, then loaded Q6 again.
+    const llmModel = req.chatLlm || chooseModel(model, storage.getPrefs(whoIs(req)));
     // Counted here rather than on the done event: this is the point the model
     // is committed to, and a generation that failed or was cancelled still
     // spun the weights up and still says somebody reaches for this model.
@@ -4088,6 +4313,28 @@ ${toolGuide}` : system;
       }
     }
 
+    // ── h3 video references: what each clip shows ─────────────────────────
+    //
+    // 11 Nov 2026. A video reference reached the writer as a <Video N> line
+    // and the tags of three frames; nothing ever looked at it, while the same
+    // clip's frames pasted into chat were seen and described. The frames
+    // sampled when the clip was added come up with Generate, the picture
+    // reader looks at them together, and its words go on that clip's line.
+    // A reading the browser sent is dropped: only this step writes one.
+    if (model.type === 'video' && Array.isArray(body.controls?.references)) {
+      body.controls.references = body.controls.references.map(({ clip_reading, ...r }) => r);
+      const clipReadings = await readClips({
+        model,
+        llmModel: pictureLlm,
+        references: body.controls.references,
+        signal: abort.signal,
+        sse,
+      });
+      if (clipReadings.size) {
+        body.controls.references = body.controls.references.map((r, i) => (clipReadings.has(i) ? { ...r, clip_reading: clipReadings.get(i) } : r));
+      }
+    }
+
     // The pictures travel only when nothing read them. Sending both would put
     // the model back in the position the split exists to get it out of —
     // reading the image again, against a text reading of the same image, with
@@ -4234,7 +4481,29 @@ ${toolGuide}` : system;
     // out — only ever before the first token, because a mid-stream failure
     // is a real failure and restarting it would duplicate output.
     let waitedMs = 0;
-    for (;;) {
+    // Detail 10 on MOSS: written in passes instead of the single call below,
+    // which still runs if the passes do not apply or their plan was unusable.
+    const mp = passesFor(model, body.controls, plan.required, maxLength, tools);
+    const passText = mp
+      ? await writeInPasses(mp, {
+          system: systemForRun,
+          content: convo[0].content,
+          run: {
+            temperature, top_p,
+            thinking: body.controls?.thinking ?? model.thinking,
+            model: llmModel,
+            timeoutMs: model.timeout_ms,
+            contextLength: model.context_length,
+          },
+          sse, signal: abort.signal, model,
+        })
+      : null;
+    if (passText) {
+      const text = `===SEGMENT: ${mp.segment}===\n${passText}`;
+      collected.push(text);
+      stream.push(text);
+    }
+    for (; !passText;) {
       // Accumulated by index, because the OpenAI-compatible path streams a
       // call's name and arguments across several frames while Ollama's native
       // path sends each one whole. Keying on index is correct for both.
@@ -4283,6 +4552,11 @@ ${toolGuide}` : system;
             });
           } else if (ev.type === 'usage') {
             usage = ev.usage;
+          } else if (ev.type === 'loading') {
+            // llama-swap is loading the model; the wait has its own clock.
+            sse.send('status', { state: 'model_loading' });
+          } else if (ev.type === 'loaded') {
+            sse.send('status', { state: 'generating', model: model.key });
           }
         }
 
@@ -4871,11 +5145,28 @@ const CHAT_MAX_PICTURES = 4;
  * @returns { segments } on success, { refused, segments } on a refusal, or
  *          { error } in words the person can read.
  */
-async function runPromptTool(req, model, brief, { onQueued, signal } = {}) {
-  const fakeReq = Readable.from([Buffer.from(JSON.stringify({ model: model.key, brief, controls: {} }))]);
+/**
+ * A prompt tool call with no format named keeps the format chat last wrote
+ * for that model in this conversation, the way the tab keeps its own. "Change
+ * the lighting" on an I2VA prompt came back as REF2VA (10 Nov 2026) because
+ * every call started from the default.
+ */
+function withRememberedFormat(args, chat) {
+  if (args.error || args.mode) return args;
+  const last = [...(chat?.messages ?? [])].reverse().find((m) => m.tool?.model === args.model.key && m.tool.mode);
+  return last && (args.model.modes ?? []).includes(last.tool.mode) ? { ...args, mode: last.tool.mode } : args;
+}
+
+async function runPromptTool(req, model, brief, { onQueued, signal, llmModel, mode, detail } = {}) {
+  // Only what chat asked for; everything else is the tab's default.
+  const controls = {};
+  if (mode) controls.mode = mode;
+  if (detail) controls.detail = detail;
+  const fakeReq = Readable.from([Buffer.from(JSON.stringify({ model: model.key, brief, controls }))]);
   fakeReq.headers = req.headers;
   fakeReq.user = req.user;
   fakeReq.method = 'POST';
+  if (llmModel) fakeReq.chatLlm = llmModel;
   const fakeRes = new EventEmitter();
   let buffer = '';
   let result = null;
@@ -4957,9 +5248,9 @@ async function handleChat(req, res) {
   // Composed per request, not at boot. The prompt store caches, and this
   // server is meant to run for weeks - a date baked in at startup would be
   // wrong by more than the model's own guess inside a fortnight.
-  const base = prompts.chat();
-  const system = base ? [base, runtimeContext(), await chatContext(body)].filter(Boolean).join(PROMPT_SEPARATOR) : null;
-  if (!system) {
+  // The summary of an older stretch, when there is one, is added below.
+  const systemBase = await chatSystemBase();
+  if (!systemBase) {
     return sendJSON(res, 500, {
       error: 'prompt_unavailable',
       message: 'The chat system prompt is not loaded.',
@@ -4970,6 +5261,14 @@ async function handleChat(req, res) {
   // cost a conversation file and a place in the line first.
   const picked = await resolveChatModel(body.model);
   if (picked.error) return sendJSON(res, 400, picked.error);
+  // The interface language this person picked: chat answers in it, and the
+  // lines code writes into a reply use it too.
+  const lang = storage.getPrefs(user).language ?? 'en';
+  const t = chatText(lang);
+  // Also at the end of the system prompt: on the turn note alone the 27B
+  // started in French and finished in English, pulled back by the English
+  // tool descriptions. Fixed per person, so the cache still holds per chat.
+  const systemFor = (s) => (chatLanguageLine(lang) ? `${s}${PROMPT_SEPARATOR}${chatLanguageLine(lang)}` : s);
 
   // Pictures: checked and decoded here, before a conversation file exists,
   // and never written anywhere - see server/chatpictures.mjs.
@@ -5001,12 +5300,35 @@ async function handleChat(req, res) {
   // Existing conversation or a new one. A bad id is a 404 rather than a
   // silent new conversation, or a client bug quietly scatters orphans.
   let chat;
+  // What the person chose at the context question (11 Nov 2026): 'keep'
+  // sends as it is, 'compact' summarises the older part here, 'new' moves to
+  // a fresh chat that starts from a summary of this one.
+  const choice = ['keep', 'compact', 'new'].includes(body.context_choice) ? body.context_choice : null;
+  let continueFrom = null;
   if (body.id) {
     chat = storage.getChat(user, body.id);
     if (!chat) {
       return sendJSON(res, 404, { error: 'not_found', message: `No conversation ${body.id}` });
     }
-  } else {
+    // Asked before anything is saved, so answering and sending again does
+    // not store the message twice. Counted with this message in it.
+    if (choice !== 'new') {
+      const context = await chatContextFor(user, chat, picked.model ?? llm.model, {
+        systemBase,
+        pending: { role: 'user', content: text, pictures: pictures.length },
+      });
+      const share = context.limit ? context.used / context.limit : 0;
+      if (share >= FULL_AT && choice !== 'compact') {
+        return sendJSON(res, 409, { error: 'context_full', message: 'This chat is full. Compact it, or continue in a new chat.', context });
+      }
+      if (share >= COMPACT_AT && !choice) {
+        return sendJSON(res, 409, { error: 'context_high', message: 'This chat is getting long.', context });
+      }
+    } else {
+      continueFrom = chat;
+    }
+  }
+  if (!chat || continueFrom) {
     chat = storage.createChat(user, { model: picked.model ?? llm.model });
   }
 
@@ -5082,15 +5404,72 @@ async function handleChat(req, res) {
       });
     }
 
+    // ── summary, near the context ceiling (9 Nov 2026) ──
+    //
+    // Nothing is dropped silently: past COMPACT_AT of the model's context the
+    // older stretch is summarised by the model itself, the page says so, and
+    // the recent messages and the latest prompt per model go on word for
+    // word. See server/chat-compact.mjs. Only when the person chose it (11
+    // Nov 2026): the page asks at COMPACT_AT, and this turn carries the answer.
+    const modelName = (key) => registry.get(key)?.name ?? key;
+
+    // "Continue in a new chat": the whole old chat summarised into this new
+    // one, with its latest prompt per model word for word. The old chat is
+    // left exactly as it was.
+    if (continueFrom) {
+      sse.send('status', { state: 'continuing' });
+      let summary = '';
+      try {
+        summary = await summariseChat(continueFrom, continueFrom.messages.length, { model: picked.model, signal: abort.signal });
+      } catch (err) {
+        if (abort.signal.aborted) throw err;
+        console.warn(`[chat] summary for a new chat failed: ${err.message}`);
+      }
+      if (summary) {
+        chat = storage.setChatCompaction(user, chat.id, {
+          upto: 0,
+          summary,
+          model: picked.model,
+          from_id: continueFrom.id,
+          from_title: continueFrom.title,
+          carried: carriedPrompts(continueFrom, continueFrom.messages.length, modelName),
+        });
+      }
+      sse.send('continued', { from_id: continueFrom.id, from_title: continueFrom.title, ok: Boolean(summary) });
+    }
+
+    if (choice === 'compact') {
+      const contextTokens = await chatContextTokens(picked.model ?? llm.model);
+      const heldNow = chatPictures.forChat(user, chat.id);
+      const plan = planReplay(chat, {
+        systemText: [systemBase, summaryBlock(chat, modelName), CHAT_TOOLS_ALLOWANCE].join(PROMPT_SEPARATOR),
+        contextTokens,
+        heldPictures: heldNow,
+      });
+      if (plan.compact) {
+        sse.send('status', { state: 'compacting' });
+        try {
+          const before = chat.compacted?.upto ?? 0;
+          chat = await compactChat(user, chat, plan.compact.upto, { model: picked.model, signal: abort.signal });
+          if ((chat.compacted?.upto ?? 0) > before) sse.send('compacted', { upto: chat.compacted.upto });
+        } catch (err) {
+          if (abort.signal.aborted) throw err;
+          console.warn(`[chat] summary failed, sending the conversation as it is: ${err.message}`);
+        }
+      }
+    }
+    const system = systemFor([systemBase, summaryBlock(chat, modelName)].filter(Boolean).join(PROMPT_SEPARATOR));
+    const replayFrom = Math.min(chat.compacted?.upto ?? 0, chat.messages.length);
+
     sse.send('status', { state: 'generating' });
     usageStats.record(picked.model ?? llm.model);
     metrics.incGenerations(picked.model ?? llm.model);
 
     // The whole conversation, not just the latest turn — that is what makes
-    // it a conversation. The context cap in config/server.yaml is what stops
-    // this growing without bound; nothing here trims, because a silent trim
+    // it a conversation. Nothing here trims silently, because a silent trim
     // that drops the message someone is referring to is worse than an honest
-    // context error.
+    // context error; near the ceiling the older stretch is summarised above,
+    // and from then on this replays from the end of that summary.
     //
     // A picture is replayed with the message it came with for as long as it is
     // held, so a follow-up question can still look at it. One no longer held
@@ -5106,7 +5485,9 @@ async function handleChat(req, res) {
     // edit_picture: the latest picture here, changed. See runEdit.
     const editTool = await chatEditTool(picked.model ?? llm.model, req);
     const chatTools = [promptTool, renderTool, editTool].filter(Boolean);
-    const history = chat.messages.flatMap((m, i) => {
+    // Indices stay absolute: held pictures and tool call ids are keyed by them.
+    const history = chat.messages.slice(replayFrom).flatMap((m, j) => {
+      const i = replayFrom + j;
       // A reply the tool wrote goes back as the tool call and its result.
       // Replayed as plain assistant text, it taught the model to write the
       // next prompt itself and copy the "written by the Krea2 prompt writer"
@@ -5117,7 +5498,11 @@ async function handleChat(req, res) {
           {
             role: 'assistant',
             content: '',
-            tool_calls: [{ id: callId, type: 'function', function: { name: m.tool.name, arguments: toolArgsForBackend(JSON.stringify(m.tool.name === 'edit_picture' ? { instruction: m.tool.brief } : { model: m.tool.model, brief: m.tool.brief })) } }],
+            tool_calls: [{ id: callId, type: 'function', function: { name: m.tool.name, arguments: toolArgsForBackend(JSON.stringify(m.tool.name === 'edit_picture'
+              ? { instruction: m.tool.brief }
+              // The format and detail go back with the call, so a later
+              // "change that" can see what the prompt was written as.
+              : { model: m.tool.model, brief: m.tool.brief, ...(m.tool.mode ? { format: m.tool.mode } : {}), ...(m.tool.detail ? { detail: m.tool.detail } : {}) })) } }],
           },
           { role: 'tool', content: m.content, tool_name: m.tool.name, tool_call_id: callId },
         ];
@@ -5153,9 +5538,13 @@ async function handleChat(req, res) {
     // on llama.cpp died with a Jinja 500. The results now ride in front of
     // the latest question in THIS request only - the stored message is still
     // exactly what the person typed, so nothing is replayed on later turns.
-    if (searchContext) {
+    //
+    // The time and the search note ride the same way (9 Nov 2026,
+    // chatTurnNote), so the system prompt stays the same between turns.
+    {
       const last = history[history.length - 1];
-      const lead = `${searchContext}\n\nThe question:\n`;
+      const note = chatTurnNote(body, lang);
+      const lead = searchContext ? `${note}\n\n${searchContext}\n\nThe question:\n` : `${note}\n\n`;
       history[history.length - 1] = {
         ...last,
         content: Array.isArray(last.content)
@@ -5187,6 +5576,11 @@ async function handleChat(req, res) {
         calls.set(ev.index, { name: cur.name + (ev.name ?? ''), arguments: cur.arguments + (ev.arguments ?? '') });
       } else if (ev.type === 'usage') {
         usage = ev.usage;
+      } else if (ev.type === 'loading') {
+        // llama-swap is loading the model; the wait has its own clock.
+        sse.send('status', { state: 'model_loading' });
+      } else if (ev.type === 'loaded') {
+        sse.send('status', { state: 'generating' });
       }
     }
 
@@ -5197,7 +5591,7 @@ async function handleChat(req, res) {
     let edited = null;
     const editCall = editTool && !call && !renderCall ? [...calls.values()].find((c) => c.name === 'edit_picture') : null;
     if (editCall) {
-      const args = editToolArgs(editCall.arguments);
+      const args = editToolArgs(editCall.arguments, lang);
       const lead = collected.join('');
       let failure = args.error ?? null;
       const source = failure ? null : latestChatPictures(user, chat, held);
@@ -5234,19 +5628,19 @@ async function handleChat(req, res) {
           sse.send('edit', edited);
         } catch (err) {
           if (!err.code) console.error('[chat] edit failed:', err);
-          failure = `The edit did not finish: ${err.message}`;
+          failure = t.editFailed(err.message);
         }
       }
       const reply = failure
         ? [lead.trim(), failure].filter(Boolean).join('\n\n')
-        : editReply(edit.label, edited.prompt, edited.ms, lead);
+        : editReply(edit.label, edited.prompt, edited.ms, lead, lang);
       const rest = reply.startsWith(lead) ? reply.slice(lead.length) : `\n\n${reply}`;
       collected.push(rest);
       sse.send('token', { text: rest });
     }
     if (renderCall && !call) {
       const models = registry.all().filter((m) => m.render?.workflow);
-      const args = renderToolArgs(renderCall.arguments, models);
+      const args = withRememberedFormat(renderToolArgs(renderCall.arguments, models, lang), chat);
       const lead = collected.join('');
       let reply;
       if (args.error) {
@@ -5266,10 +5660,13 @@ async function handleChat(req, res) {
           sse.send('status', { state: 'writing_prompt', model: args.model.name });
           const out = await runPromptTool(req, args.model, args.brief, {
             signal: abort.signal,
+            llmModel: picked.model ?? llm.model,
+            mode: args.mode,
+            detail: args.detail,
             onQueued: (position) => { if (position > 0) sse.send('queued', { position }); },
           });
-          if (out.error) failure = `The ${args.model.name} prompt writer could not write this one: ${out.error}`;
-          else if (out.refused) failure = `The ${args.model.name} prompt writer declined this one.`;
+          if (out.error) failure = t.couldNot(args.model.name, out.error);
+          else if (out.refused) failure = t.declined(args.model.name);
           else {
             segments = out.segments;
             texts = renderTextsFrom(args.model, segments);
@@ -5292,15 +5689,15 @@ async function handleChat(req, res) {
               },
             }
           );
-          if (out.error) failure = `The render did not finish: ${out.error}`;
+          if (out.error) failure = t.renderFailed(out.error);
           else rendered = out;
         }
         if (failure) {
           reply = [lead.trim(), failure].filter(Boolean).join('\n\n');
         } else {
           const shownSegments = segments ?? [{ label: 'Prompt', body: texts.positive }];
-          reply = renderReply(args.model, shownSegments, rendered, lead);
-          toolUsed = { name: 'render_picture', model: args.model.key, brief: args.brief, positive: texts.positive, negative: texts.negative };
+          reply = renderReply(args.model, shownSegments, rendered, lead, lang);
+          toolUsed = { name: 'render_picture', model: args.model.key, brief: args.brief, mode: args.mode, detail: args.detail, positive: texts.positive, negative: texts.negative };
           sse.send('render', { ...rendered, model: args.model.key, brief: args.brief, segments: shownSegments });
         }
       }
@@ -5310,30 +5707,34 @@ async function handleChat(req, res) {
     }
     if (call) {
       const models = registry.keys().map((k) => registry.get(k));
-      const args = promptToolArgs(call.arguments, models);
+      const args = withRememberedFormat(promptToolArgs(call.arguments, models, lang), chat);
       const lead = collected.join('');
       let reply;
       if (args.error) {
         reply = [lead.trim(), args.error].filter(Boolean).join('\n\n');
       } else {
-        console.log(`[chat] write_prompt -> ${args.model.key}: ${args.brief.slice(0, 80)}`);
+        const how = [args.mode, args.detail ? `detail ${args.detail}` : null].filter(Boolean).join(', ');
+        console.log(`[chat] write_prompt -> ${args.model.key}${how ? ` [${how}]` : ''}: ${args.brief.slice(0, 80)}`);
         sse.send('status', { state: 'writing_prompt', model: args.model.name });
         // The generation takes its own place in the line, so this chat turn
         // gives up its own first or the two would wait on each other forever.
         ticket.release();
         const out = await runPromptTool(req, args.model, args.brief, {
           signal: abort.signal,
+          llmModel: picked.model ?? llm.model,
+          mode: args.mode,
+          detail: args.detail,
           onQueued: (position) => { if (position > 0) sse.send('queued', { position }); },
         });
         reply = out.error
-          ? [lead.trim(), `The ${args.model.name} prompt writer could not write this one: ${out.error}`].filter(Boolean).join('\n\n')
+          ? [lead.trim(), t.couldNot(args.model.name, out.error)].filter(Boolean).join('\n\n')
           : out.refused
-            ? [lead.trim(), `The ${args.model.name} prompt writer declined this one.`].filter(Boolean).join('\n\n')
-            : promptReply(args.model, out.segments, lead);
+            ? [lead.trim(), t.declined(args.model.name)].filter(Boolean).join('\n\n')
+            : promptReply(args.model, out.segments, lead, lang);
         // The prompt itself is kept with the tool record, so "render that"
         // on a later turn draws exactly this one rather than a rewrite.
         if (!out.error && !out.refused) {
-          toolUsed = { name: 'write_prompt', model: args.model.key, brief: args.brief, ...renderTextsFrom(args.model, out.segments) };
+          toolUsed = { name: 'write_prompt', model: args.model.key, brief: args.brief, mode: args.mode, detail: args.detail, ...renderTextsFrom(args.model, out.segments) };
         }
       }
       // What streamed already stays on screen; the rest follows as one piece.
@@ -5364,6 +5765,8 @@ async function handleChat(req, res) {
       content: answer,
       citations: saved.messages.at(-1).citations ?? [],
       usage,
+      // What the meter shows now, counted the way the next turn will be.
+      context: await chatContextFor(user, saved, picked.model ?? llm.model, { systemBase }).catch(() => null),
     });
   } catch (err) {
     // Same contract as generation: whatever arrived is kept, and the client
@@ -5702,6 +6105,102 @@ async function withCrops(units) {
     }));
     return { ...u, refs };
   }));
+}
+
+/** At most this many frames of one clip go to the reader. */
+const CLIP_FRAMES_MAX = 4;
+
+/**
+ * Look at each h3 video reference's sampled frames and say what the clip
+ * shows. Returns Map(reference index -> reading); empty when there is no
+ * instruction, no clip with frames, or a reader that cannot see (said once).
+ * Cached by content through readPictures, so a re-roll does not look again.
+ */
+async function readClips({ model, llmModel, references = [], signal, sse }) {
+  const out = new Map();
+  const system = prompts.clipDescription();
+  if (!system) return out;
+
+  // Numbered the way formatReferences numbers <Video N>: every video whose
+  // picture is referenced, in order, whether or not it has frames.
+  const units = [];
+  let v = 0;
+  const instruction = createHash('sha256').update(system).digest('hex').slice(0, 8);
+  for (const [i, ref] of references.entries()) {
+    if (ref?.kind !== 'video' || ref.stream === 'audio') continue;
+    v += 1;
+    const frames = (Array.isArray(ref.frames) ? ref.frames : [])
+      .filter((f) => SENDABLE_IMAGE.test(String(f?.image ?? '')))
+      .slice(0, CLIP_FRAMES_MAX);
+    if (!frames.length) continue;
+    // A reading the tile already holds (from an earlier run, or corrected
+    // by hand behind its eye button) is used as it is: readPictures' given.
+    const given = typeof ref.reading === 'string' ? ref.reading : '';
+    units.push({
+      i,
+      video: v,
+      labels: [`<Video ${v}>`],
+      role: `clip:${ref.role ?? ''}:${instruction}`,
+      refs: frames.map((f) => ({ image: f.image, keep: ref.keep ?? '', drop: ref.drop ?? '', reading: given })),
+      clip: {
+        role: ref.role,
+        keep: String(ref.keep ?? '').trim(),
+        drop: String(ref.drop ?? '').trim(),
+        at: frames.map((f) => Number(f.at_seconds)).filter(Number.isFinite),
+        duration: Number(ref.duration_seconds) || null,
+      },
+    });
+  }
+  if (!units.length) return out;
+  if ((await visionTags.canSee(llmModel ?? llm.model)) === false) {
+    sse.send('warning', {
+      message: `${llmModel ?? llm.model} cannot see images, so the video ${units.length === 1 ? 'reference goes' : 'references go'} as notes and tags only.`,
+    });
+    return out;
+  }
+
+  // What the reader is told: the frames' order and times, and what the person
+  // wants from the clip. Not the brief, for the reason readingMessage gives.
+  const FOR = {
+    motion: 'The person is using it for its motion: the movement, pacing, cuts and camera work.',
+    subject: 'The person is using it for its subject: who or what appears and how they look.',
+    style: 'The person is using it for its style: how it looks.',
+    keyframe: 'The person is using it as a frame of the new video.',
+  };
+  const message = (u) => {
+    const c = u.clip;
+    const when = c.at.length ? `, taken at ${c.at.map((s) => `${s.toFixed(1)} s`).join(', ')}` : '';
+    const lines = [`These ${u.refs.length} frames come from one video clip${c.duration ? ` ${c.duration.toFixed(1)} s long` : ''}, in order${when}.`];
+    if (FOR[c.role]) lines.push(FOR[c.role]);
+    if (c.keep) lines.push(`The person wants to keep: ${c.keep}.`);
+    if (c.drop) lines.push(`The person wants to leave out: ${c.drop}.`);
+    return lines.join('\n');
+  };
+
+  const read = await readPictures({
+    model,
+    llmModel,
+    units,
+    system,
+    signal,
+    sse,
+    message,
+    maxTokens: 260,
+    keyOf: (u) => u.labels[0],
+  });
+  for (const u of units) {
+    const text = read.get(u.labels[0]);
+    if (text) out.set(u.i, text);
+  }
+  if (out.size) {
+    // What the prompt was written from, to the person (show-me-the-output).
+    // Its own event: picture_readings places by <Picture N>, and <Video 1>
+    // would land on the first picture.
+    sse.send('clip_readings', {
+      readings: units.filter((u) => out.has(u.i)).map((u) => ({ video: u.video, labels: u.labels[0], text: out.get(u.i) })),
+    });
+  }
+  return out;
 }
 
 async function readPictures({ model, llmModel, units, system, signal, sse, force = false, temperature = PICTURE_TEMPERATURE, onReading = () => {}, message = readingMessage, maxTokens = PICTURE_BUDGET, useGiven = true, keyOf = (u) => u.labels.join(', ') }) {
@@ -6850,6 +7349,7 @@ async function handleReferenceAnalysis(req, res, url) {
       count: REFERENCE_FRAME_SAMPLES,
       duration: probe.duration_seconds,
       suffix,
+      maxSide: REFERENCE_FRAME_MAX_SIDE,
     });
     if (!sampled.ok) {
       return sendJSON(res, 200, {
@@ -6862,19 +7362,28 @@ async function handleReferenceAnalysis(req, res, url) {
       });
     }
 
+    // The frames themselves, back to the browser (11 Nov 2026). Until then
+    // they were tagged and thrown away, so the prompt writer only ever got a
+    // <Video N> line and some tags: it never saw the clip. The tile keeps
+    // these and sends them with Generate, where the picture reader looks at
+    // them and says what the clip shows (readClips).
+    const frames = sampled.frames.map((f) => ({ at_seconds: f.at_seconds, image: `data:image/jpeg;base64,${f.bytes.toString('base64')}` }));
+
     // Tag every frame and merge, keeping each tag's best confidence. A tag
     // that appears in one frame of three is still in the clip — this is a
     // reference, not a classification, and the person edits the list anyway.
     // Merging on max rather than mean is what makes a brief action visible.
     const best = new Map();
     let taggerName = null;
+    let taggerDown = null;
     for (const frame of sampled.frames) {
       let result;
       try {
         result = await tag(frame.bytes);
       } catch (err) {
+        // The frames still go back: the model can look at them without tags.
+        if (err.code === 'tagger_unavailable') { taggerDown = err.message; break; }
         // One unreadable frame must not lose the other two.
-        if (err.code === 'tagger_unavailable') throw err;
         continue;
       }
       taggerName = result.model ?? taggerName;
@@ -6890,7 +7399,9 @@ async function handleReferenceAnalysis(req, res, url) {
     return sendJSON(res, 200, {
       kind: 'video',
       described: Boolean(merged.length),
-      reason: merged.length ? null : 'Nothing was detected in the sampled frames.',
+      reason: merged.length ? null
+        : taggerDown ? `The tagger is not available (${taggerDown}). The model will still look at the clip's frames.`
+        : 'Nothing was detected in the sampled frames.',
       model: taggerName,
       character: merged.filter((t) => t.group === 'character'),
       general: merged.filter((t) => t.group === 'general'),
@@ -6898,6 +7409,7 @@ async function handleReferenceAnalysis(req, res, url) {
       has_audio: probe.has_audio,
       has_video: true,
       sampled_at: sampled.frames.map((f) => f.at_seconds),
+      frames,
     });
   } catch (err) {
     if (err.code === 'tagger_unavailable') {
@@ -6915,6 +7427,9 @@ async function handleReferenceAnalysis(req, res, url) {
 // tagger that already takes a second or two per image, on a box that is also
 // holding an LLM.
 const REFERENCE_FRAME_SAMPLES = 3;
+// The longer side of those frames, for the model that looks at them. The
+// tagger resizes to 448 anyway, so it loses nothing.
+const REFERENCE_FRAME_MAX_SIDE = 768;
 
 // ffprobe and ffmpeg both sniff content, but a container extension makes them
 // far more reliable about it — a headerless .webm written as `input` with no
@@ -8268,6 +8783,16 @@ async function handleRequest(req, res) {
       // says "fix your selection" for one and "tell the owner" for the other.
       return sendJSON(res, out.ok ? 200 : /categor/i.test(out.message ?? '') ? 400 : 503, out);
     }
+    // Variables in the brief, drawn from the same lists. See web/brief-vars.js.
+    if (req.method === 'GET' && pathname === '/api/variables') {
+      const out = await randomizer.variables();
+      return sendJSON(res, out.ok ? 200 : 503, out);
+    }
+    if (req.method === 'POST' && pathname === '/api/variables/fill') {
+      const body = await readBody(req, 64 * 1024).catch(() => ({}));
+      const out = await randomizer.fill(body.brief, body.picks, body.seed);
+      return sendJSON(res, out.ok ? 200 : 503, out);
+    }
     // What ComfyUI wrote inside the picture - prompt, checkpoint, LoRAs,
     // seed, sampler - for Image Analysis, the same reader the pinboard uses
     // (server/comfymeta.mjs). Sent the ORIGINAL file: a crop is re-encoded,
@@ -8511,6 +9036,19 @@ async function handleRequest(req, res) {
         return createReadStream(file).on('error', () => res.destroy()).pipe(res);
       }
     }
+    // How full a chat's context is, for the meter by the message box (11 Nov
+    // 2026). No id: a new chat, which holds only the instructions and tools.
+    // The model is the one picked in the page, since that is what answers next.
+    if (pathname === '/api/chat-context' && req.method === 'GET') {
+      const user = whoIs(req);
+      const id = url.searchParams.get('id');
+      const chat = id ? storage.getChat(user, id) : null;
+      if (id && !chat) return sendJSON(res, 404, { error: 'not_found', message: `No conversation ${id}` });
+      const picked = await resolveChatModel(url.searchParams.get('model') || undefined);
+      if (picked.error) return sendJSON(res, 400, picked.error);
+      return sendJSON(res, 200, await chatContextFor(user, chat, picked.model ?? llm.model));
+    }
+
     if (pathname.startsWith('/api/chat/')) {
       const user = whoIs(req);
       const id = pathname.slice('/api/chat/'.length);

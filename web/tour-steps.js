@@ -97,8 +97,8 @@ export const TOUR_STEPS = [
   },
   {
     target: '.main-tab[data-tab="analysis"]',
-    title: 'Image Analysis',
-    text: 'Drop in a picture to get its tags or a description, then send them straight into the builder.',
+    title: 'Media Analysis',
+    text: 'Drop in a picture to get its tags or a description, or a video to pick a frame from it, then send them straight into the builder.',
   },
   {
     target: '.main-tab[data-tab="lora"]',

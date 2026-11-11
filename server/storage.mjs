@@ -285,6 +285,9 @@ export function createStorage(rootDir, config) {
       if (message.tool.negative) entry.tool.negative = String(message.tool.negative).slice(0, 20000);
       // edit_picture: the instruction the editor was given.
       if (message.tool.prompt) entry.tool.prompt = String(message.tool.prompt).slice(0, 20000);
+      // The format and detail it was written at, so "change that" keeps them.
+      if (message.tool.mode) entry.tool.mode = String(message.tool.mode).slice(0, 100);
+      if (Number.isInteger(message.tool.detail)) entry.tool.detail = message.tool.detail;
     }
     // A picture chat edited, kept beside this conversation (saveChatPicture)
     // and on its clock. The id is checked; the url is built here, not taken.
@@ -310,6 +313,30 @@ export function createStorage(rootDir, config) {
       chat.title = titleFromMessage(entry.content);
     }
     if (message.model) chat.model = message.model;
+    return writeChatFile(username, chat);
+  }
+
+  /**
+   * Chat's auto-summary (9 Nov 2026): what the model is sent in place of
+   * messages[0..upto). The messages themselves stay exactly as they were -
+   * the page still shows all of them - and this only changes what is
+   * replayed. Like rename, not talking, so updated_at is left alone.
+   */
+  function setChatCompaction(username, id, compacted) {
+    const chat = readChatFile(username, id);
+    if (!chat) throw Object.assign(new Error('No such conversation.'), { statusCode: 404 });
+    chat.compacted = {
+      upto: Number(compacted.upto) || 0,
+      summary: String(compacted.summary ?? '').slice(0, 40000),
+      at: new Date().toISOString(),
+      model: String(compacted.model ?? ''),
+      // A chat continued from another (11 Nov 2026): where it came from, and
+      // that chat's latest prompt per model, word for word.
+      ...(compacted.from_id ? { from_id: String(compacted.from_id), from_title: String(compacted.from_title ?? '').slice(0, 200) } : {}),
+      ...(Array.isArray(compacted.carried) && compacted.carried.length
+        ? { carried: compacted.carried.slice(0, 8).map((p) => String(p).slice(0, 20000)) }
+        : {}),
+    };
     return writeChatFile(username, chat);
   }
 
@@ -885,6 +912,7 @@ export function createStorage(rootDir, config) {
     getChat,
     createChat,
     appendMessage,
+    setChatCompaction,
     deleteChat,
     setChatLocked,
     renameChat,

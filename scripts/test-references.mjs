@@ -99,6 +99,17 @@ check('an audio file with any role is an Audio',
     /<Picture 3> IS a frame of the video/.test(lines[2]) && /shot and moment/.test(lines[2]), lines[2]);
 }
 
+// ── what a clip shows (11 Nov 2026) ─────────────────────────
+{
+  const { lines } = formatReferences([
+    { role: 'motion', kind: 'video', stream: 'both', clip_reading: 'A slow\n push-in on a title card.' },
+    { role: 'motion', kind: 'video', stream: 'video' },
+  ], 'REF2VA');
+  check('a read clip says what it shows on its Video line', /<Video 1>.*what the clip shows: A slow push-in on a title card\./.test(lines[0]), lines[0]);
+  check('...and not on its Audio line', !/what the clip shows/.test(lines[1]), lines[1]);
+  check('an unread clip has no reading', lines.filter((l) => /what the clip shows/.test(l)).length === 1, lines.join(' | '));
+}
+
 {
   const { lines } = formatReferences([{ role: 'subject', kind: 'audio' }]);
   check('an audio file is described as audio, not by the role picker', /voice — audio signal/.test(lines[0]), lines[0]);

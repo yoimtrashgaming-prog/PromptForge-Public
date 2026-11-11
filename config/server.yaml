@@ -158,7 +158,22 @@ llm:
   # Turn it on, ask something with a real tradeoff in it, and decide.
   chat_thinking: false
 
+  # The context chat works within, for its auto-summary: past 70% of it, the
+  # older part of a conversation is summarised and the recent part goes on
+  # word for word (server/chat-compact.mjs). On llama.cpp behind llama-swap
+  # the real figure is read from the running model (its --ctx-size), and
+  # this is only the fallback; anywhere else, set it to what the model was
+  # loaded with. Not the same thing as context_length above, which only
+  # Ollama reads.
+  chat_context_tokens: 32768
+
   timeout_ms: 120000
+  # How long a model may take to LOAD before timeout_ms starts counting
+  # (llama-swap only: it is asked whether the model is loaded first). Kept
+  # at llama-swap's healthCheckTimeout. Model files weeks old read at
+  # ~80 MB/s off the box's SSDs, so a cold 27B can take over five minutes
+  # to load; on one clock that timed out the first request of a session.
+  load_timeout_ms: 900000
 
   # How long Ollama keeps the model in VRAM after a request.
   #
@@ -376,6 +391,12 @@ prompts:
   # description keeps the character consistent shot to shot). Needs a writer
   # model that can see. Empty string turns it off.
   picture_description: "prompts/_shared/picture-description.md"
+  # An h3 video reference: a few frames sampled from inside the clip are looked
+  # at together and described, and that goes on its <Video N> line as "what
+  # the clip shows" (11 Nov 2026; before this the writer only ever got the
+  # clip's tags). Read by the same model as the pictures. Empty string turns
+  # it off.
+  clip_description: "prompts/_shared/clip-description.md"
 
   # How to write the segment that explains the prompt rather than being part
   # of it — Reasoning, What changed, Improvement notes, Layer breakdown.

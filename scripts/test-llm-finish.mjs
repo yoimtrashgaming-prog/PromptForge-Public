@@ -43,6 +43,9 @@ const server = http.createServer((req, res) => {
   let raw = '';
   req.on('data', (c) => { raw += c; });
   req.on('end', () => {
+    // llama-swap's /running, asked before a stream to see whether the model
+    // is still loading (4 Nov 2026). This stub is not llama-swap.
+    if (req.method === 'GET') { res.writeHead(404); res.end(); return; }
     const body = JSON.parse(raw);
     if (req.url === '/api/chat') {
       res.writeHead(200, { 'content-type': 'application/x-ndjson' });
