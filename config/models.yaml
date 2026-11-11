@@ -1517,6 +1517,61 @@ models:
       "None":            []
     default_style: "None"
 
+  # Qwen Image 2.1 (Qwen team, September 2026) for text to image, Base and
+  # Turbo alike. The model file follows the makers' own prompt-rewriting
+  # instructions in QwenLM/Qwen-Image-2.1 (prompt_rewrite/prompts/
+  # system_prompt_t2i.txt, commit ab96caa): one long English paragraph that
+  # describes the finished picture as an observer, in the order it was tuned
+  # on, quoted text for anything written in the picture, no quality boosters,
+  # no ratio in the prompt. Written in our words, not copied: their file is
+  # under the Qwen Research License. The Edit tab keeps its own prompt
+  # (prompts/edit/qwen-image-2.1.md).
+  qwen_image:
+    name: "Qwen Image 2.1"
+    label: "Qwen Image 2.1"
+    type: "image"
+    template: "natural-language"
+    badge: "nl"
+    format_label: "Observer description · English prose"
+    gen_button: "Enhance prompt"
+    system_prompt: "prompts/image/qwen-image-2.1.md"
+    segment_blocks:
+      "What changed": "prompts/image/segments/qwen-image-2.1-what-changed.md"
+    thinking: false
+    segments: ["Enhanced prompt", "What changed"]
+    meta_segments: ["What changed"]
+    # The 2.1 series takes no negative prompt (Alibaba Model Studio docs:
+    # "qwen-image-2.1系列不支持negative_prompt参数"); the makers' rewriter
+    # always leaves it empty.
+    has_negative: false
+    # The makers' rewriter aims at about twenty sentences, 400-500 words.
+    word_target: { min: 300, max: 500 }
+    # MOSS's descriptor set. Handed to the writer rather than pasted: a pasted
+    # block would land after the one closing "The overall composition"
+    # sentence the format ends on.
+    styles:
+      "Photorealistic":  ["photorealistic", "natural skin texture", "realistic light falloff", "shallow depth of field"]
+      "Digital art":     ["digital painting", "clean rendering", "controlled color palette", "crisp edges"]
+      "Painterly":       ["painterly brushwork", "visible brush strokes", "soft gradients", "blended edges"]
+      "Cinematic":       ["cinematic lighting", "dramatic key light", "rim light", "volumetric haze", "widescreen framing"]
+      "Anime":           ["anime illustration", "cel-shaded color", "clean linework", "saturated palette"]
+      "Cel shaded":      ["cel shading", "hard-edged shadows", "flat blocks of color", "clean linework"]
+      "Flat color":      ["flat color", "no gradients", "clean linework", "graphic shapes"]
+      "Lineless":        ["no outlines", "forms defined by color alone", "soft shading", "smooth gradients"]
+      "Soft painting":   ["soft painterly rendering", "diffuse shading", "smooth gradients", "gentle edges"]
+      "Watercolor":      ["watercolor", "paper texture", "bleeding pigment", "soft edges", "visible washes"]
+      "Gouache":         ["gouache", "matte opaque paint", "visible brush strokes", "flat rich color"]
+      "Sketch":          ["pencil sketch", "graphite", "loose construction lines", "unfinished", "paper texture"]
+      "Ink lineart":     ["ink drawing", "black linework", "sharp confident lines", "hatching for shadow"]
+      "Manga":           ["black and white manga", "screentone shading", "halftone dots", "inked linework"]
+      "Chibi":           ["chibi proportions", "oversized head", "small rounded body", "simplified features"]
+      "Pixel art":       ["pixel art", "limited palette", "visible pixel grid", "hard aliased edges"]
+      "90s anime":       ["1990s anime cel", "retro anime look", "flat cel color", "film grain"]
+      "Concept art":     ["concept art", "key visual", "painterly rendering", "detailed environment"]
+      "Semi-realistic":  ["semi-realistic rendering", "realistic anatomy", "detailed skin texture", "stylized proportions"]
+      "None":            []
+    default_style: "None"
+
 
   # ─────────────────────────── VIDEO ───────────────────────────
 
